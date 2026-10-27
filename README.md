@@ -75,8 +75,10 @@ Alt, F, Z, T, Space and the phone's own keyboard.
   API. That SDL plays audio through the app, adds a virtual gamepad driven by the on-screen controller (rumble goes
   back to the phone) and paces frames for the 30 FPS cap. Touching the game reaches it through the X server, as a
   mouse (and, in Touch controls, a keyboard).
-- **The launcher:** Factorio-style panels over a living backdrop. Pocket Foundry's own blueprint, built in 3D (three.js)
-  while the game imports, then a working factory drawn from the sprites in your copy.
+- **The launcher:** drawn with Factorio's own GUI sprites, read from your copy (`data/core/graphics/gui-new.png`, cut
+  where the game's `style.lua` says): its panels, buttons, drop-downs and checkboxes. Before the import, a look drawn
+  in code. Behind it, a living backdrop: Pocket Foundry's own blueprint, built in 3D (three.js) while the game
+  imports, then a working factory drawn from the sprites in your copy.
 
 ![The pause menu](docs/screenshots/paused.jpg)
 
@@ -99,4 +101,4 @@ GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib
 Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0).
 
 Factorio is © Wube Software. Pocket Foundry isn't affiliated with Wube and includes none of its files; the game
-screenshots and the Home screen show art from the player's own copy.
+screenshots, the launcher's panels and buttons and the Home screen show art from the player's own copy.

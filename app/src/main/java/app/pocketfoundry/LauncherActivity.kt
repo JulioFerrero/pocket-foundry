@@ -28,6 +28,7 @@ import app.pocketfoundry.ui.BarView
 import app.pocketfoundry.ui.Dropdown
 import app.pocketfoundry.ui.FButton
 import app.pocketfoundry.ui.Factorio
+import app.pocketfoundry.ui.GuiSprites
 import app.pocketfoundry.ui.Tone
 import app.pocketfoundry.ui.checkBox
 import app.pocketfoundry.ui.dpi
@@ -724,6 +725,7 @@ class LauncherActivity : Activity() {
             }.exceptionOrNull()
             runOnUiThread {
                 if (failure == null) {
+                    GuiSprites.reload()
                     showImportProgress(100)
                     // A moment to watch the factory start before Home.
                     importBar.postDelayed({ importingNow = false; refresh() }, 2500)

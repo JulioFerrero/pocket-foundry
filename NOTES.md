@@ -710,3 +710,20 @@ to -32768 by hand cured the running game; `InputBridge.axis` now maps triggers' 
 `pocketfoundry-inputtest` printed triggers as down/up at the middle, exactly where the bug sat; it now prints them in
 quarters. Side note: an Android key event sent with adb raises the phone's keyboard (Termux:X11's view is a text
 editor); the overlay's own keys don't, as they go straight to the X server.
+
+**The launcher in the game's own GUI sprites** (`ui/Factorio.kt`: `GuiSprites`, `GuiSheet`). Factorio's GUI is one
+sheet, `data/core/graphics/gui-new.png` (597 × 1220 in 2.1.23), with `data/core/prototypes/style.lua` giving each
+style's pieces: 17-pixel tiles cut 8 | 1 | 8 (`corner_size = 8`). Read from the imported copy on the first draw, each
+piece cut into its own bitmap so filtering can't bleed in a neighbour; the APK carries none of it. Used: `frame` (0,0)
+for panels, `inside_deep_frame` / `inside_shallow_frame` (border 17,0; middles 42,8 / 76,8) for insets, `button`
+(idle 0,17, clicked 51,17, disabled 17,17, selected 225,17 for orange, selected-clicked 352,17), `green_button` (68,
+119, 85), `red_button` (136, 187, 153), `checkbox` (0,132 / 84,132 / 28,132, checkmark 112,132), the drop-down arrow
+`icons/mip/dropdown.png`. Arrow buttons (`arrow_back` / `arrow_forward`): a 48 × 64 tile per state in the arrow
+tileset (grey y 232, green 296, red 360; states 96 px apart: idle, disabled, hovered, clicked), its left half the
+point left, right half the point right, the column at +24 the middle; the far end from the button tile's outer
+column. The end drawn at the arrow's scale (8 of 64 pixels of the face's height): at the end's own 1:1 the bevels
+step where they meet. A sprite pixel is a dp. Before an import, or if the sheet changes size (a later version moving
+pieces), the code-drawn look stays. Headings took the game's caption colour, (255, 230, 192). The game's font,
+Lilittium (OFL), is Titillium Web with Cyrillic added: the app's Titillium already matches it. Checked on the emulator:
+Home, Settings, a drop-down open, the Saves dialog, the pause menu, Logs, a disabled button (the game's dark face, grey
+text). The README's screenshots still show the code-drawn look.

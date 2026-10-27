@@ -2,6 +2,8 @@ package app.pocketfoundry.ui
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
@@ -17,6 +19,7 @@ import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -28,13 +31,17 @@ import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.SeekBar
 import android.widget.TextView
+import app.pocketfoundry.Paths
 import app.pocketfoundry.R
+import java.io.File
+import java.io.FileNotFoundException
 import kotlin.math.roundToInt
 
 /*
- * Factorio's own GUI look, drawn in code from what factorio.com and the game's menus use: dark
- * panels in a brown-black frame, sunken insets, cream headings, bevelled buttons (grey, green to
- * go on, orange while pressed or chosen, red to go back) in Titillium Web.
+ * Factorio's own GUI look: dark panels in a brown-black frame, sunken insets, cream headings,
+ * bevelled buttons (grey, green to go on, orange while pressed or chosen, red to go back) in
+ * Titillium Web (the game's Lilittium is Titillium with Cyrillic added). Drawn from the game's own
+ * sprites once a copy is imported ([GuiSprites]), and in code until then.
  */
 
 object Factorio {
@@ -42,7 +49,7 @@ object Factorio {
     const val FRAME = 0xFF2E2623.toInt()
     const val INSET_DARK = 0xFF242324.toInt()
     const val INSET_LIGHT = 0xFF414040.toInt()
-    const val HEADING = 0xFFF4F1EC.toInt()
+    const val HEADING = 0xFFFFE6C0.toInt()   // the game's caption colour
     const val TEXT = Color.WHITE
     const val MUTED = 0xFFC9C0B4.toInt()
     const val FAINT = 0xFFA39B91.toInt()
@@ -64,6 +71,157 @@ object Factorio {
     }
 }
 
+/**
+ * Factorio's GUI sprites, cut from the player's imported copy: data/core/graphics/gui-new.png, at the
+ * places data/core/prototypes/style.lua gives (Factorio 2.x). The app carries none of it. Before a copy
+ * is imported, or if a later version lays the sheet out differently (it changes size), the drawables
+ * draw the look themselves. Main thread only.
+ */
+object GuiSprites {
+    private var sheet: GuiSheet? = null
+    private var read = false
+
+    /** The imported copy's sheet, read on first use; null without one. */
+    fun get(context: Context): GuiSheet? {
+        if (!read) {
+            read = true
+            sheet = runCatching { GuiSheet(File(Paths(context).game, "data/core/graphics")) }
+                .onFailure { if (it !is FileNotFoundException) Log.w("PocketFoundry", "Factorio's GUI sprites unusable, drawing the look instead", it) }
+                .getOrNull()
+        }
+        return sheet
+    }
+
+    /** A copy was just imported: the next draw reads its sheet. */
+    fun reload() {
+        read = false
+        sheet = null
+    }
+}
+
+/** The pieces of the game's GUI sheet the drawables use, each cut out so scaling can't bleed in its neighbours. */
+class GuiSheet(dir: File) {
+    private val png = BitmapFactory.decodeFile(File(dir, "gui-new.png").path) ?: throw FileNotFoundException("gui-new.png")
+
+    init {
+        check(png.width == 597 && png.height == 1220) { "gui-new.png is ${png.width}×${png.height}, not the layout read here" }
+    }
+
+    // A panel is the style "frame"; insets are inside_deep_frame and inside_shallow_frame (one border, two fills).
+    val frame = nine(0, 0)
+    val deepFrame = nine(17, 0, centerX = 42)
+    val shallowFrame = nine(17, 0, centerX = 76)
+
+    // button, green_button and red_button: idle, clicked, disabled. Orange is button's selected look.
+    private val buttons = mapOf(
+        Tone.GREY to listOf(nine(0, 17), nine(51, 17), nine(17, 17)),
+        Tone.GREEN to listOf(nine(68, 17), nine(119, 17), nine(85, 17)),
+        Tone.ORANGE to listOf(nine(225, 17), nine(352, 17), nine(17, 17)),
+        Tone.RED to listOf(nine(136, 17), nine(187, 17), nine(153, 17)),
+    )
+
+    // back_button and confirm_button (arrow_back, arrow_forward): the arrow end from a 48 × 64 tile of the
+    // arrow tileset (its left half points left, its right half right), the other end from the button's tile.
+    // The tileset's states are idle 0, disabled 1, hovered 2 (orange, on grey), clicked 3.
+    private val arrows = Tone.entries.associateWith { tone ->
+        val (row, tile) = when (tone) {
+            Tone.GREEN -> 296 to 68
+            Tone.RED -> 360 to 136
+            else -> 232 to 0
+        }
+        listOf(if (tone == Tone.ORANGE) 2 else 0, 3, 1).map { i ->
+            val x = i * 96
+            val end = tile + i * 17
+            ArrowButton(piece(x, row, 24, 64), piece(x + 24, row, 24, 64), piece(x + 24, row, 1, 64),
+                        listOf(piece(end, 17, 8, 8), piece(end, 25, 8, 1), piece(end, 26, 8, 8)),
+                        listOf(piece(end + 9, 17, 8, 8), piece(end + 9, 25, 8, 1), piece(end + 9, 26, 8, 8)))
+        }
+    }
+
+    // checkbox: idle, clicked, disabled; the checkmark goes on top.
+    val checkbox = listOf(piece(0, 132, 28, 28), piece(84, 132, 28, 28), piece(28, 132, 28, 28))
+    val check = piece(112, 132, 28, 28)
+
+    /** The drop-down's arrow, icons/mip/dropdown.png's largest size. */
+    val caret = BitmapFactory.decodeFile(File(dir, "icons/mip/dropdown.png").path)
+        ?.let { Bitmap.createBitmap(it, 0, 0, minOf(32, it.width), minOf(32, it.height)) }
+
+    fun button(tone: Tone, state: Int) = buttons.getValue(tone)[state]
+    fun arrowButton(tone: Tone, state: Int) = arrows.getValue(tone)[state]
+
+    private fun piece(x: Int, y: Int, w: Int, h: Int): Bitmap = Bitmap.createBitmap(png, x, y, w, h)
+
+    /** A 17-pixel tile cut 8 | 1 | 8 both ways, its middle from ([centerX], [centerY]). */
+    private fun nine(x: Int, y: Int, centerX: Int = x + 8, centerY: Int = y + 8) = NineSlice(List(9) { i ->
+        val col = i % 3
+        val row = i / 3
+        if (i == 4) piece(centerX, centerY, 1, 1)
+        else piece(x + CUTS[col], y + CUTS[row], if (col == 1) 1 else 8, if (row == 1) 1 else 8)
+    })
+
+    init {
+        png.recycle()
+    }
+
+    companion object {
+        const val IDLE = 0
+        const val PRESSED = 1
+        const val DISABLED = 2
+        /** A sprite pixel is a dp: the game's 100% scale. */
+        const val CORNER = 8f
+        /** The arrow end's width, per height of the face. */
+        const val ARROW_TIP = 24f / 64
+        private val CUTS = intArrayOf(0, 8, 9)
+    }
+}
+
+/** A sprite whose corners keep their size and whose edges and middle stretch. */
+class NineSlice(private val parts: List<Bitmap>) {
+    private val cell = RectF()
+
+    fun draw(canvas: Canvas, r: RectF, corner: Float, paint: Paint) {
+        val c = minOf(corner, r.width() / 2, r.height() / 2)
+        val xs = floatArrayOf(r.left, r.left + c, r.right - c, r.right)
+        val ys = floatArrayOf(r.top, r.top + c, r.bottom - c, r.bottom)
+        for (i in 0 until 9) {
+            cell.set(xs[i % 3], ys[i / 3], xs[i % 3 + 1], ys[i / 3 + 1])
+            canvas.drawBitmap(parts[i], null, cell, paint)
+        }
+    }
+}
+
+/** A button with an arrow end: the arrow, a stretched middle, and the other end in three pieces. */
+class ArrowButton(private val pointLeft: Bitmap, private val pointRight: Bitmap, private val middle: Bitmap,
+                  private val endLeft: List<Bitmap>, private val endRight: List<Bitmap>) {
+    private val cell = RectF()
+
+    fun draw(canvas: Canvas, face: RectF, left: Boolean, paint: Paint) {
+        val tip = face.height() * GuiSheet.ARROW_TIP
+        // The end at the arrow's scale (the 64-pixel tile is the face's height): their bevels then meet.
+        val c = face.height() * 8 / 64
+        if (left) {
+            put(canvas, pointLeft, face.left, face.top, face.left + tip, face.bottom, paint)
+            put(canvas, middle, face.left + tip, face.top, face.right - c, face.bottom, paint)
+            end(canvas, endRight, face.right - c, face, c, paint)
+        } else {
+            end(canvas, endLeft, face.left, face, c, paint)
+            put(canvas, middle, face.left + c, face.top, face.right - tip, face.bottom, paint)
+            put(canvas, pointRight, face.right - tip, face.top, face.right, face.bottom, paint)
+        }
+    }
+
+    private fun end(canvas: Canvas, pieces: List<Bitmap>, x: Float, face: RectF, c: Float, paint: Paint) {
+        put(canvas, pieces[0], x, face.top, x + c, face.top + c, paint)
+        put(canvas, pieces[1], x, face.top + c, x + c, face.bottom - c, paint)
+        put(canvas, pieces[2], x, face.bottom - c, x + c, face.bottom, paint)
+    }
+
+    private fun put(canvas: Canvas, bitmap: Bitmap, l: Float, t: Float, r: Float, b: Float, paint: Paint) {
+        cell.set(l, t, r, b)
+        canvas.drawBitmap(bitmap, null, cell, paint)
+    }
+}
+
 fun Context.dp(value: Float) = value * resources.displayMetrics.density
 
 /** Full screen like the game: the bars come back with a swipe and go again. */
@@ -78,6 +236,10 @@ fun Context.dpi(value: Int) = (value * resources.displayMetrics.density).roundTo
 
 /** A frame with a fill: a panel (raised), or an inset sunk into one. */
 class FramedDrawable(context: Context, private val fill: Int, private val sunken: Boolean) : Drawable() {
+    private val app = context.applicationContext
+    private val density = context.resources.displayMetrics.density
+    private val sprite = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val whole = RectF()
     private val border = context.dp(4f)
     private val depth = context.dp(6f)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -85,12 +247,18 @@ class FramedDrawable(context: Context, private val fill: Int, private val sunken
     private var shade: LinearGradient? = null
 
     override fun onBoundsChange(bounds: Rect) {
+        whole.set(bounds)
         inner.set(bounds.left + border, bounds.top + border, bounds.right - border, bounds.bottom - border)
         shade = if (sunken) LinearGradient(0f, inner.top, 0f, inner.top + depth, 0x99000000.toInt(), 0, Shader.TileMode.CLAMP)
                 else LinearGradient(0f, inner.top, 0f, inner.top + depth / 3, 0x12FFFFFF, 0x12FFFFFF, Shader.TileMode.CLAMP)
     }
 
     override fun draw(canvas: Canvas) {
+        GuiSprites.get(app)?.let { sheet ->
+            val frame = if (!sunken) sheet.frame else if (fill == Factorio.INSET_DARK) sheet.deepFrame else sheet.shallowFrame
+            frame.draw(canvas, whole, GuiSheet.CORNER * density, sprite)
+            return
+        }
         paint.shader = null
         paint.color = Factorio.FRAME
         canvas.drawRect(bounds, paint)
@@ -109,7 +277,7 @@ class FramedDrawable(context: Context, private val fill: Int, private val sunken
     override fun setAlpha(alpha: Int) {}
     override fun setColorFilter(colorFilter: ColorFilter?) {}
     @Deprecated("Deprecated in Java")
-    override fun getOpacity() = PixelFormat.OPAQUE
+    override fun getOpacity() = PixelFormat.TRANSLUCENT
 }
 
 enum class Tone(val face: Int, val light: Int, val dark: Int) {
@@ -128,13 +296,19 @@ enum class Arrow { NONE, LEFT, RIGHT }
  */
 class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arrow.NONE,
                     private val width: Int = -1, private val height: Int = -1) : Drawable() {
+    private val app = context.applicationContext
     private val density = context.resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val sprite = Paint(Paint.FILTER_BITMAP_FLAG)
     private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { setShadowLayer(MARGIN * density, 0f, 0f, 0xCC000000.toInt()) }
     private val path = Path()
+    private var pathTip = -1f
+    private val box = RectF()
     private val face = RectF()
+    private val caretBox = RectF()
     private var sides: LinearGradient? = null
     private var pressed = false
+    private var enabled = true
     var checkmark = false
     var caret = false
     var checked = false
@@ -147,17 +321,31 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
     override fun onStateChange(state: IntArray): Boolean {
         val now = android.R.attr.state_pressed in state
         val check = android.R.attr.state_checked in state
-        if (now == pressed && check == checked) return false
+        val on = android.R.attr.state_enabled in state
+        if (now == pressed && check == checked && on == enabled) return false
         pressed = now
         checked = check
+        enabled = on
         invalidateSelf()
         return true
     }
 
     override fun onBoundsChange(bounds: Rect) {
         val m = MARGIN * density
+        box.set(bounds)
         face.set(bounds.left + m, bounds.top + m, bounds.right - m, bounds.bottom - m)
-        val tip = TIP * density
+        caretBox.set(face.right - 22 * density, face.centerY() - 8 * density, face.right - 6 * density, face.centerY() + 8 * density)
+        pathTip = -1f
+        val edge = 5 * density / face.width()
+        sides = LinearGradient(face.left, 0f, face.right, 0f,
+                               intArrayOf(0x88000000.toInt(), 0, 0, 0x88000000.toInt()),
+                               floatArrayOf(0f, edge, 1 - edge, 1f), Shader.TileMode.CLAMP)
+    }
+
+    /** The face's outline, its arrow [tip] px long. */
+    private fun outline(tip: Float): Path {
+        if (tip == pathTip) return path
+        pathTip = tip
         path.reset()
         when (arrow) {
             Arrow.NONE -> path.addRect(face, Path.Direction.CW)
@@ -172,13 +360,15 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
                 path.lineTo(face.left, face.centerY()); path.close()
             }
         }
-        val edge = 5 * density / face.width()
-        sides = LinearGradient(face.left, 0f, face.right, 0f,
-                               intArrayOf(0x88000000.toInt(), 0, 0, 0x88000000.toInt()),
-                               floatArrayOf(0f, edge, 1 - edge, 1f), Shader.TileMode.CLAMP)
+        return path
     }
 
     override fun draw(canvas: Canvas) {
+        GuiSprites.get(app)?.let {
+            drawSprites(canvas, it)
+            return
+        }
+        val path = outline(TIP * density)
         val shown = if (pressed && tone == Tone.GREY) Tone.ORANGE else tone
         glow.color = shown.face
         canvas.drawPath(path, glow)
@@ -218,6 +408,25 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
             canvas.drawPath(check, paint)
             paint.style = Paint.Style.FILL
         }
+    }
+
+    /** The same from the game's sprites: its button faces, arrow ends and checkbox. */
+    private fun drawSprites(canvas: Canvas, sheet: GuiSheet) {
+        val state = when {
+            !enabled -> GuiSheet.DISABLED
+            pressed -> GuiSheet.PRESSED
+            else -> GuiSheet.IDLE
+        }
+        if (checkmark) {
+            canvas.drawBitmap(sheet.checkbox[state], null, box, sprite)
+            if (checked) canvas.drawBitmap(sheet.check, null, box, sprite)
+            return
+        }
+        glow.color = Color.BLACK
+        canvas.drawPath(outline(if (arrow == Arrow.NONE) 0f else face.height() * GuiSheet.ARROW_TIP), glow)
+        if (arrow == Arrow.NONE) sheet.button(tone, state).draw(canvas, face, GuiSheet.CORNER * density, sprite)
+        else sheet.arrowButton(tone, state).draw(canvas, face, arrow == Arrow.LEFT, sprite)
+        if (caret) sheet.caret?.let { canvas.drawBitmap(it, null, caretBox, sprite) }
     }
 
     private fun darken(color: Int) = Color.rgb((Color.red(color) * 0.82f).toInt(), (Color.green(color) * 0.82f).toInt(),
@@ -262,7 +471,10 @@ open class FButton(context: Context, label: CharSequence, tone: Tone = Tone.GREY
 
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
-        alpha = if (enabled) 1f else 0.45f
+        // The game's sprites have a face for it, with grey text; drawn in code, it fades.
+        val sprites = GuiSprites.get(context) != null
+        alpha = if (enabled || sprites) 1f else 0.45f
+        setTextColor(if (enabled || !sprites) Color.BLACK else 0xFFB3B3B3.toInt())
     }
 }
 
