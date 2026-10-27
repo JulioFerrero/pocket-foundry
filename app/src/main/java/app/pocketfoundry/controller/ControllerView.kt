@@ -69,10 +69,32 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         var on = false
     }
 
-    private enum class Tool { ADJUST, HIDE, SHOW, SMALLER, BIGGER, OPACITY, RESET, DONE }
+    private enum class Tool { ADJUST, KEYS, HIDE, SHOW, SMALLER, BIGGER, OPACITY, RESET, DONE }
+
+    /**
+     * Touch controls: the keys the game asks for beyond the six buttons, in a row under the toolbar
+     * (KEYS opens it). Shift and Ctrl stay down until tapped again, for shift- and ctrl-clicks;
+     * the others are held while touched. Key 0 opens the phone's keyboard, for typing.
+     */
+    private class StripKey(val label: String, val key: Int, val latch: Boolean = false) {
+        var down = false
+    }
+    private val strip = listOf(
+        StripKey("Tab", KeyEvent.KEYCODE_TAB),
+        StripKey("Shift", KeyEvent.KEYCODE_SHIFT_LEFT, latch = true),
+        StripKey("Ctrl", KeyEvent.KEYCODE_CTRL_LEFT, latch = true),
+        StripKey("Alt", KeyEvent.KEYCODE_ALT_LEFT),
+        StripKey("F", KeyEvent.KEYCODE_F),
+        StripKey("Z", KeyEvent.KEYCODE_Z),
+        StripKey("T", KeyEvent.KEYCODE_T),
+        StripKey("Space", KeyEvent.KEYCODE_SPACE),
+        StripKey("abc", 0),
+    )
+    private var stripOpen = false
+    private val stripPointers = HashMap<Int, StripKey>()
 
     private val controls = if (touch) listOf(
-        Control("MOVE", Kind.MOVE, "", 0.11f, 0.66f, 0.34f),
+        Control("MOVE", Kind.MOVE, "", 0.085f, 0.70f, 0.28f),
         // Factorio's default keys. On the right edge, clear of the quickbar and the left thumb.
         Control("INVENTORY", Kind.KEY, "", 0.955f, 0.30f, 0.115f, key = KeyEvent.KEYCODE_E),
         Control("ROTATE", Kind.KEY, "", 0.955f, 0.425f, 0.115f, key = KeyEvent.KEYCODE_R),
@@ -104,6 +126,9 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
 
     /** Sends a key to the game (Android key code, down); set by [OnScreenController]. */
     var keys: (Int, Boolean) -> Unit = { _, _ -> }
+
+    /** Shows or hides the phone's keyboard; set by [OnScreenController]. */
+    var onKeyboard: () -> Unit = {}
 
     /** The pickaxe is on: touches on the game mine instead of clicking. */
     val mining get() = controls.any { it.kind == Kind.TOGGLE && it.on }
@@ -161,6 +186,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
 
     fun pointerDown(id: Int, x: Float, y: Float): Boolean {
         toolAt(x, y)?.let { toolPointers[id] = it; invalidate(); return true }
+        if (stripOpen && !editing) stripAt(x, y)?.let { pressStrip(id, it); return true }
         if (hidden) return false
 
         val control = controlAt(x, y)
@@ -236,6 +262,14 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
             useTool(tool)
             return
         }
+        stripPointers.remove(id)?.let { key ->
+            when {
+                key.key == 0 -> onKeyboard()
+                !key.latch && key.down && key !in stripPointers.values -> { keys(key.key, false); key.down = false }
+            }
+            invalidate()
+            return
+        }
         if (drags.remove(id) != null) {
             dragLast.remove(id)
             return
@@ -259,6 +293,8 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     /** Lets go of everything, e.g. when the game leaves the screen. */
     fun releaseAll() {
         toolPointers.clear()
+        stripPointers.clear()
+        strip.forEach { if (it.down) { keys(it.key, false); it.down = false } }
         drags.clear()
         dragLast.clear()
         controls.forEach { c ->
@@ -380,8 +416,12 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     private fun useTool(tool: Tool) {
         haptic(VibrationEffect.EFFECT_CLICK)
         when (tool) {
-            Tool.ADJUST -> { releaseAll(); editing = true }
-            Tool.HIDE -> { releaseAll(); hidden = true; save() }
+            Tool.ADJUST -> { releaseAll(); stripOpen = false; editing = true }
+            Tool.KEYS -> {
+                if (stripOpen) strip.forEach { if (it.down) { keys(it.key, false); it.down = false } }
+                stripOpen = !stripOpen
+            }
+            Tool.HIDE -> { releaseAll(); stripOpen = false; hidden = true; save() }
             Tool.SHOW -> { hidden = false; save() }
             Tool.SMALLER -> selected?.let { it.scale = (it.scale - 0.1f).coerceIn(MIN_SCALE, MAX_SCALE) }
             Tool.BIGGER -> selected?.let { it.scale = (it.scale + 0.1f).coerceIn(MIN_SCALE, MAX_SCALE) }
@@ -410,7 +450,8 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         if (c.pill) {
             x in cx(c) - 2.2f * r..cx(c) + 2.2f * r && y in cy(c) - 1.25f * r..cy(c) + 1.25f * r
         } else {
-            val reach = when (c.kind) { Kind.STICK, Kind.MOVE -> 1.3f; Kind.DPAD -> 1.15f; else -> 1.2f }
+            // The walking stick only takes a thumb inside its well: the game's windows can reach close to it.
+            val reach = when (c.kind) { Kind.STICK -> 1.3f; Kind.MOVE -> 1f; Kind.DPAD -> 1.15f; else -> 1.2f }
             hypot(x - cx(c), y - cy(c)) <= r * reach
         }
     }
@@ -418,6 +459,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     private fun tools(): List<Tool> = when {
         editing -> listOf(Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.RESET, Tool.DONE)
         hidden -> listOf(Tool.SHOW)
+        touch -> listOf(Tool.ADJUST, Tool.KEYS, Tool.HIDE)
         else -> listOf(Tool.ADJUST, Tool.HIDE)
     }
 
@@ -440,12 +482,66 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         return null
     }
 
+    private fun pressStrip(id: Int, key: StripKey) {
+        stripPointers[id] = key
+        haptic(VibrationEffect.EFFECT_CLICK)
+        when {
+            key.key == 0 -> {}   // the keyboard opens when the finger lifts
+            key.latch -> { key.down = !key.down; keys(key.key, key.down) }
+            !key.down -> { key.down = true; keys(key.key, true) }
+        }
+        invalidate()
+    }
+
+    /** The strip's keys side by side under the toolbar, each as wide as its name needs. */
+    private fun stripRect(index: Int, out: RectF): RectF {
+        val h = toolSize()
+        text.textSize = h * 0.42f
+        val widths = strip.map { maxOf(h * 1.1f, text.measureText(it.label) + h * 0.7f) }
+        val gap = h * 0.12f
+        var left = width / 2f - (widths.sum() + gap * (strip.size - 1)) / 2f
+        for (i in 0 until index) left += widths[i] + gap
+        val top = height * 0.025f + h * 1.35f
+        out.set(left, top, left + widths[index], top + h)
+        return out
+    }
+
+    private fun stripAt(x: Float, y: Float): StripKey? {
+        strip.indices.forEach { i ->
+            stripRect(i, rect)
+            rect.inset(-toolSize() * 0.06f, -toolSize() * 0.15f)
+            if (rect.contains(x, y)) return strip[i]
+        }
+        return null
+    }
+
     // Drawing.
 
     override fun onDraw(canvas: Canvas) {
         if (editing) canvas.drawColor(0x55000000)
         if (!hidden) controls.forEach { draw(canvas, it) }
         drawToolbar(canvas)
+        if (stripOpen && !editing) drawStrip(canvas)
+    }
+
+    private fun drawStrip(canvas: Canvas) {
+        val s = toolSize()
+        val pad = s * 0.1f
+        val first = RectF(stripRect(0, rect))
+        stripRect(strip.size - 1, rect)
+        rect.set(first.left - pad, first.top - pad, rect.right + pad, rect.bottom + pad)
+        fill.color = Factorio.PANEL
+        canvas.drawRoundRect(rect, pad * 0.6f, pad * 0.6f, fill)
+        stroke.color = Factorio.FRAME
+        stroke.strokeWidth = pad * 0.8f
+        canvas.drawRoundRect(rect, pad * 0.6f, pad * 0.6f, stroke)
+        strip.forEachIndexed { i, key ->
+            stripRect(i, rect)
+            rect.inset(s * 0.07f, s * 0.07f)
+            val lit = key.down || key in stripPointers.values
+            slot(lit, rect.top, rect.bottom) { canvas.drawRoundRect(rect, s * 0.05f, s * 0.05f, it) }
+            letter(canvas, key.label, rect.centerX(), rect.centerY(), s * 0.42f, if (lit) 0xFF1E1E1E.toInt() else GLYPH)
+        }
     }
 
     private fun edge() = height * 0.003f
@@ -704,7 +800,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         list.forEachIndexed { i, tool ->
             toolRect(i, list.size, rect)
             rect.inset(s * 0.07f, s * 0.07f)
-            val held = tool in toolPointers.values
+            val held = tool in toolPointers.values || (tool == Tool.KEYS && stripOpen)
             slot(held, rect.top, rect.bottom) { canvas.drawRoundRect(rect, s * 0.05f, s * 0.05f, it) }
             icon.color = if (held) 0xFF1E1E1E.toInt() else 0xFFE8E6E3.toInt()
             icon.strokeWidth = s * 0.065f
@@ -721,6 +817,16 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
                     canvas.drawLine(x - s, ly, x + s, ly, icon)
                     canvas.drawCircle(x + knob * s, ly, s * 0.2f, icon)
                 }
+            }
+            Tool.KEYS -> {
+                // A keyboard: three rows of keys and a space bar.
+                rect.set(x - s * 1.15f, y - s * 0.8f, x + s * 1.15f, y + s * 0.8f)
+                canvas.drawRoundRect(rect, s * 0.2f, s * 0.2f, icon)
+                fill.color = icon.color
+                for (row in 0..1) for (col in 0..3) {
+                    canvas.drawCircle(x - s * 0.66f + col * s * 0.44f, y - s * 0.38f + row * s * 0.36f, s * 0.07f, fill)
+                }
+                canvas.drawLine(x - s * 0.45f, y + s * 0.42f, x + s * 0.45f, y + s * 0.42f, icon)
             }
             Tool.HIDE, Tool.SHOW -> {
                 path.reset()

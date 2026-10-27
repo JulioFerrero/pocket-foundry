@@ -654,3 +654,11 @@ mode still comes up with the Xbox overlay and `game-controller`.
 Not yet tried with the game itself (phone away): where Factorio's keyboard-and-mouse HUD sits against the stick and
 the key column, how precise a fingertip is at the default zoom, and which keys are missing (shift/ctrl clicks,
 shooting, picking up).
+
+**First play on the phone:** the tutorial asked for Tab to close a tip, and there was no way to press it. The toolbar
+now has a keyboard tool that opens a row of the other keys the game uses: Tab, Shift and Ctrl (stay down until
+tapped again, for shift- and ctrl-clicks), Alt (alt mode), F (pick up), Z (drop), T (research), Space (shoot) and
+"abc" for the phone's keyboard (typing, through Termux:X11's own text input). An Android key event sent with adb
+also raised the phone's keyboard (Termux:X11's view is a text editor), which the overlay's keys don't, since they
+go straight to the X server. The walking stick also covered the inventory's first column: it is smaller (0.28 of
+the height), further into the corner, and only takes a thumb inside its well.

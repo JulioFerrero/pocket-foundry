@@ -43,6 +43,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
                                                              ViewGroup.LayoutParams.MATCH_PARENT))
         val lorie = activity.lorieView
         view.keys = { code, down -> lorie.sendKeyEvent(0, code, down) }
+        view.onKeyboard = { lorie.toggleKeyboardVisible() }
         val mouse = if (!touch) null else PointerGestures.attach(activity, { view.mining }) {
             if (Settings.vibration(activity)) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
