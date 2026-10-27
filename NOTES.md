@@ -681,4 +681,8 @@ Julio's verdict on Touch: the icons were hard to read, and the tutorial didn't m
   so the right hand's buttons sit left of it; the left stick and D-pad stay clear of the weapon slots. A full-screen
   menu (the inventory) is still partly under the buttons; the toolbar's eye hides them.
 - New layout key (`layout-pad`), so a layout saved for the old pad doesn't place the new one.
-Not yet known: whether the wheel (pinch) zooms in controller mode, and how tap-then-A feels for building.
+Not yet known: how tap-then-A feels for building.
+
+**Pinch in controller mode:** the wheel doesn't zoom there (Julio, on the phone). Pinching now presses the game's
+own controller zoom, RT held with the D-pad up or down (`zoom-in-controller`/`zoom-out-controller`), once per notch
+(50 ms held, 40 ms apart) on the virtual gamepad (`PadZoom`). Two-finger sliding is still the wheel, for lists.

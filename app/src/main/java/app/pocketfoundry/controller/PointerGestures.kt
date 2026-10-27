@@ -23,7 +23,8 @@ import kotlin.math.pow
  * - A long press holds the right button: mining, for as long as the finger stays (and moves).
  *   [mining] makes every touch do that, for clearing an area.
  * - Two fingers turn the wheel: spreading them zooms in, sliding them scrolls a list. Tapped
- *   together, they right-click.
+ *   together, they right-click. In controller mode, where the game ignores the wheel for zoom,
+ *   [zoom] presses its own zoom instead.
  *
  * Coordinates are the window's, as [TouchRouter] sees them.
  */
@@ -32,6 +33,8 @@ class PointerGestures private constructor(
     private val renderData: RenderData,
     private val mining: () -> Boolean,
     private val onLongPress: () -> Unit,
+    /** Notches in (positive) or out, when the wheel doesn't zoom; null: the wheel does. */
+    private val zoom: ((Int) -> Unit)?,
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private val slop = ViewConfiguration.get(lorie.context).scaledTouchSlop.toFloat()
@@ -158,7 +161,7 @@ class PointerGestures private constructor(
             Mode.PINCH -> {
                 val steps = (ln(span / spanRef) / ln(ZOOM_STEP)).toInt()
                 if (steps != 0) {
-                    wheel(-steps)   // spreading zooms in: the wheel turned up
+                    zoom?.invoke(steps) ?: wheel(-steps)   // spreading zooms in: the wheel turned up
                     spanRef *= ZOOM_STEP.pow(steps)
                 }
             }
@@ -213,11 +216,11 @@ class PointerGestures private constructor(
          * Null if Termux:X11's input mapping can't be reached (its private fields renamed): touches
          * then reach the game the way Termux:X11 handles them.
          */
-        fun attach(activity: MainActivity, mining: () -> Boolean, onLongPress: () -> Unit): PointerGestures? = runCatching {
+        fun attach(activity: MainActivity, mining: () -> Boolean, zoom: ((Int) -> Unit)?, onLongPress: () -> Unit): PointerGestures? = runCatching {
             // The view-to-X-screen mapping Termux:X11 keeps for its own touch handling, letterboxing included.
             val handler = MainActivity::class.java.getDeclaredField("mInputHandler").apply { isAccessible = true }.get(activity)!!
             val renderData = handler.javaClass.getDeclaredField("mRenderData").apply { isAccessible = true }.get(handler) as RenderData
-            PointerGestures(activity.lorieView, renderData, mining, onLongPress)
+            PointerGestures(activity.lorieView, renderData, mining, onLongPress, zoom)
         }.onFailure { Log.w("PocketFoundry", "Touch controls unavailable, touches go to Termux:X11", it) }.getOrNull()
     }
 }
