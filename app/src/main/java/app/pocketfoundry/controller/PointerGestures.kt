@@ -4,7 +4,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
-import android.view.KeyEvent
 import android.view.ViewConfiguration
 import app.pocketfoundry.PadButton
 import com.termux.x11.LorieView
@@ -91,7 +90,6 @@ class PointerGestures private constructor(
             mode = Mode.UNDECIDED
             downX = x
             downY = y
-            if (pad != null) releaseModifiers()
             val now = SystemClock.uptimeMillis()
             if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
                 lastTapAt = 0
@@ -236,15 +234,6 @@ class PointerGestures private constructor(
         heldPad = null
     }
 
-    /**
-     * Controller mode has no use for keyboard modifiers, and one left down (a key event whose release
-     * the system swallowed) turns every tap into a shortcut: Alt + click opens Factoriopedia. So each
-     * touch lets go of them first; the X server ignores releasing a key that isn't down.
-     */
-    private fun releaseModifiers() {
-        for (key in MODIFIERS) lorie.sendKeyEvent(0, key, false)
-    }
-
     private fun click(button: Int) {
         lorie.sendMouseEvent(0f, 0f, button, true, false)
         lorie.sendMouseEvent(0f, 0f, button, false, false)
@@ -259,9 +248,6 @@ class PointerGestures private constructor(
         /** Spreading the fingers this much further apart is one notch of zoom. */
         private const val ZOOM_STEP = 1.18f
         private const val SCROLL_STEP_DP = 36f
-        private val MODIFIERS = intArrayOf(KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_ALT_RIGHT, KeyEvent.KEYCODE_CTRL_LEFT,
-                                           KeyEvent.KEYCODE_CTRL_RIGHT, KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_SHIFT_RIGHT,
-                                           KeyEvent.KEYCODE_META_LEFT, KeyEvent.KEYCODE_META_RIGHT)
 
         /**
          * [pad]: controller mode's gestures; null for touch controls. Null if Termux:X11's input mapping

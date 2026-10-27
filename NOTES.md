@@ -699,10 +699,3 @@ menu up by the toolbar so the bottom is the game's. New layout key `layout-hybri
 Checked in the emulator, with `pocketfoundry-inputtest` now also printing the gamepad it sees: tap, double tap (A),
 long press (X held), double tap and drag (A held through the motion), two-finger tap (B), pinch out (RT + D-pad up
 per notch) and in (RT + D-pad down), two-finger slide (wheel).
-
-**Taps opening Factoriopedia:** on the phone every tap began to open Factoriopedia. Its keyboard binding is
-`ALT + mouse-button-1`, so Alt was down in the X server (from what, unknown: nothing in the log; Julio didn't know
-what they had done). Sending one Alt press and release through adb cleared it. In controller mode every touch now
-first releases Alt, Ctrl, Shift and Meta (`PointerGestures.releaseModifiers`; releasing a key that isn't down does
-nothing), since that mode has no use for them. Side note: an Android key event sent with adb raises the phone's
-keyboard (Termux:X11's view is a text editor); the overlay's own keys don't, as they go straight to the X server.
