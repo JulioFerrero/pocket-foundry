@@ -686,3 +686,4 @@ Not yet known: how tap-then-A feels for building.
 **Pinch in controller mode:** the wheel doesn't zoom there (Julio, on the phone). Pinching now presses the game's
 own controller zoom, RT held with the D-pad up or down (`zoom-in-controller`/`zoom-out-controller`), once per notch
 (50 ms held, 40 ms apart) on the virtual gamepad (`PadZoom`). Two-finger sliding is still the wheel, for lists.
+Checked by Julio on the phone: pinching zooms.
