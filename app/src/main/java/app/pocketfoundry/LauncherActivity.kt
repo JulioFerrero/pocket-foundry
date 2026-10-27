@@ -80,6 +80,7 @@ class LauncherActivity : Activity() {
     private lateinit var cardName: TextView
     private lateinit var cardTime: TextView
     private lateinit var cardImage: ImageView
+    private lateinit var cardFrame: View
 
     private lateinit var settings: View
     private lateinit var resolution: Dropdown
@@ -264,6 +265,7 @@ class LauncherActivity : Activity() {
         cardImage = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
         frame.addView(cardImage, LinearLayout.LayoutParams(MATCH, dpi(118)))
         save.addView(frame)
+        cardFrame = frame
         card = save
         root.addView(save, FrameLayout.LayoutParams(dpi(256), WRAP, Gravity.END or Gravity.BOTTOM).apply { setMargins(0, 0, dpi(24), dpi(16)) })
         return root
@@ -460,7 +462,12 @@ class LauncherActivity : Activity() {
         cardImage.setImageDrawable(null)
         thread(name = "pocketfoundry-preview") {
             val bitmap = Saves.preview(save, 3)
-            runOnUiThread { if (previewOf == key) cardImage.setImageBitmap(bitmap) }
+            runOnUiThread {
+                if (previewOf != key) return@runOnUiThread
+                cardImage.setImageBitmap(bitmap)
+                // Saves from servers often carry no picture: then the card is just the name, not an empty frame.
+                cardFrame.visibility = if (bitmap != null) View.VISIBLE else View.GONE
+            }
         }
     }
 

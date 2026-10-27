@@ -614,3 +614,8 @@ a stitched pocket, a belt. The furnace won: it is what a foundry is, and its glo
 home-screen size. The foreground is that render, blueprint paper included (so it is opaque); the notification and
 themed icons are the same furnace drawn flat (`drawable/ic_notification.xml`, `ic_launcher_monochrome.xml`), and
 `tools/icon_png.py` now draws Termux:X11's monochrome layer from it instead of the foreground's alpha.
+
+### Saves without a picture
+Saves from servers (the refactorio ones, for instance) carry no `preview.jpg`, and the save card drew an empty frame
+under the name. The frame now hides when there is no picture. The README's playing and pause screenshots were retaken
+on the current build, with the Minesweeper save (a player's name in a tooltip painted out).
