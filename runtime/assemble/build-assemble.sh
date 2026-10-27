@@ -27,7 +27,7 @@ cp /out/wm/pocketfoundry-wm $OUT/bin/
 
 # Our SDL with the app's audio and gamepad (SDL3_DYNAMIC_API points the game at it).
 cp -a /out/sdl$PREFIX/lib/libSDL3.so* $OUT/lib/
-cp /out/sdl$PREFIX/bin/pocketfoundry-padtest $OUT/bin/
+cp /out/sdl$PREFIX/bin/pocketfoundry-padtest /out/sdl$PREFIX/bin/pocketfoundry-inputtest $OUT/bin/
 
 # What the game dlopens (LD_DEBUG in Phase 1) and what Mesa and the WM link,
 # with their dependencies, minus glibc, which comes from our build.

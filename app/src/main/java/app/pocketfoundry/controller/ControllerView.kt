@@ -10,6 +10,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.view.KeyEvent
 import android.view.View
 import app.pocketfoundry.InputBridge
 import app.pocketfoundry.PadAxis
@@ -22,17 +23,21 @@ import org.json.JSONObject
 import kotlin.math.hypot
 
 /**
- * The on-screen Xbox-style controller drawn over the game, in the game's own look: its dark
- * inventory slots, orange while held, with its light blue controller glyphs. It never takes
- * touches through the view system: [TouchRouter] hands it the fingers that land on it.
+ * The controls drawn over the game, in the game's own look: its dark inventory slots, orange
+ * while held, with its light blue controller glyphs. Two sets ([touch]):
+ * - touch: a stick that walks (W A S D) and a column of the game's keys, while the screen
+ *   itself is the mouse ([PointerGestures]);
+ * - gamepad: an Xbox-style controller, through the virtual gamepad.
+ * It never takes touches through the view system: [TouchRouter] hands it the fingers that land on it.
  *
  * Positions are fractions of the screen, sizes fractions of its height, so a layout
  * keeps its shape across resolutions. The toolbar at the top edits or hides it.
  */
 @SuppressLint("ViewConstructor")
-class ControllerView(context: Context) : View(context) {
+class ControllerView(context: Context, private val touch: Boolean) : View(context) {
 
-    private enum class Kind { STICK, DPAD, BUTTON, TRIGGER }
+    /** Touch controls: MOVE walks with W A S D, KEY holds a key, TOGGLE flips [mining]. */
+    private enum class Kind { STICK, DPAD, BUTTON, TRIGGER, MOVE, KEY, TOGGLE }
 
     private class Control(
         val id: String,
@@ -46,6 +51,8 @@ class ControllerView(context: Context) : View(context) {
         val axis: PadAxis? = null,
         val axisY: PadAxis? = null,
         val pill: Boolean = false,
+        /** KEY: the Android key code sent to the game. */
+        val key: Int = 0,
     ) {
         var x = defaultX
         var y = defaultY
@@ -59,11 +66,21 @@ class ControllerView(context: Context) : View(context) {
         var sentX = 0
         var sentY = 0
         var dpad = 0
+        var on = false
     }
 
     private enum class Tool { ADJUST, HIDE, SHOW, SMALLER, BIGGER, OPACITY, RESET, DONE }
 
-    private val controls = listOf(
+    private val controls = if (touch) listOf(
+        Control("MOVE", Kind.MOVE, "", 0.11f, 0.66f, 0.34f),
+        // Factorio's default keys. On the right edge, clear of the quickbar and the left thumb.
+        Control("INVENTORY", Kind.KEY, "", 0.955f, 0.30f, 0.115f, key = KeyEvent.KEYCODE_E),
+        Control("ROTATE", Kind.KEY, "", 0.955f, 0.425f, 0.115f, key = KeyEvent.KEYCODE_R),
+        Control("PIPETTE", Kind.KEY, "", 0.955f, 0.55f, 0.115f, key = KeyEvent.KEYCODE_Q),
+        Control("MINE", Kind.TOGGLE, "", 0.955f, 0.675f, 0.115f),
+        Control("MAP", Kind.KEY, "", 0.955f, 0.80f, 0.115f, key = KeyEvent.KEYCODE_M),
+        Control("MENU", Kind.KEY, "", 0.955f, 0.925f, 0.115f, key = KeyEvent.KEYCODE_ESCAPE),
+    ) else listOf(
         Control("LS", Kind.STICK, "L", 0.12f, 0.66f, 0.34f, axis = PadAxis.LEFT_X, axisY = PadAxis.LEFT_Y),
         Control("RS", Kind.STICK, "R", 0.715f, 0.80f, 0.28f, axis = PadAxis.RIGHT_X, axisY = PadAxis.RIGHT_Y),
         Control("DPAD", Kind.DPAD, "", 0.29f, 0.84f, 0.27f),
@@ -82,7 +99,14 @@ class ControllerView(context: Context) : View(context) {
     )
 
     private val prefs = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
+    private val layoutKey = if (touch) "layout-touch" else "layout"
     private val vibrator = context.getSystemService(Vibrator::class.java)
+
+    /** Sends a key to the game (Android key code, down); set by [OnScreenController]. */
+    var keys: (Int, Boolean) -> Unit = { _, _ -> }
+
+    /** The pickaxe is on: touches on the game mine instead of clicking. */
+    val mining get() = controls.any { it.kind == Kind.TOGGLE && it.on }
 
     private var editing = false
     private var hidden = false
@@ -174,11 +198,19 @@ class ControllerView(context: Context) : View(context) {
                 InputBridge.axis(control.axis!!, 32767)
                 haptic(VibrationEffect.EFFECT_CLICK)
             }
-            Kind.STICK -> {
+            Kind.STICK, Kind.MOVE -> {
                 control.originX = x; control.originY = y
                 control.knobX = x; control.knobY = y
             }
             Kind.DPAD -> updateDpad(control, x, y)
+            Kind.KEY -> {
+                keys(control.key, true)
+                haptic(VibrationEffect.EFFECT_CLICK)
+            }
+            Kind.TOGGLE -> {
+                control.on = !control.on
+                haptic(VibrationEffect.EFFECT_CLICK)
+            }
         }
         invalidate()
         return true
@@ -192,6 +224,7 @@ class ControllerView(context: Context) : View(context) {
         val control = controls.firstOrNull { it.pointers.firstOrNull() == id } ?: return
         when (control.kind) {
             Kind.STICK -> updateStick(control, x, y)
+            Kind.MOVE -> updateMove(control, x, y)
             Kind.DPAD -> updateDpad(control, x, y)
             else -> return
         }
@@ -212,7 +245,7 @@ class ControllerView(context: Context) : View(context) {
         control.pointers -= id
         if (control.pointers.isNotEmpty()) {
             // The resting finger takes over a stick or D-pad, centred where it is.
-            if (wasFirst && (control.kind == Kind.STICK || control.kind == Kind.DPAD)) {
+            if (wasFirst && (control.kind == Kind.STICK || control.kind == Kind.MOVE || control.kind == Kind.DPAD)) {
                 release(control)
                 control.originX = Float.NaN
                 invalidate()
@@ -228,7 +261,12 @@ class ControllerView(context: Context) : View(context) {
         toolPointers.clear()
         drags.clear()
         dragLast.clear()
-        controls.forEach { it.pointers.clear(); release(it) }
+        controls.forEach { c ->
+            // A key goes up only if it was down; the pad's buttons and sticks are simply zeroed.
+            val held = c.pointers.isNotEmpty()
+            c.pointers.clear()
+            if (held || c.kind != Kind.KEY) release(c)
+        }
         invalidate()
     }
 
@@ -242,10 +280,14 @@ class ControllerView(context: Context) : View(context) {
                 InputBridge.axis(control.axisY!!, 0)
             }
             Kind.DPAD -> setDpad(control, 0)
+            Kind.MOVE -> setWalk(control, 0)
+            Kind.KEY -> keys(control.key, false)
+            Kind.TOGGLE -> {}   // stays as it was left
         }
     }
 
-    private fun updateStick(control: Control, x: Float, y: Float) {
+    /** Moves a stick's knob after the finger, within its reach; returns its offset as fractions of the reach. */
+    private fun knob(control: Control, x: Float, y: Float): Pair<Float, Float> {
         if (control.originX.isNaN()) { control.originX = x; control.originY = y }
         val r = radius(control)
         var dx = x - control.originX
@@ -257,10 +299,38 @@ class ControllerView(context: Context) : View(context) {
         }
         control.knobX = control.originX + dx
         control.knobY = control.originY + dy
-        val ax = (dx / r * 32767).toInt()
-        val ay = (dy / r * 32767).toInt()
+        return dx / r to dy / r
+    }
+
+    private fun updateStick(control: Control, x: Float, y: Float) {
+        val (fx, fy) = knob(control, x, y)
+        val ax = (fx * 32767).toInt()
+        val ay = (fy * 32767).toInt()
         if (ax != control.sentX) { control.sentX = ax; InputBridge.axis(control.axis!!, ax) }
         if (ay != control.sentY) { control.sentY = ay; InputBridge.axis(control.axisY!!, ay) }
+    }
+
+    /** The walking stick: eight directions as W A S D, as the game walks with keys. */
+    private fun updateMove(control: Control, x: Float, y: Float) {
+        val (fx, fy) = knob(control, x, y)
+        val distance = hypot(fx, fy)
+        var state = 0
+        if (distance > WALK_DEADZONE) {
+            if (fy / distance < -SIN_22) state = state or UP
+            if (fy / distance > SIN_22) state = state or DOWN
+            if (fx / distance < -SIN_22) state = state or LEFT
+            if (fx / distance > SIN_22) state = state or RIGHT
+        }
+        setWalk(control, state)
+    }
+
+    private fun setWalk(control: Control, state: Int) {
+        val changed = control.dpad xor state
+        if (changed == 0) return
+        for ((bit, key) in WALK_KEYS) {
+            if (changed and bit != 0) keys(key, state and bit != 0)
+        }
+        control.dpad = state
     }
 
     private fun updateDpad(control: Control, x: Float, y: Float) {
@@ -340,7 +410,7 @@ class ControllerView(context: Context) : View(context) {
         if (c.pill) {
             x in cx(c) - 2.2f * r..cx(c) + 2.2f * r && y in cy(c) - 1.25f * r..cy(c) + 1.25f * r
         } else {
-            val reach = when (c.kind) { Kind.STICK -> 1.3f; Kind.DPAD -> 1.15f; else -> 1.2f }
+            val reach = when (c.kind) { Kind.STICK, Kind.MOVE -> 1.3f; Kind.DPAD -> 1.15f; else -> 1.2f }
             hypot(x - cx(c), y - cy(c)) <= r * reach
         }
     }
@@ -423,6 +493,25 @@ class ControllerView(context: Context) : View(context) {
         val y = cy(c)
         val pressed = c.pointers.isNotEmpty()
         when (c.kind) {
+            Kind.MOVE -> {
+                // A quiet well with four arrows; the knob follows the thumb.
+                val active = pressed && !c.originX.isNaN()
+                val wx = if (active) c.originX else x
+                val wy = if (active) c.originY else y
+                well(canvas, wx, wy, r)
+                for ((bit, dir) in DIRECTIONS) arrow(canvas, dir, wx, wy, r * 0.76f, r * 0.08f, if (c.dpad and bit != 0) Tone.ORANGE.face else GLYPH)
+                val kx = if (active) c.knobX else x
+                val ky = if (active) c.knobY else y
+                val knob = r * 0.36f
+                slot(pressed, ky - knob, ky + knob) { canvas.drawCircle(kx, ky, knob, it) }
+            }
+            Kind.KEY, Kind.TOGGLE -> {
+                val lit = pressed || c.on
+                slot(lit, y - r, y + r) { canvas.drawCircle(x, y, r, it) }
+                icon.color = glyph(lit)
+                icon.strokeWidth = r * 0.09f
+                drawKeyIcon(canvas, c.id, x, y, r * 0.42f)
+            }
             Kind.STICK -> {
                 val active = pressed && !c.originX.isNaN()
                 well(canvas, if (active) c.originX else x, if (active) c.originY else y, r)
@@ -510,6 +599,73 @@ class ControllerView(context: Context) : View(context) {
         path.close()
         fill.color = colour
         canvas.drawPath(path, fill)
+    }
+
+    /** The touch keys' icons, [s] the half-width of the drawing, in [icon]'s colour. */
+    private fun drawKeyIcon(canvas: Canvas, id: String, x: Float, y: Float, s: Float) {
+        when (id) {
+            "INVENTORY" -> {
+                // Four inventory slots.
+                val q = s * 0.82f
+                val gap = s * 0.3f
+                for (i in 0..1) for (j in 0..1) {
+                    val left = x - q - gap / 2 + i * (q + gap)
+                    val top = y - q - gap / 2 + j * (q + gap)
+                    rect.set(left, top, left + q, top + q)
+                    canvas.drawRoundRect(rect, q * 0.18f, q * 0.18f, icon)
+                }
+            }
+            "ROTATE" -> {
+                rect.set(x - s * 0.85f, y - s * 0.85f, x + s * 0.85f, y + s * 0.85f)
+                canvas.drawArc(rect, -60f, 290f, false, icon)
+                canvas.drawLine(x + s * 0.43f, y - s * 0.74f, x + s * 0.5f, y - s * 1.2f, icon)
+                canvas.drawLine(x + s * 0.43f, y - s * 0.74f, x + s * 0.9f, y - s * 0.62f, icon)
+            }
+            "PIPETTE" -> {
+                // An eyedropper, leaning right.
+                canvas.save()
+                canvas.rotate(45f, x, y)
+                rect.set(x - s * 0.32f, y - s * 1.15f, x + s * 0.32f, y - s * 0.5f)
+                canvas.drawRoundRect(rect, s * 0.3f, s * 0.3f, icon)
+                canvas.drawLine(x - s * 0.5f, y - s * 0.42f, x + s * 0.5f, y - s * 0.42f, icon)
+                path.reset()
+                path.moveTo(x - s * 0.22f, y - s * 0.42f)
+                path.lineTo(x - s * 0.22f, y + s * 0.6f)
+                path.lineTo(x, y + s * 1.1f)
+                path.lineTo(x + s * 0.22f, y + s * 0.6f)
+                path.lineTo(x + s * 0.22f, y - s * 0.42f)
+                canvas.drawPath(path, icon)
+                canvas.restore()
+            }
+            "MINE" -> {
+                // A pickaxe.
+                canvas.save()
+                canvas.rotate(45f, x, y)
+                canvas.drawLine(x, y - s * 0.8f, x, y + s * 1.1f, icon)
+                path.reset()
+                path.moveTo(x - s * 1.05f, y - s * 0.3f)
+                path.quadTo(x, y - s * 1.35f, x + s * 1.05f, y - s * 0.3f)
+                canvas.drawPath(path, icon)
+                canvas.restore()
+            }
+            "MAP" -> {
+                // A folded map.
+                path.reset()
+                path.moveTo(x - s, y - s * 0.7f)
+                path.lineTo(x - s * 0.33f, y - s * 0.95f)
+                path.lineTo(x + s * 0.33f, y - s * 0.7f)
+                path.lineTo(x + s, y - s * 0.95f)
+                path.lineTo(x + s, y + s * 0.7f)
+                path.lineTo(x + s * 0.33f, y + s * 0.95f)
+                path.lineTo(x - s * 0.33f, y + s * 0.7f)
+                path.lineTo(x - s, y + s * 0.95f)
+                path.close()
+                canvas.drawPath(path, icon)
+                canvas.drawLine(x - s * 0.33f, y - s * 0.95f, x - s * 0.33f, y + s * 0.7f, icon)
+                canvas.drawLine(x + s * 0.33f, y - s * 0.7f, x + s * 0.33f, y + s * 0.95f, icon)
+            }
+            "MENU" -> for (dy in listOf(-s * 0.6f, 0f, s * 0.6f)) canvas.drawLine(x - s * 0.85f, y + dy, x + s * 0.85f, y + dy, icon)
+        }
     }
 
     private fun ring(canvas: Canvas, x: Float, y: Float, r: Float, colour: Int) {
@@ -610,7 +766,7 @@ class ControllerView(context: Context) : View(context) {
     // The saved layout.
 
     private fun load() {
-        val saved = prefs.getString("layout", null) ?: return
+        val saved = prefs.getString(layoutKey, null) ?: return
         runCatching {
             val json = JSONObject(saved)
             opacity = json.optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat()
@@ -630,27 +786,19 @@ class ControllerView(context: Context) : View(context) {
         val placed = JSONObject()
         controls.forEach { placed.put(it.id, JSONArray(listOf(it.x.toDouble(), it.y.toDouble(), it.scale.toDouble()))) }
         val json = JSONObject().put("opacity", opacity.toDouble()).put("hidden", hidden).put("controls", placed)
-        prefs.edit().putString("layout", json.toString()).apply()
+        prefs.edit().putString(layoutKey, json.toString()).apply()
     }
 
     companion object {
-        /** The controls' opacity, as saved with the layout. */
-        fun opacity(context: Context): Float =
-            context.getSharedPreferences("controller", Context.MODE_PRIVATE).getString("layout", null)
-                ?.let { runCatching { JSONObject(it).optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat() }.getOrNull() }
-                ?: DEFAULT_OPACITY
-
-        fun setOpacity(context: Context, value: Float) {
-            val prefs = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
-            val json = prefs.getString("layout", null)?.let { runCatching { JSONObject(it) }.getOrNull() } ?: JSONObject()
-            prefs.edit().putString("layout", json.put("opacity", value.toDouble()).toString()).apply()
-        }
-
         private const val UP = 1
         private const val DOWN = 2
         private const val LEFT = 4
         private const val RIGHT = 8
         private val DIRECTIONS = listOf(UP to 0, DOWN to 1, LEFT to 2, RIGHT to 3)
+        private val WALK_KEYS = listOf(UP to KeyEvent.KEYCODE_W, DOWN to KeyEvent.KEYCODE_S,
+                                       LEFT to KeyEvent.KEYCODE_A, RIGHT to KeyEvent.KEYCODE_D)
+        /** How far the walking stick must lean before the character moves. */
+        private const val WALK_DEADZONE = 0.3f
         private val DPAD_BUTTONS = listOf(UP to PadButton.DPAD_UP, DOWN to PadButton.DPAD_DOWN,
                                   LEFT to PadButton.DPAD_LEFT, RIGHT to PadButton.DPAD_RIGHT)
         /** The game's controller glyphs are this blue (data/core/graphics/icons/controller). */

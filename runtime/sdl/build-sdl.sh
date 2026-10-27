@@ -41,5 +41,9 @@ mkdir -p /out/sdl$PREFIX/bin
 gcc -O2 -o /out/sdl$PREFIX/bin/pocketfoundry-padtest /runtime/sdl/padtest.c \
     -I/out/sdl$PREFIX/include -L/out/sdl$PREFIX/lib -lSDL3
 strip /out/sdl$PREFIX/bin/pocketfoundry-padtest
+# And one that prints the mouse and keys SDL sees in a window (the touch controls, no game needed).
+gcc -O2 -o /out/sdl$PREFIX/bin/pocketfoundry-inputtest /runtime/sdl/inputtest.c \
+    -I/out/sdl$PREFIX/include -L/out/sdl$PREFIX/lib -lSDL3
+strip /out/sdl$PREFIX/bin/pocketfoundry-inputtest
 grep -E "SDL_POCKETFOUNDRY|SDL_AUDIO_DRIVER_|SDL_VIDEO_DRIVER_X11 |SDL_JOYSTICK_VIRTUAL" build/include-config-release/build_config/SDL_build_config.h || true
 ls -la /out/sdl$PREFIX/lib/

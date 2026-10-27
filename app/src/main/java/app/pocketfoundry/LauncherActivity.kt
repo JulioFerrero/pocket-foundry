@@ -23,7 +23,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.termux.x11.MainActivity
-import app.pocketfoundry.controller.ControllerView
 import app.pocketfoundry.ui.Arrow
 import app.pocketfoundry.ui.BarView
 import app.pocketfoundry.ui.Dropdown
@@ -89,6 +88,7 @@ class LauncherActivity : Activity() {
     private lateinit var fps30: FButton
     private lateinit var fps60: FButton
     private lateinit var sprites: Dropdown
+    private lateinit var controlsChoice: Dropdown
     private lateinit var settingsNote: TextView
     private lateinit var editLayout: FButton
     private lateinit var importAgain: FButton
@@ -274,7 +274,7 @@ class LauncherActivity : Activity() {
     private fun buildSettings(): View {
         val panel = stack(this, Factorio.PANEL, sunken = false, padding = 8, gap = 10)
         // In a game, beside the title: the Display box has no room left under its rows.
-        settingsNote = label(this, "Resolution and sprites change when Factorio next starts.", 13f, Factorio.MUTED)
+        settingsNote = label(this, "Resolution, sprites and controls change when Factorio next starts.", 13f, Factorio.MUTED)
         panel.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(heading(context, "Settings"), LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -301,9 +301,9 @@ class LauncherActivity : Activity() {
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         controller.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
-        controller.addView(row("Controls opacity", slider(this, (ControllerView.opacity(this) * 100).toInt()) {
-            ControllerView.setOpacity(this, (it / 100f).coerceAtLeast(0.15f))
-        }.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
+        // The controls' opacity is in the layout editor, with their places and sizes.
+        controlsChoice = Dropdown(this, listOf("Touch", "Gamepad")) { Settings.setControls(this, Settings.CONTROLS[it]) }
+        controller.addView(row("Controls", controlsChoice.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
         }
@@ -437,6 +437,7 @@ class LauncherActivity : Activity() {
         fps30.tone = if (fps == 30) Tone.ORANGE else Tone.GREY
         fps60.tone = if (fps == 60) Tone.ORANGE else Tone.GREY
         sprites.selected = SPRITE_QUALITIES.indexOf(Settings.spriteQuality(this)).coerceAtLeast(0)
+        controlsChoice.selected = Settings.CONTROLS.indexOf(Settings.controls(this)).coerceAtLeast(0)
         settingsNote.visibility = if (inGame) View.VISIBLE else View.GONE
         border.selected = Settings.BORDERS.indexOf(Settings.border(this)).coerceAtLeast(0)
         editLayout.visibility = if (live) View.VISIBLE else View.GONE

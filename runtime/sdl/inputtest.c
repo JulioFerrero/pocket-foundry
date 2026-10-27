@@ -1,0 +1,70 @@
+// Opens a window on the X server and prints the mouse, wheel and keys SDL sees, as Factorio
+// would get them: checks the touch controls → X → SDL path without the game (or a GPU).
+// Debug builds run it in the game's place with `test.program=pocketfoundry-inputtest` in
+// files/debug.env; it prints to logs/game.log.
+#include <SDL3/SDL.h>
+#include <stdio.h>
+
+int main(void)
+{
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        printf("SDL_Init: %s\n", SDL_GetError());
+        return 1;
+    }
+    SDL_Window *window = SDL_CreateWindow("pocketfoundry-inputtest", 0, 0, SDL_WINDOW_FULLSCREEN);
+    if (!window) {
+        printf("SDL_CreateWindow: %s\n", SDL_GetError());
+        return 1;
+    }
+    SDL_SyncWindow(window);
+    int width, height;
+    SDL_GetWindowSize(window, &width, &height);
+    printf("window %dx%d\n", width, height);
+    fflush(stdout);
+
+    Uint64 lastMotion = 0;
+    bool running = true;
+    SDL_Event e;
+    while (running) {
+        // A plain grey window: something on screen, no GPU needed.
+        SDL_Surface *surface = SDL_GetWindowSurface(window);
+        if (surface) {
+            SDL_FillSurfaceRect(surface, NULL, SDL_MapSurfaceRGB(surface, 60, 60, 64));
+            SDL_UpdateWindowSurface(window);
+        }
+        if (!SDL_WaitEventTimeout(&e, 500)) {
+            continue;
+        }
+        switch (e.type) {
+        case SDL_EVENT_QUIT:
+            running = false;
+            break;
+        case SDL_EVENT_MOUSE_MOTION:
+            // Every motion while a button is held; otherwise at most every 100 ms.
+            if (e.motion.state || e.motion.timestamp - lastMotion > 100000000) {
+                printf("motion %.0f,%.0f%s\n", e.motion.x, e.motion.y, e.motion.state ? " held" : "");
+                lastMotion = e.motion.timestamp;
+            }
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            printf("button %s %s at %.0f,%.0f\n", e.button.button == SDL_BUTTON_LEFT ? "left" : e.button.button == SDL_BUTTON_RIGHT ? "right" : "other",
+                   e.button.down ? "down" : "up", e.button.x, e.button.y);
+            break;
+        case SDL_EVENT_MOUSE_WHEEL:
+            printf("wheel %+.2f\n", e.wheel.y);
+            break;
+        case SDL_EVENT_KEY_DOWN:
+        case SDL_EVENT_KEY_UP:
+            if (!e.key.repeat) {
+                printf("key %s %s\n", SDL_GetScancodeName(e.key.scancode), e.key.down ? "down" : "up");
+            }
+            break;
+        default:
+            break;
+        }
+        fflush(stdout);
+    }
+    SDL_Quit();
+    return 0;
+}

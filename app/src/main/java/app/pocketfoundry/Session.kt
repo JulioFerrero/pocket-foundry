@@ -29,6 +29,9 @@ object Session {
 
     @Volatile var state = State.STOPPED
         private set
+    /** The controls the running game was started with (Settings.controls): its input mode can't change until it restarts. */
+    @Volatile var controls = Settings.CONTROLS[0]
+        private set
     /** How the last session ended: null after a normal quit, else Factorio's exit status. */
     @Volatile var lastFailure: Int? = null
         private set
@@ -63,11 +66,16 @@ object Session {
             // An autosave cut short when the game was killed; Factorio offers it as
             // "Continue" and then can't open it.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
-            writeConfig(paths, Settings.spriteQuality(context))
-            val started = glibc(paths, listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs,
-                                "game.log", Drivers.environment(context) + debugEnvironment(context, "game"))
+            controls = Settings.controls(context)
+            writeConfig(paths, Settings.spriteQuality(context), controls)
+            // Debug builds: `test.program=<tool>` in files/debug.env runs a runtime tool in the game's place,
+            // e.g. pocketfoundry-inputtest to see what the controls send without the game (or a GPU).
+            val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
+            val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
+                          else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
+            val started = glibc(paths, command, "game.log", Drivers.environment(context) + debugEnvironment(context, "game"))
             game = started
-            gamePid = childPid(paths.gameBinary.path)
+            gamePid = childPid(command.first())
             lastFailure = null
             setState(State.RUNNING)
             thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(started, started.waitFor()) }
@@ -159,7 +167,7 @@ object Session {
 
     /**
      * Debug builds only: `game.KEY=VALUE` and `x11.KEY=VALUE` lines from files/debug.env over the game's
-     * and the X server's environment, to try things on the phone without a rebuild.
+     * and the X server's environment, to try things on the phone without a rebuild (and `test.program`).
      */
     private fun debugEnvironment(context: Context, process: String): Map<String, String> {
         if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return emptyMap()
@@ -220,17 +228,14 @@ object Session {
      * Factorio derives its paths from its executable, which here is the loader,
      * so the config names them. Factorio fills in the rest of the file itself.
      */
-    private fun writeConfig(paths: Paths, spriteQuality: String) {
+    private fun writeConfig(paths: Paths, spriteQuality: String, controls: String) {
         var config = if (paths.config.exists()) paths.config.readText() else ""
         // Without its version header Factorio calls the file invalid and offers a reset.
         if (!config.startsWith("; version=")) config = "; version=13\n"
         config = setIni(config, "path", "read-data", File(paths.game, "data").path)
         config = setIni(config, "path", "write-data", paths.gameData.path)
-        // Factorio ignores gamepads unless this says so, and the on-screen controller is
-        // the main way to play here. A choice made in the game's settings stays.
-        if (!Regex("(?m)^input-method=").containsMatchIn(config)) {
-            config = setIni(config, "input", "input-method", "game-controller")
-        }
+        // Factorio doesn't switch between mouse and gamepad by itself: Settings → Controls decides.
+        config = setIni(config, "input", "input-method", if (controls == "gamepad") "game-controller" else "keyboard-and-mouse")
         // The automatic UI scale is too small at arm's length; 125% of display points reads
         // well on a phone. Also only a default.
         if (!Regex("(?m)^ui-scale-mode=").containsMatchIn(config)) {

@@ -9,13 +9,15 @@ import android.view.Window
  * Sits in front of the game activity's window: each finger that lands on a control
  * belongs to the controller until it lifts, every other finger reaches the game as
  * if the controller weren't there. A thumb on the stick doesn't stop the other
- * hand from tapping the game.
+ * hand from tapping the game. With touch controls, those fingers go to [gestures]
+ * instead, which turn them into the game's mouse.
  *
  * It also takes the Back gesture, which Termux:X11 would otherwise swallow: [onBack].
  */
 class TouchRouter(
     private val target: Window.Callback,
     private val controller: ControllerView,
+    private val gestures: PointerGestures?,
     private val onBack: () -> Unit,
 ) : Window.Callback by target {
 
@@ -34,6 +36,8 @@ class TouchRouter(
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // A real mouse is already the game's mouse.
+        if (gestures != null && event.isFromSource(InputDevice.SOURCE_MOUSE)) return target.dispatchTouchEvent(event)
         controller.getLocationInWindow(location)
         val dx = location[0].toFloat()
         val dy = location[1].toFloat()
@@ -43,6 +47,7 @@ class TouchRouter(
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                     claimed.clear()
                     forwarded.clear()
+                    gestures?.cancel()   // nothing held over from a touch whose end went missing
                 }
                 val index = event.actionIndex
                 val id = event.getPointerId(index)
@@ -51,14 +56,16 @@ class TouchRouter(
                     return true
                 }
                 forwarded += id
+                gestures?.let { it.down(id, event.getX(index), event.getY(index)); return true }
                 return forward(event, if (forwarded.size == 1) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_POINTER_DOWN, id)
             }
             MotionEvent.ACTION_MOVE -> {
                 for (i in 0 until event.pointerCount) {
                     val id = event.getPointerId(i)
                     if (id in claimed) controller.pointerMove(id, event.getX(i) - dx, event.getY(i) - dy)
+                    else if (gestures != null && id in forwarded) gestures.move(id, event.getX(i), event.getY(i))
                 }
-                return forwarded.isEmpty() || forward(event, MotionEvent.ACTION_MOVE, -1)
+                return forwarded.isEmpty() || gestures != null || forward(event, MotionEvent.ACTION_MOVE, -1)
             }
             MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> {
                 val id = event.getPointerId(event.actionIndex)
@@ -67,6 +74,11 @@ class TouchRouter(
                     return true
                 }
                 if (id !in forwarded) return true
+                gestures?.let {
+                    it.up(id, event.getX(event.actionIndex), event.getY(event.actionIndex))
+                    forwarded -= id
+                    return true
+                }
                 val handled = forward(event, if (forwarded.size == 1) MotionEvent.ACTION_UP else MotionEvent.ACTION_POINTER_UP, id)
                 forwarded -= id
                 return handled
@@ -74,7 +86,8 @@ class TouchRouter(
             MotionEvent.ACTION_CANCEL -> {
                 claimed.forEach { controller.pointerUp(it) }
                 claimed.clear()
-                val handled = forwarded.isEmpty() || forward(event, MotionEvent.ACTION_CANCEL, -1)
+                gestures?.cancel()
+                val handled = forwarded.isEmpty() || gestures != null || forward(event, MotionEvent.ACTION_CANCEL, -1)
                 forwarded.clear()
                 return handled
             }

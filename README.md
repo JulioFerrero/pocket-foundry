@@ -19,11 +19,13 @@ Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 
 
 ## What's in it
 
-- **An on-screen controller in the game's look:** its dark slots, orange while held, its light blue button glyphs.
-  Move and resize the controls from the toolbar at the top, or hide them.
+- **Touch controls:** the screen is the game's mouse. Tap to click, drag to build a line or move items, hold to mine,
+  pinch to zoom, two fingers to scroll or right-click. A stick walks, and a few buttons in the game's look carry its
+  keys: inventory, rotate, pipette, mining, map and menu. Move, resize or fade them from the toolbar at the top, or
+  hide them. Settings → Controls swaps them for an on-screen Xbox controller.
 - **Settings:** the resolution the game draws at, a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
   round the game that keeps the screen's rounded corners off its menus, sprite quality (Medium takes ~700 MB off a
-  phone's shared memory, for very big saves), pausing in the background, vibration and the controls' opacity.
+  phone's shared memory, for very big saves), touch or gamepad controls, pausing in the background and vibration.
 - **Saves:** export them all to `Download/Pocket Foundry`, where uninstalling leaves them, and import saves from anywhere.
 - **Graphics driver:** Zink on Turnip (the default), freedreno, or a newer Turnip you import, such as the
   `turnip_*_arm64.tar.gz` builds from [lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases).
@@ -40,7 +42,8 @@ Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 
   Termux:X11's X server as the screen and a tiny window manager. The game binary itself is never modified.
 - **Sound and controls through SDL:** the game's static SDL3 hands over to Pocket Foundry's SDL 3.4 through SDL's dynamic
   API. That SDL plays audio through the app, adds a virtual gamepad driven by the on-screen controller (rumble goes
-  back to the phone) and paces frames for the 30 FPS cap.
+  back to the phone) and paces frames for the 30 FPS cap. Touch controls reach the game through the X server, as a
+  mouse and keyboard.
 - **The launcher:** Factorio-style panels over a living backdrop. Pocket Foundry's own blueprint, built in 3D (three.js)
   while the game imports, then a working factory drawn from the sprites in your copy.
 

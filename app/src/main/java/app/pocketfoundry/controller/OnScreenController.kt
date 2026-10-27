@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
 import com.termux.x11.MainActivity
 import app.pocketfoundry.LauncherActivity
@@ -19,6 +20,7 @@ import java.util.WeakHashMap
  */
 object OnScreenController : Application.ActivityLifecycleCallbacks {
     private val views = WeakHashMap<Activity, ControllerView>()
+    private val gestures = WeakHashMap<Activity, PointerGestures>()
     private val borders = WeakHashMap<Activity, GameBorder>()
     private var resumed: Activity? = null
 
@@ -34,10 +36,18 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityPostCreated(activity: Activity, savedInstanceState: Bundle?) {
         if (activity !is MainActivity) return
-        val view = ControllerView(activity)
+        // The controls the game was started with: its input mode follows them.
+        val touch = Session.controls != "gamepad"
+        val view = ControllerView(activity, touch)
         activity.addContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                                              ViewGroup.LayoutParams.MATCH_PARENT))
-        activity.window.callback = TouchRouter(activity.window.callback, view) {
+        val lorie = activity.lorieView
+        view.keys = { code, down -> lorie.sendKeyEvent(0, code, down) }
+        val mouse = if (!touch) null else PointerGestures.attach(activity, { view.mining }) {
+            if (Settings.vibration(activity)) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        }
+        mouse?.let { gestures[activity] = it }
+        activity.window.callback = TouchRouter(activity.window.callback, view, mouse) {
             activity.startActivity(Intent(activity, LauncherActivity::class.java))
         }
         views[activity] = view
@@ -73,6 +83,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
     override fun onActivityPaused(activity: Activity) {
         if (resumed === activity) resumed = null
         views[activity]?.releaseAll()
+        gestures[activity]?.cancel()
     }
 
     override fun onActivityStopped(activity: Activity) {
@@ -83,5 +94,6 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
     override fun onActivityDestroyed(activity: Activity) {
         views.remove(activity)
+        gestures.remove(activity)
     }
 }

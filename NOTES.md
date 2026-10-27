@@ -619,3 +619,38 @@ themed icons are the same furnace drawn flat (`drawable/ic_notification.xml`, `i
 Saves from servers (the refactorio ones, for instance) carry no `preview.jpg`, and the save card drew an empty frame
 under the name. The frame now hides when there is no picture. The README's playing and pause screenshots were retaken
 on the current build, with the Minesweeper save (a player's name in a tooltip painted out).
+
+### Touch controls (2026-10-27)
+The Xbox overlay was the weakest part: 17 buttons whose meaning you had to know (LB, RT, R3…), sitting exactly on
+the game's corner HUD (minimap and info panel under RB/RT/Y/B/X/A, quickbar under the D-pad), with a right-stick
+cursor that is slow on a screen you could just touch, and the game's menus driven by the D-pad. On the Switch the
+pad scheme got the same complaints in handheld mode; touch there only jumps the cursor, and the Switch 2 edition
+added a mouse mode.
+
+So, **Settings → Controls: Touch** (the default) or **Gamepad** (the old controller, unchanged). Touch starts
+Factorio with `input-method=keyboard-and-mouse`, Gamepad with `game-controller` (`writeConfig` now always sets it from
+the setting; it applies when the game next starts, so `Session.controls` keeps the one the game was started with):
+- **The screen is the mouse** (`PointerGestures`): tap = left click; drag past the touch slop = left button held from
+  where the finger came down (belts and pipes in a line, items across the inventory); long press (300 ms) = right
+  button held (mining; half a stack in menus), with a haptic; two fingers: spreading = wheel up (zoom in), one notch
+  per ×1.18, sliding = wheel (36 dp a notch, phone direction), tapped together (< 300 ms) = right click at their
+  middle. Coordinates go through Termux:X11's own view-to-X-screen mapping (`TouchInputHandler.mRenderData`, read by
+  reflection; if that ever fails, touches go to Termux:X11 as before), then `LorieView.sendMouseEvent`.
+- **A stick that walks** with W A S D (eight directions, 30% dead zone), floating where the thumb lands.
+- **Six keys** down the right edge, Factorio's defaults sent with `LorieView.sendKeyEvent` (Android key codes, real
+  presses and releases): inventory E, rotate R, pipette Q, map M, menu Esc, and a pickaxe toggle that makes every
+  touch on the game a right-button hold, for clearing an area. Same slots and glyph blue as the pad.
+- Layouts are saved per set (`layout-touch`, `layout`). The opacity slider left Settings for the Controls choice
+  (the box had no room); the layout editor's opacity tool stays.
+
+**Testing without the phone or the game:** `pocketfoundry-inputtest` (runtime/sdl/inputtest.c) opens a plain SDL
+window on the X server and prints the mouse, wheel and keys it gets, as Factorio would through SDL. A debug build runs
+it in the game's place with `test.program=pocketfoundry-inputtest` in `files/debug.env`; the emulator (arm64 AVD)
+runs it fine since it needs no GPU. Two-finger gestures were sent as raw multi-touch with `sendevent` (root adb on the
+emulator; contacts need `ABS_MT_PRESSURE` or Android treats them as hovering). All checked: tap, long press, drag,
+the six keys, the pickaxe, the stick (D; W+A), pinch out/in (wheel ±1), two-finger scroll, two-finger tap. Gamepad
+mode still comes up with the Xbox overlay and `game-controller`.
+
+Not yet tried with the game itself (phone away): where Factorio's keyboard-and-mouse HUD sits against the stick and
+the key column, how precise a fingertip is at the default zoom, and which keys are missing (shift/ctrl clicks,
+shooting, picking up).
