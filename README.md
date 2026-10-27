@@ -19,13 +19,15 @@ Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 
 
 ## What's in it
 
-- **Touch controls:** the screen is the game's mouse. Tap to click, drag to build a line or move items, hold to mine,
-  pinch to zoom, two fingers to scroll or right-click. A stick walks, and a few buttons in the game's look carry its
-  keys: inventory, rotate, pipette, mining, map and menu. Move, resize or fade them from the toolbar at the top, or
-  hide them. Settings → Controls swaps them for an on-screen Xbox controller.
+- **Controls that match the game's hints:** Factorio runs in its gamepad mode, so when it says "press A" or "hold
+  LB", that's the button on screen, in the game's own look. Touching the game moves its cursor there (the buttons
+  act on it) and clicks in its menus; pinch zooms. The buttons are sized by how much Factorio uses them: A (build,
+  open, craft) largest, then X (mine), B (close, back), Y (inventory), RT and LB. Move, resize or fade them from
+  the toolbar at the top, or hide them. Settings → Controls also offers Touch: the screen as a mouse with the
+  game's keyboard keys.
 - **Settings:** the resolution the game draws at, a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
   round the game that keeps the screen's rounded corners off its menus, sprite quality (Medium takes ~700 MB off a
-  phone's shared memory, for very big saves), touch or gamepad controls, pausing in the background and vibration.
+  phone's shared memory, for very big saves), gamepad or touch controls, pausing in the background and vibration.
 - **Saves:** export them all to `Download/Pocket Foundry`, where uninstalling leaves them, and import saves from anywhere.
 - **Graphics driver:** Zink on Turnip (the default), freedreno, or a newer Turnip you import, such as the
   `turnip_*_arm64.tar.gz` builds from [lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases).
@@ -42,8 +44,8 @@ Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 
   Termux:X11's X server as the screen and a tiny window manager. The game binary itself is never modified.
 - **Sound and controls through SDL:** the game's static SDL3 hands over to Pocket Foundry's SDL 3.4 through SDL's dynamic
   API. That SDL plays audio through the app, adds a virtual gamepad driven by the on-screen controller (rumble goes
-  back to the phone) and paces frames for the 30 FPS cap. Touch controls reach the game through the X server, as a
-  mouse and keyboard.
+  back to the phone) and paces frames for the 30 FPS cap. Touching the game reaches it through the X server, as a
+  mouse (and, in Touch controls, a keyboard).
 - **The launcher:** Factorio-style panels over a living backdrop. Pocket Foundry's own blueprint, built in 3D (three.js)
   while the game imports, then a working factory drawn from the sprites in your copy.
 

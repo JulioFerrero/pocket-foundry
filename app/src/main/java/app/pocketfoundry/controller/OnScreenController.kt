@@ -37,14 +37,16 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
     override fun onActivityPostCreated(activity: Activity, savedInstanceState: Bundle?) {
         if (activity !is MainActivity) return
         // The controls the game was started with: its input mode follows them.
-        val touch = Session.controls != "gamepad"
+        val touch = Session.controls == "touch"
         val view = ControllerView(activity, touch)
         activity.addContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                                              ViewGroup.LayoutParams.MATCH_PARENT))
         val lorie = activity.lorieView
         view.keys = { code, down -> lorie.sendKeyEvent(0, code, down) }
         view.onKeyboard = { lorie.toggleKeyboardVisible() }
-        val mouse = if (!touch) null else PointerGestures.attach(activity, { view.mining }) {
+        // Either way, touching the game is its mouse: in controller mode that moves its cursor
+        // to the spot (the buttons act there) and clicks in its menus.
+        val mouse = PointerGestures.attach(activity, { view.mining }) {
             if (Settings.vibration(activity)) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
         mouse?.let { gestures[activity] = it }

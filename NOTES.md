@@ -662,3 +662,23 @@ tapped again, for shift- and ctrl-clicks), Alt (alt mode), F (pick up), Z (drop)
 also raised the phone's keyboard (Termux:X11's view is a text editor), which the overlay's keys don't, since they
 go straight to the X server. The walking stick also covered the inventory's first column: it is smaller (0.28 of
 the height), further into the corner, and only takes a thumb inside its well.
+
+### Gamepad with touch as the cursor (the default now)
+Julio's verdict on Touch: the icons were hard to read, and the tutorial didn't match the buttons (it says "press E",
+"<Tab>", things the screen didn't show). In controller mode Factorio's hints name the Xbox buttons instead, and
+"confirm message" (Tab on a keyboard) is B. So the default is now **Gamepad**, rebuilt:
+- **Touch is the cursor.** Tried on the phone with the Minesweeper save in controller mode: a tap moves Factorio's
+  controller cursor to the spot (the crosshair follows, the info panel shows what's under it), and A then acts there;
+  in the inventory a tap picked up a stack (mouse clicks work in its menus) and A put it back. A click on the map
+  itself did nothing (world actions are the pad's in this mode), so taps don't press A for you: tap to aim, A to act,
+  as on the Switch in handheld. `PointerGestures` now runs in both modes.
+- **Sized by use**, from the game's default controller bindings (config.ini `[input]`): A (build, open, craft,
+  pick) 0.16 of the height; X (mine, craft 5) and B (close, clear the hand, pipette, dismiss tips) 0.13; Y
+  (inventory) 0.115; RT (the modifier most combinations use, zoom with the D-pad) and LB (hold for the quick panel)
+  0.10; LT and RB (shoot) 0.085; the D-pad (rotate, pick up, info) smaller than before; map and menu 0.085. No
+  right stick, L3 or R3: touch is the cursor.
+- **Off the HUD:** in controller mode the minimap and the info panel fill the right edge (from 0.80 of the width),
+  so the right hand's buttons sit left of it; the left stick and D-pad stay clear of the weapon slots. A full-screen
+  menu (the inventory) is still partly under the buttons; the toolbar's eye hides them.
+- New layout key (`layout-pad`), so a layout saved for the old pad doesn't place the new one.
+Not yet known: whether the wheel (pinch) zooms in controller mode, and how tap-then-A feels for building.

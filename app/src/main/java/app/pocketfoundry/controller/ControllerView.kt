@@ -27,7 +27,8 @@ import kotlin.math.hypot
  * while held, with its light blue controller glyphs. Two sets ([touch]):
  * - touch: a stick that walks (W A S D) and a column of the game's keys, while the screen
  *   itself is the mouse ([PointerGestures]);
- * - gamepad: an Xbox-style controller, through the virtual gamepad.
+ * - gamepad: an Xbox-style controller through the virtual gamepad, sized by how much each button
+ *   is used in Factorio, while touching the game moves its cursor: no right stick.
  * It never takes touches through the view system: [TouchRouter] hands it the fingers that land on it.
  *
  * Positions are fractions of the screen, sizes fractions of its height, so a layout
@@ -103,25 +104,28 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         Control("MAP", Kind.KEY, "", 0.955f, 0.80f, 0.115f, key = KeyEvent.KEYCODE_M),
         Control("MENU", Kind.KEY, "", 0.955f, 0.925f, 0.115f, key = KeyEvent.KEYCODE_ESCAPE),
     ) else listOf(
-        Control("LS", Kind.STICK, "L", 0.12f, 0.66f, 0.34f, axis = PadAxis.LEFT_X, axisY = PadAxis.LEFT_Y),
-        Control("RS", Kind.STICK, "R", 0.715f, 0.80f, 0.28f, axis = PadAxis.RIGHT_X, axisY = PadAxis.RIGHT_Y),
-        Control("DPAD", Kind.DPAD, "", 0.29f, 0.84f, 0.27f),
-        Control("A", Kind.BUTTON, "A", 0.885f, 0.79f, 0.135f, PadButton.SOUTH),
-        Control("B", Kind.BUTTON, "B", 0.946f, 0.655f, 0.135f, PadButton.EAST),
-        Control("X", Kind.BUTTON, "X", 0.824f, 0.655f, 0.135f, PadButton.WEST),
-        Control("Y", Kind.BUTTON, "Y", 0.885f, 0.52f, 0.135f, PadButton.NORTH),
-        Control("LB", Kind.BUTTON, "LB", 0.075f, 0.33f, 0.10f, PadButton.LEFT_SHOULDER, pill = true),
-        Control("LT", Kind.TRIGGER, "LT", 0.175f, 0.33f, 0.10f, axis = PadAxis.LEFT_TRIGGER, pill = true),
-        Control("RB", Kind.BUTTON, "RB", 0.825f, 0.36f, 0.10f, PadButton.RIGHT_SHOULDER, pill = true),
-        Control("RT", Kind.TRIGGER, "RT", 0.925f, 0.36f, 0.10f, axis = PadAxis.RIGHT_TRIGGER, pill = true),
-        Control("VIEW", Kind.BUTTON, "", 0.44f, 0.92f, 0.10f, PadButton.BACK),
-        Control("MENU", Kind.BUTTON, "", 0.56f, 0.92f, 0.10f, PadButton.START),
-        Control("L3", Kind.BUTTON, "L3", 0.235f, 0.56f, 0.09f, PadButton.LEFT_STICK),
-        Control("R3", Kind.BUTTON, "R3", 0.615f, 0.84f, 0.09f, PadButton.RIGHT_STICK),
+        // Sized by use (Factorio's default bindings): A builds, opens and crafts; X mines; B closes,
+        // clears the hand and dismisses tips; Y is the inventory. RT is the modifier most combinations
+        // need, LB holds the quick panel; LT and RB (shoot) less. The D-pad rotates, picks up, shows
+        // info. Touch is the cursor, so no right stick, and no L3/R3. The right-hand buttons stay left
+        // of the game's minimap and info panel, which fill the right edge in controller mode.
+        Control("LS", Kind.STICK, "L", 0.10f, 0.68f, 0.30f, axis = PadAxis.LEFT_X, axisY = PadAxis.LEFT_Y),
+        Control("DPAD", Kind.DPAD, "", 0.245f, 0.86f, 0.22f),
+        Control("A", Kind.BUTTON, "A", 0.705f, 0.835f, 0.16f, PadButton.SOUTH),
+        Control("X", Kind.BUTTON, "X", 0.645f, 0.69f, 0.13f, PadButton.WEST),
+        Control("B", Kind.BUTTON, "B", 0.765f, 0.69f, 0.13f, PadButton.EAST),
+        Control("Y", Kind.BUTTON, "Y", 0.705f, 0.55f, 0.115f, PadButton.NORTH),
+        Control("LB", Kind.BUTTON, "LB", 0.075f, 0.40f, 0.10f, PadButton.LEFT_SHOULDER, pill = true),
+        Control("LT", Kind.TRIGGER, "LT", 0.17f, 0.40f, 0.085f, axis = PadAxis.LEFT_TRIGGER, pill = true),
+        Control("RB", Kind.BUTTON, "RB", 0.655f, 0.40f, 0.085f, PadButton.RIGHT_SHOULDER, pill = true),
+        Control("RT", Kind.TRIGGER, "RT", 0.75f, 0.40f, 0.10f, axis = PadAxis.RIGHT_TRIGGER, pill = true),
+        Control("VIEW", Kind.BUTTON, "", 0.455f, 0.93f, 0.085f, PadButton.BACK),
+        Control("MENU", Kind.BUTTON, "", 0.545f, 0.93f, 0.085f, PadButton.START),
     )
 
     private val prefs = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
-    private val layoutKey = if (touch) "layout-touch" else "layout"
+    // The pad's layout was redone for touch as the cursor: a new key, so the old one doesn't place it.
+    private val layoutKey = if (touch) "layout-touch" else "layout-pad"
     private val vibrator = context.getSystemService(Vibrator::class.java)
 
     /** Sends a key to the game (Android key code, down); set by [OnScreenController]. */

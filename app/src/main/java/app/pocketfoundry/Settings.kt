@@ -53,13 +53,14 @@ object Settings {
     fun setSpriteQuality(context: Context, quality: String) = prefs(context).edit().putString("spriteQuality", quality).apply()
 
     /**
-     * How the game is played: "touch" (the screen is the game's mouse, with a stick to walk and a few
-     * keys; Factorio in its keyboard-and-mouse mode) or "gamepad" (the on-screen Xbox controller).
+     * How the game is played: "gamepad" (Factorio in its controller mode, so its hints name the
+     * on-screen Xbox buttons; touching the game moves its cursor and clicks in its menus) or "touch"
+     * (Factorio in keyboard-and-mouse mode: the screen is the mouse, with a stick to walk and its keys).
      * Applies when the game next starts.
      */
     fun controls(context: Context) = prefs(context).getString("controls", CONTROLS[0])!!
     fun setControls(context: Context, controls: String) = prefs(context).edit().putString("controls", controls).apply()
-    val CONTROLS = listOf("touch", "gamepad")
+    val CONTROLS = listOf("gamepad", "touch")
 
     /** The graphics driver's id (Drivers): applies when the game next starts. */
     fun driver(context: Context) = prefs(context).getString("driver", Drivers.ZINK)!!

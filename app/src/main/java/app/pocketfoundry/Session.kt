@@ -235,7 +235,7 @@ object Session {
         config = setIni(config, "path", "read-data", File(paths.game, "data").path)
         config = setIni(config, "path", "write-data", paths.gameData.path)
         // Factorio doesn't switch between mouse and gamepad by itself: Settings → Controls decides.
-        config = setIni(config, "input", "input-method", if (controls == "gamepad") "game-controller" else "keyboard-and-mouse")
+        config = setIni(config, "input", "input-method", if (controls == "touch") "keyboard-and-mouse" else "game-controller")
         // The automatic UI scale is too small at arm's length; 125% of display points reads
         // well on a phone. Also only a default.
         if (!Regex("(?m)^ui-scale-mode=").containsMatchIn(config)) {

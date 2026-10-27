@@ -302,7 +302,7 @@ class LauncherActivity : Activity() {
         controller.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         // The controls' opacity is in the layout editor, with their places and sizes.
-        controlsChoice = Dropdown(this, listOf("Touch", "Gamepad")) { Settings.setControls(this, Settings.CONTROLS[it]) }
+        controlsChoice = Dropdown(this, listOf("Gamepad", "Touch")) { Settings.setControls(this, Settings.CONTROLS[it]) }
         controller.addView(row("Controls", controlsChoice.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
