@@ -726,4 +726,5 @@ step where they meet. A sprite pixel is a dp. Before an import, or if the sheet 
 pieces), the code-drawn look stays. Headings took the game's caption colour, (255, 230, 192). The game's font,
 Lilittium (OFL), is Titillium Web with Cyrillic added: the app's Titillium already matches it. Checked on the emulator:
 Home, Settings, a drop-down open, the Saves dialog, the pause menu, Logs, a disabled button (the game's dark face, grey
-text). The README's screenshots still show the code-drawn look.
+text). The README's Home, Settings, driver, pause and playing screenshots were retaken on the phone with it (and the
+new controls, in Julio's tutorial game); Welcome and Importing come before an import, so they keep the drawn look.
