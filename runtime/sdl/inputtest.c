@@ -65,13 +65,13 @@ int main(void)
             printf("pad %s %s\n", SDL_GetGamepadStringForButton((SDL_GamepadButton) e.gbutton.button), e.gbutton.down ? "down" : "up");
             break;
         case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-            // Triggers only, and only across the middle: pressed or let go.
+            // Triggers only, in quarters (0 let go .. 4 pulled): a trigger left half pulled shows as 2.
             if (e.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || e.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
-                static bool pulled[SDL_GAMEPAD_AXIS_COUNT];
-                bool now = e.gaxis.value > 16384;
-                if (now != pulled[e.gaxis.axis]) {
-                    pulled[e.gaxis.axis] = now;
-                    printf("pad %s %s\n", SDL_GetGamepadStringForAxis((SDL_GamepadAxis) e.gaxis.axis), now ? "down" : "up");
+                static int quarter[SDL_GAMEPAD_AXIS_COUNT];
+                int now = (e.gaxis.value + 4096) / 8192;
+                if (now != quarter[e.gaxis.axis]) {
+                    quarter[e.gaxis.axis] = now;
+                    printf("pad %s %d/4\n", SDL_GetGamepadStringForAxis((SDL_GamepadAxis) e.gaxis.axis), now);
                 }
             }
             break;

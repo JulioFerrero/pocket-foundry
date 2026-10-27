@@ -699,3 +699,14 @@ menu up by the toolbar so the bottom is the game's. New layout key `layout-hybri
 Checked in the emulator, with `pocketfoundry-inputtest` now also printing the gamepad it sees: tap, double tap (A),
 long press (X held), double tap and drag (A held through the motion), two-finger tap (B), pinch out (RT + D-pad up
 per notch) and in (RT + D-pad down), two-finger slide (wheel).
+
+**Taps opening Factoriopedia (an old trigger bug):** on the phone every tap began to open Factoriopedia for the tile
+under the finger. First guess, a stuck Alt (`ALT + mouse-button-1` opens it with a keyboard): wrong, releasing the
+modifiers on every touch changed nothing (reverted). Its controller binding is `LT + RT + A`, and in controller mode
+a click acts like A. The triggers were the cause: `InputBridge.axis` sent 0 for a trigger let go, but SDL's virtual
+pad rests its triggers at -32768, so 0 is **half pulled**. Since Phase 4, using LT or RT once (and every pinch, which
+presses RT) left it half down for good; the old pad hid it, the touch cursor made every tap LT + RT + A. Setting both
+to -32768 by hand cured the running game; `InputBridge.axis` now maps triggers' 0..32767 onto -32768..32767.
+`pocketfoundry-inputtest` printed triggers as down/up at the middle, exactly where the bug sat; it now prints them in
+quarters. Side note: an Android key event sent with adb raises the phone's keyboard (Termux:X11's view is a text
+editor); the overlay's own keys don't, as they go straight to the X server.

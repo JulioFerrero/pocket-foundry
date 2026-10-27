@@ -158,7 +158,14 @@ object InputBridge {
 
     fun button(button: PadButton, down: Boolean) = send('B', button.ordinal, if (down) 1 else 0)
 
-    fun axis(axis: PadAxis, value: Int) = send('A', axis.ordinal, value.coerceIn(-32768, 32767))
+    /**
+     * Sticks -32768..32767; triggers 0 (let go) to 32767 (pulled). SDL's virtual pad rests its triggers
+     * at -32768, so 0 there is half pulled: left that way, LT + RT + A (Factoriopedia) is a tap.
+     */
+    fun axis(axis: PadAxis, value: Int) {
+        val trigger = axis == PadAxis.LEFT_TRIGGER || axis == PadAxis.RIGHT_TRIGGER
+        send('A', axis.ordinal, if (trigger) value.coerceIn(0, 32767) * 2 - 32768 else value.coerceIn(-32768, 32767))
+    }
 
     private fun send(kind: Char, index: Int, value: Int) {
         val socket = client ?: return
