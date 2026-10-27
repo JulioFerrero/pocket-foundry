@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A factory: sawtooth roof and a chimney. -->
+<!-- The furnace of the app icon, flat: body, chimney, a vented top and the mouth. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFFFF"
-        android:pathData="M2,21V10.5l5,3V10.5l5,3V10.5l5,3V3h4v18z" />
+        android:pathData="M14.4,2H19.6V3.6H19V8H15V3.6H14.4Z" />
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M5,7H19A2,2 0,0 1,21 9V20A2,2 0,0 1,19 22H5A2,2 0,0 1,3 20V9A2,2 0,0 1,5 7Z M8,15H16A1,1 0,0 1,17 16V19A1,1 0,0 1,16 20H8A1,1 0,0 1,7 19V16A1,1 0,0 1,8 15Z M7,9.5H8.8V13H7Z M11.1,9.5H12.9V13H11.1Z M15.2,9.5H17V13H15.2Z" />
 </vector>

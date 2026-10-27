@@ -605,3 +605,12 @@ were ruled out: both are trademarks, and such a name reads like an official port
 (baked into the runtime's paths, so everything was rebuilt); identifiers `PocketFoundry`/`POCKETFOUNDRY`/
 `pocketfoundry`; signing key in `../pocketfoundry-keys` (alias unchanged). A new package installs as a new app:
 the game, saves and settings were moved over from the old one with adb.
+
+### A furnace for the icon (2026-10-27)
+The assembler with a chimney read more like a radio than a foundry. Flat vector ideas looked like clip-art next to it,
+so the options were rendered the same way as the old icon and the launcher's scene (three.js, Factorio's oblique
+camera, a low north-west sun, worn metal, bloom on what glows): a refined assembler, a furnace, a pouring crucible,
+a stitched pocket, a belt. The furnace won: it is what a foundry is, and its glowing mouth and grille still read at
+home-screen size. The foreground is that render, blueprint paper included (so it is opaque); the notification and
+themed icons are the same furnace drawn flat (`drawable/ic_notification.xml`, `ic_launcher_monochrome.xml`), and
+`tools/icon_png.py` now draws Termux:X11's monochrome layer from it instead of the foreground's alpha.
