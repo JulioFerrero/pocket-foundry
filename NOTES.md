@@ -687,3 +687,15 @@ Not yet known: how tap-then-A feels for building.
 own controller zoom, RT held with the D-pad up or down (`zoom-in-controller`/`zoom-out-controller`), once per notch
 (50 ms held, 40 ms apart) on the virtual gamepad (`PadZoom`). Two-finger sliding is still the wheel, for lists.
 Checked by Julio on the phone: pinching zooms.
+
+**Gestures press the pad where the finger is** (gamepad mode; `PointerGestures` with `PadPresses`): a tap aims
+(and clicks in menus), a double tap presses A there (build, open) and, left down, holds A while the finger drags (a
+line of belts), a long press holds X (mining, along the finger), a two-finger tap presses B (close, back, dismiss a
+tip), a pinch zooms. Pad presses last at least 50 ms (three ticks), so a quick tap isn't missed. In a menu the first
+tap of a double tap already clicked, so a double tap there picks up and puts back: menus are single taps anyway.
+With A, X and B under the finger, the buttons were rearranged: Y (inventory, only a button opens it) the largest,
+A/X/B a smaller diamond (the game's hints still point at them), RT/RB above it, LB/LT above the stick, map and
+menu up by the toolbar so the bottom is the game's. New layout key `layout-hybrid`.
+Checked in the emulator, with `pocketfoundry-inputtest` now also printing the gamepad it sees: tap, double tap (A),
+long press (X held), double tap and drag (A held through the motion), two-finger tap (B), pinch out (RT + D-pad up
+per notch) and in (RT + D-pad down), two-finger slide (wheel).

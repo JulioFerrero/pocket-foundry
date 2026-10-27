@@ -20,11 +20,12 @@ Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 
 ## What's in it
 
 - **Controls that match the game's hints:** Factorio runs in its gamepad mode, so when it says "press A" or "hold
-  LB", that's the button on screen, in the game's own look. Touching the game moves its cursor there (the buttons
-  act on it) and clicks in its menus; pinch zooms. The buttons are sized by how much Factorio uses them: A (build,
-  open, craft) largest, then X (mine), B (close, back), Y (inventory), RT and LB. Move, resize or fade them from
-  the toolbar at the top, or hide them. Settings → Controls also offers Touch: the screen as a mouse with the
-  game's keyboard keys.
+  LB", that's the button on screen, in the game's own look. Touching the game moves its cursor there and clicks in
+  its menus; double tap to press A there (build, open; keep the finger down and drag for a line of belts), long press
+  to mine, tap with two fingers for B (close, back), pinch to zoom. The buttons are sized by use: Y (inventory) the
+  largest, a smaller A/B/X/Y diamond, RT and LB, map and menu up by the toolbar. Move, resize or fade them from the
+  toolbar at the top, or hide them. Settings → Controls also offers Touch: the screen as a mouse with the game's
+  keyboard keys.
 - **Settings:** the resolution the game draws at, a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
   round the game that keeps the screen's rounded corners off its menus, sprite quality (Medium takes ~700 MB off a
   phone's shared memory, for very big saves), gamepad or touch controls, pausing in the background and vibration.

@@ -1,5 +1,6 @@
-// Opens a window on the X server and prints the mouse, wheel and keys SDL sees, as Factorio
-// would get them: checks the touch controls → X → SDL path without the game (or a GPU).
+// Opens a window on the X server and prints the mouse, wheel, keys and gamepad SDL sees, as
+// Factorio would get them: checks the controls → X / virtual pad → SDL paths without the game
+// (or a GPU).
 // Debug builds run it in the game's place with `test.program=pocketfoundry-inputtest` in
 // files/debug.env; it prints to logs/game.log.
 #include <SDL3/SDL.h>
@@ -7,7 +8,8 @@
 
 int main(void)
 {
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         printf("SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
@@ -53,6 +55,25 @@ int main(void)
             break;
         case SDL_EVENT_MOUSE_WHEEL:
             printf("wheel %+.2f\n", e.wheel.y);
+            break;
+        case SDL_EVENT_GAMEPAD_ADDED:
+            SDL_OpenGamepad(e.gdevice.which);
+            printf("pad added\n");
+            break;
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+        case SDL_EVENT_GAMEPAD_BUTTON_UP:
+            printf("pad %s %s\n", SDL_GetGamepadStringForButton((SDL_GamepadButton) e.gbutton.button), e.gbutton.down ? "down" : "up");
+            break;
+        case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+            // Triggers only, and only across the middle: pressed or let go.
+            if (e.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || e.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
+                static bool pulled[SDL_GAMEPAD_AXIS_COUNT];
+                bool now = e.gaxis.value > 16384;
+                if (now != pulled[e.gaxis.axis]) {
+                    pulled[e.gaxis.axis] = now;
+                    printf("pad %s %s\n", SDL_GetGamepadStringForAxis((SDL_GamepadAxis) e.gaxis.axis), now ? "down" : "up");
+                }
+            }
             break;
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP:

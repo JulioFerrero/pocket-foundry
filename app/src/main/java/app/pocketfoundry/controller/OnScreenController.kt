@@ -45,8 +45,8 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         view.keys = { code, down -> lorie.sendKeyEvent(0, code, down) }
         view.onKeyboard = { lorie.toggleKeyboardVisible() }
         // Either way, touching the game is its mouse: in controller mode that moves its cursor
-        // to the spot (the buttons act there) and clicks in its menus.
-        val mouse = PointerGestures.attach(activity, { view.mining }, if (touch) null else PadZoom()::zoom) {
+        // to the spot (the buttons act there) and clicks in its menus, and gestures press the pad.
+        val mouse = PointerGestures.attach(activity, { view.mining }, if (touch) null else PadPresses()) {
             if (Settings.vibration(activity)) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
         mouse?.let { gestures[activity] = it }

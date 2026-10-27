@@ -2,8 +2,10 @@ package app.pocketfoundry.controller
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.ViewConfiguration
+import app.pocketfoundry.PadButton
 import com.termux.x11.LorieView
 import com.termux.x11.MainActivity
 import com.termux.x11.input.InputStub
@@ -14,18 +16,23 @@ import kotlin.math.ln
 import kotlin.math.pow
 
 /**
- * With touch controls, the fingers that land on the game rather than on a control: the screen
- * is the game's mouse, Factorio in its keyboard-and-mouse mode.
+ * The fingers that land on the game rather than on a control: the screen is the game's mouse.
  *
- * - A tap clicks where it lands.
- * - A drag holds the left button from where it started: belts and pipes in a line, items across
- *   the inventory.
- * - A long press holds the right button: mining, for as long as the finger stays (and moves).
- *   [mining] makes every touch do that, for clearing an area.
- * - Two fingers turn the wheel: spreading them zooms in, sliding them scrolls a list. Tapped
- *   together, they right-click. In controller mode, where the game ignores the wheel for zoom,
- *   [zoom] presses its own zoom instead.
+ * With the gamepad ([pad]: Factorio in controller mode, where the mouse moves its cursor and clicks
+ * only in menus), a touch aims and the gestures press the pad's buttons where the finger is:
+ * - a tap moves the cursor there (and clicks, in a menu);
+ * - a double tap presses A there (build, open); left down, A stays held while the finger drags,
+ *   for a line of belts;
+ * - a long press holds X there (mining), wherever the finger goes after;
+ * - two fingers tapped together press B (close, back, dismiss a tip);
+ * - spreading two fingers zooms, with the game's own zoom.
  *
+ * With touch controls (Factorio in keyboard-and-mouse mode):
+ * - a tap clicks; a drag holds the left button (belts in a line, items across the inventory);
+ * - a long press holds the right button (mining); [mining] makes every touch do that;
+ * - spreading two fingers turns the wheel up (zoom in); two fingers tapped together right-click.
+ *
+ * Either way, a drag in a menu moves items, and two fingers sliding turn the wheel, to scroll a list.
  * Coordinates are the window's, as [TouchRouter] sees them.
  */
 class PointerGestures private constructor(
@@ -33,11 +40,13 @@ class PointerGestures private constructor(
     private val renderData: RenderData,
     private val mining: () -> Boolean,
     private val onLongPress: () -> Unit,
-    /** Notches in (positive) or out, when the wheel doesn't zoom; null: the wheel does. */
-    private val zoom: ((Int) -> Unit)?,
+    private val pad: PadPresses?,
 ) {
     private val handler = Handler(Looper.getMainLooper())
-    private val slop = ViewConfiguration.get(lorie.context).scaledTouchSlop.toFloat()
+    private val config = ViewConfiguration.get(lorie.context)
+    private val slop = config.scaledTouchSlop.toFloat()
+    private val doubleTapSlop = config.scaledDoubleTapSlop.toFloat()
+    private val doubleTapMs = ViewConfiguration.getDoubleTapTimeout().toLong()
     private val density = lorie.resources.displayMetrics.density
     private val location = IntArray(2)
     private val mapped = FloatArray(2)
@@ -46,6 +55,12 @@ class PointerGestures private constructor(
     private var downX = 0f
     private var downY = 0f
     private var held = InputStub.BUTTON_UNDEFINED
+    private var heldPad: PadButton? = null
+    private val holding get() = held != InputStub.BUTTON_UNDEFINED || heldPad != null
+    // Where and when the last tap was, for a double tap.
+    private var lastTapAt = 0L
+    private var lastTapX = 0f
+    private var lastTapY = 0f
     /** Two fingers came down: the rest of this touch is theirs, until every finger lifts. */
     private var twoFinger = false
     private var twoFingerStart = 0L
@@ -58,10 +73,14 @@ class PointerGestures private constructor(
     private enum class Mode { UNDECIDED, PINCH, SCROLL, NONE }
 
     private val longPress = Runnable {
-        if (fingers.size == 1 && held == InputStub.BUTTON_UNDEFINED && !twoFinger) {
+        if (fingers.size != 1 || holding || twoFinger) return@Runnable
+        if (pad != null) {
+            moveTo(downX, downY)
+            holdPad(PadButton.WEST)
+        } else {
             press(InputStub.BUTTON_RIGHT, downX, downY)
-            onLongPress()
         }
+        onLongPress()
     }
 
     fun down(id: Int, x: Float, y: Float) {
@@ -71,7 +90,12 @@ class PointerGestures private constructor(
             mode = Mode.UNDECIDED
             downX = x
             downY = y
-            if (mining()) {
+            val now = SystemClock.uptimeMillis()
+            if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
+                lastTapAt = 0
+                moveTo(x, y)
+                holdPad(PadButton.SOUTH)
+            } else if (pad == null && mining()) {
                 press(InputStub.BUTTON_RIGHT, x, y)
             } else {
                 moveTo(x, y)   // what's under the finger shows in the game while it decides
@@ -79,11 +103,11 @@ class PointerGestures private constructor(
             }
             return
         }
-        // A drag or mining already under way keeps going; extra fingers just rest.
-        if (held != InputStub.BUTTON_UNDEFINED || twoFinger || fingers.size != 2) return
+        // A drag, a held A or mining already under way keeps going; extra fingers just rest.
+        if (holding || twoFinger || fingers.size != 2) return
         handler.removeCallbacks(longPress)
         twoFinger = true
-        twoFingerStart = System.currentTimeMillis()
+        twoFingerStart = SystemClock.uptimeMillis()
         val (a, b) = fingers.values.toList()
         spanRef = hypot(a[0] - b[0], a[1] - b[1])
         midStartX = (a[0] + b[0]) / 2
@@ -100,7 +124,7 @@ class PointerGestures private constructor(
             return
         }
         if (fingers.size != 1) return
-        if (held != InputStub.BUTTON_UNDEFINED) {
+        if (holding) {
             moveTo(x, y)
         } else if (hypot(x - downX, y - downY) > slop) {
             handler.removeCallbacks(longPress)
@@ -112,21 +136,28 @@ class PointerGestures private constructor(
     fun up(id: Int, x: Float, y: Float) {
         fingers[id]?.let { it[0] = x; it[1] = y }
         if (twoFinger) {
-            if (mode == Mode.UNDECIDED && System.currentTimeMillis() - twoFingerStart < TAP_MS) {
-                val both = fingers.values.toList()
-                val a = both.first()
-                val b = both.getOrElse(1) { a }
-                moveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-                click(InputStub.BUTTON_RIGHT)
+            if (mode == Mode.UNDECIDED && SystemClock.uptimeMillis() - twoFingerStart < TAP_MS) {
+                if (pad != null) {
+                    pad.tap(PadButton.EAST)
+                } else {
+                    val both = fingers.values.toList()
+                    val a = both.first()
+                    val b = both.getOrElse(1) { a }
+                    moveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+                    click(InputStub.BUTTON_RIGHT)
+                }
             }
             mode = Mode.NONE   // the other finger lifting does nothing more
         } else if (fingers.size == 1) {
             handler.removeCallbacks(longPress)
-            if (held != InputStub.BUTTON_UNDEFINED) {
+            if (holding) {
                 release()
             } else {
                 moveTo(x, y)
                 click(InputStub.BUTTON_LEFT)
+                lastTapAt = SystemClock.uptimeMillis()
+                lastTapX = x
+                lastTapY = y
             }
         }
         fingers.remove(id)
@@ -161,7 +192,7 @@ class PointerGestures private constructor(
             Mode.PINCH -> {
                 val steps = (ln(span / spanRef) / ln(ZOOM_STEP)).toInt()
                 if (steps != 0) {
-                    zoom?.invoke(steps) ?: wheel(-steps)   // spreading zooms in: the wheel turned up
+                    pad?.zoom(steps) ?: wheel(-steps)   // spreading zooms in: the wheel turned up
                     spanRef *= ZOOM_STEP.pow(steps)
                 }
             }
@@ -177,7 +208,7 @@ class PointerGestures private constructor(
         }
     }
 
-    // To the X server.
+    // To the X server and the pad.
 
     private fun moveTo(x: Float, y: Float) {
         lorie.getLocationInWindow(location)
@@ -191,10 +222,16 @@ class PointerGestures private constructor(
         held = button
     }
 
+    private fun holdPad(button: PadButton) {
+        pad?.hold(button)
+        heldPad = button
+    }
+
     private fun release() {
-        if (held == InputStub.BUTTON_UNDEFINED) return
-        lorie.sendMouseEvent(0f, 0f, held, false, false)
+        if (held != InputStub.BUTTON_UNDEFINED) lorie.sendMouseEvent(0f, 0f, held, false, false)
         held = InputStub.BUTTON_UNDEFINED
+        heldPad?.let { pad?.release(it) }
+        heldPad = null
     }
 
     private fun click(button: Int) {
@@ -213,14 +250,14 @@ class PointerGestures private constructor(
         private const val SCROLL_STEP_DP = 36f
 
         /**
-         * Null if Termux:X11's input mapping can't be reached (its private fields renamed): touches
-         * then reach the game the way Termux:X11 handles them.
+         * [pad]: controller mode's gestures; null for touch controls. Null if Termux:X11's input mapping
+         * can't be reached (its private fields renamed): touches then reach the game as Termux:X11 sends them.
          */
-        fun attach(activity: MainActivity, mining: () -> Boolean, zoom: ((Int) -> Unit)?, onLongPress: () -> Unit): PointerGestures? = runCatching {
+        fun attach(activity: MainActivity, mining: () -> Boolean, pad: PadPresses?, onLongPress: () -> Unit): PointerGestures? = runCatching {
             // The view-to-X-screen mapping Termux:X11 keeps for its own touch handling, letterboxing included.
             val handler = MainActivity::class.java.getDeclaredField("mInputHandler").apply { isAccessible = true }.get(activity)!!
             val renderData = handler.javaClass.getDeclaredField("mRenderData").apply { isAccessible = true }.get(handler) as RenderData
-            PointerGestures(activity.lorieView, renderData, mining, onLongPress, zoom)
+            PointerGestures(activity.lorieView, renderData, mining, onLongPress, pad)
         }.onFailure { Log.w("PocketFoundry", "Touch controls unavailable, touches go to Termux:X11", it) }.getOrNull()
     }
 }
