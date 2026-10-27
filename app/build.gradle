@@ -1,0 +1,61 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'app.pocketfoundry'
+    compileSdk 36
+    ndkVersion '29.0.14206865'   // what :lorie pins, so its native code builds once
+
+    defaultConfig {
+        applicationId 'app.pocketfoundry'
+        minSdk 29
+        targetSdk 34
+        versionCode 2
+        versionName '0.2'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+
+    // liblzma for unpacking the game and the runtime.
+    externalNativeBuild.cmake.path 'src/main/cpp/CMakeLists.txt'
+
+    // The glibc loader ships as jniLibs/libld-linux.so: extracted native
+    // libraries are the only files an app may exec on Android 10+.
+    packaging.jniLibs.useLegacyPackaging true
+
+    // Built by runtime/build.sh assemble.
+    sourceSets.main {
+        assets.srcDirs += '../runtime/out/apk/assets'
+        jniLibs.srcDirs += '../runtime/out/apk/jniLibs'
+    }
+
+    // Pocket Foundry's own key, kept outside the repo (../pocketfoundry-keys next to it, or $POCKETFOUNDRY_SIGNING).
+    // It signs debug builds too, so either kind installs over the other and the imported game
+    // stays. Without it, builds get the usual debug key.
+    def signing = file(System.getenv('POCKETFOUNDRY_SIGNING') ?: '../../pocketfoundry-keys/keystore.properties')
+    if (signing.exists()) {
+        def key = new Properties()
+        signing.withInputStream { key.load(it) }
+        signingConfigs {
+            pocketfoundry {
+                storeFile file(key.storeFile)
+                storePassword key.storePassword
+                keyAlias key.keyAlias
+                keyPassword key.keyPassword
+            }
+        }
+        buildTypes {
+            debug.signingConfig signingConfigs.pocketfoundry
+            release.signingConfig signingConfigs.pocketfoundry
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation project(':lorie')
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'org.apache.commons:commons-compress:1.28.0'
+}

@@ -1,0 +1,23 @@
+# Never commit game files: each user imports their own copy.
+/factorio*/
+*.tar.xz
+*.zip
+/data/
+/saves/
+
+# Build output
+.gradle/
+build/
+local.properties
+*.apk
+*.keystore
+.DS_Store
+
+# Runtime build output and download cache
+/runtime/out/
+/runtime/cache/
+/runtime/out-*.log
+/app/build/
+/build/
+/build-app.log
+.cxx/

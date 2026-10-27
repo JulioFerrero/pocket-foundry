@@ -1,0 +1,108 @@
+package app.pocketfoundry.controller
+
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.Window
+
+/**
+ * Sits in front of the game activity's window: each finger that lands on a control
+ * belongs to the controller until it lifts, every other finger reaches the game as
+ * if the controller weren't there. A thumb on the stick doesn't stop the other
+ * hand from tapping the game.
+ *
+ * It also takes the Back gesture, which Termux:X11 would otherwise swallow: [onBack].
+ */
+class TouchRouter(
+    private val target: Window.Callback,
+    private val controller: ControllerView,
+    private val onBack: () -> Unit,
+) : Window.Callback by target {
+
+    private val claimed = HashSet<Int>()
+    private val forwarded = HashSet<Int>()
+    private var forwardedDownTime = 0L
+    private val location = IntArray(2)
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // A mouse's back button stays a right click in the game.
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && !event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+            if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) onBack()
+            return true
+        }
+        return target.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        controller.getLocationInWindow(location)
+        val dx = location[0].toFloat()
+        val dy = location[1].toFloat()
+
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    claimed.clear()
+                    forwarded.clear()
+                }
+                val index = event.actionIndex
+                val id = event.getPointerId(index)
+                if (controller.pointerDown(id, event.getX(index) - dx, event.getY(index) - dy)) {
+                    claimed += id
+                    return true
+                }
+                forwarded += id
+                return forward(event, if (forwarded.size == 1) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_POINTER_DOWN, id)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                for (i in 0 until event.pointerCount) {
+                    val id = event.getPointerId(i)
+                    if (id in claimed) controller.pointerMove(id, event.getX(i) - dx, event.getY(i) - dy)
+                }
+                return forwarded.isEmpty() || forward(event, MotionEvent.ACTION_MOVE, -1)
+            }
+            MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> {
+                val id = event.getPointerId(event.actionIndex)
+                if (claimed.remove(id)) {
+                    controller.pointerUp(id)
+                    return true
+                }
+                if (id !in forwarded) return true
+                val handled = forward(event, if (forwarded.size == 1) MotionEvent.ACTION_UP else MotionEvent.ACTION_POINTER_UP, id)
+                forwarded -= id
+                return handled
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                claimed.forEach { controller.pointerUp(it) }
+                claimed.clear()
+                val handled = forwarded.isEmpty() || forward(event, MotionEvent.ACTION_CANCEL, -1)
+                forwarded.clear()
+                return handled
+            }
+        }
+        return target.dispatchTouchEvent(event)
+    }
+
+    /** Sends [event] on with only the game's fingers; [actionId] is the one going down or up. */
+    private fun forward(event: MotionEvent, action: Int, actionId: Int): Boolean {
+        if (action == MotionEvent.ACTION_DOWN) forwardedDownTime = event.eventTime
+        // No finger on the controller: the event is already what the game should see.
+        if (claimed.isEmpty()) return target.dispatchTouchEvent(event)
+
+        val indices = (0 until event.pointerCount).filter { event.getPointerId(it) in forwarded }
+        val properties = Array(indices.size) { MotionEvent.PointerProperties().also { p -> event.getPointerProperties(indices[it], p) } }
+        val coords = Array(indices.size) { MotionEvent.PointerCoords().also { c -> event.getPointerCoords(indices[it], c) } }
+        var masked = action
+        if (action == MotionEvent.ACTION_POINTER_DOWN || action == MotionEvent.ACTION_POINTER_UP) {
+            val index = indices.indexOfFirst { event.getPointerId(it) == actionId }
+            masked = action or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+        }
+        val copy = MotionEvent.obtain(forwardedDownTime, event.eventTime, masked, indices.size, properties, coords,
+            event.metaState, event.buttonState, event.xPrecision, event.yPrecision, event.deviceId,
+            event.edgeFlags, event.source, event.flags)
+        try {
+            return target.dispatchTouchEvent(copy)
+        } finally {
+            copy.recycle()
+        }
+    }
+}

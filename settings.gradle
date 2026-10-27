@@ -1,0 +1,18 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'pocketfoundry'
+
+include ':app'
+
+// The X server comes from Termux:X11 (git submodule, patched by tools/setup.sh).
+include ':lorie'
+project(':lorie').projectDir = file('third_party/termux-x11/lorie')
+include ':shell-loader:stub'
+project(':shell-loader').projectDir = file('third_party/shell-loader-parent')
+project(':shell-loader:stub').projectDir = file('third_party/termux-x11/shell-loader/stub')

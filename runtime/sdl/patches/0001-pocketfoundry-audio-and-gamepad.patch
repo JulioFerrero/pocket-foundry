@@ -1,0 +1,94 @@
+diff --color -ru a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt	2026-10-27 14:12:07
++++ b/CMakeLists.txt	2026-10-27 14:12:08
+@@ -317,6 +317,7 @@
+ dep_option(SDL_DBUS                "Enable D-Bus support" ON "${UNIX_SYS}" OFF)
+ dep_option(SDL_LIBURING            "Enable liburing support" ON "${UNIX_SYS}" OFF)
+ dep_option(SDL_DISKAUDIO           "Support the disk writer audio driver" ON "SDL_AUDIO" OFF)
++set_option(SDL_POCKETFOUNDRY             "Sound and a gamepad from the Pocket Foundry Android app" OFF)
+ dep_option(SDL_DUMMYAUDIO          "Support the dummy audio driver" ON "SDL_AUDIO" OFF)
+ dep_option(SDL_DUMMYVIDEO          "Use dummy video driver" ON "SDL_VIDEO" OFF)
+ dep_option(SDL_IBUS                "Enable IBus support" ON "${UNIX_SYS}" OFF)
+@@ -1350,6 +1351,11 @@
+     set(HAVE_DISKAUDIO TRUE)
+     set(HAVE_SDL_AUDIO TRUE)
+   endif()
++endif()
++
++if(SDL_POCKETFOUNDRY)
++  set(HAVE_POCKETFOUNDRY TRUE)
++  sdl_glob_sources("${SDL3_SOURCE_DIR}/src/pocketfoundry/*.c")
+ endif()
+ 
+ if(SDL_CAMERA)
+diff --color -ru a/include/build_config/SDL_build_config.h.cmake b/include/build_config/SDL_build_config.h.cmake
+--- a/include/build_config/SDL_build_config.h.cmake	2026-10-27 14:12:08
++++ b/include/build_config/SDL_build_config.h.cmake	2026-10-27 14:12:08
+@@ -270,6 +270,7 @@
+ #cmakedefine SDL_AUDIO_DRIVER_AAUDIO 1
+ #cmakedefine SDL_AUDIO_DRIVER_COREAUDIO 1
+ #cmakedefine SDL_AUDIO_DRIVER_DISK 1
++#cmakedefine SDL_POCKETFOUNDRY 1
+ #cmakedefine SDL_AUDIO_DRIVER_DSOUND 1
+ #cmakedefine SDL_AUDIO_DRIVER_DUMMY 1
+ #cmakedefine SDL_AUDIO_DRIVER_EMSCRIPTEN 1
+diff --color -ru a/src/audio/SDL_audio.c b/src/audio/SDL_audio.c
+--- a/src/audio/SDL_audio.c	2026-10-27 14:12:08
++++ b/src/audio/SDL_audio.c	2026-10-27 14:12:08
+@@ -95,6 +95,9 @@
+ #ifdef SDL_AUDIO_DRIVER_DISK
+     &DISKAUDIO_bootstrap,
+ #endif
++#ifdef SDL_POCKETFOUNDRY
++    &POCKETFOUNDRYAUDIO_bootstrap,
++#endif
+ #ifdef SDL_AUDIO_DRIVER_DUMMY
+     &DUMMYAUDIO_bootstrap,
+ #endif
+diff --color -ru a/src/audio/SDL_sysaudio.h b/src/audio/SDL_sysaudio.h
+--- a/src/audio/SDL_sysaudio.h	2026-10-27 14:12:08
++++ b/src/audio/SDL_sysaudio.h	2026-10-27 14:12:08
+@@ -380,6 +380,7 @@
+ extern AudioBootStrap HAIKUAUDIO_bootstrap;
+ extern AudioBootStrap COREAUDIO_bootstrap;
+ extern AudioBootStrap DISKAUDIO_bootstrap;
++extern AudioBootStrap POCKETFOUNDRYAUDIO_bootstrap;
+ extern AudioBootStrap DUMMYAUDIO_bootstrap;
+ extern AudioBootStrap AAUDIO_bootstrap;
+ extern AudioBootStrap OPENSLES_bootstrap;
+diff --color -ru a/src/joystick/SDL_joystick.c b/src/joystick/SDL_joystick.c
+--- a/src/joystick/SDL_joystick.c	2026-10-27 14:12:08
++++ b/src/joystick/SDL_joystick.c	2026-10-27 14:12:08
+@@ -23,6 +23,9 @@
+ // This is the joystick API for Simple DirectMedia Layer
+ 
+ #include "SDL_sysjoystick.h"
++#ifdef SDL_POCKETFOUNDRY
++#include "../pocketfoundry/SDL_pocketfoundry.h"
++#endif
+ #include "../SDL_hints_c.h"
+ #include "SDL_gamepad_c.h"
+ #include "SDL_joystick_c.h"
+@@ -876,6 +879,11 @@
+     if (!result) {
+         SDL_QuitJoysticks();
+     }
++#ifdef SDL_POCKETFOUNDRY
++    else {
++        SDL_POCKETFOUNDRY_StartInput();
++    }
++#endif
+ 
+     return result;
+ }
+@@ -2245,6 +2253,10 @@
+ {
+     int i;
+     SDL_JoystickID *joysticks;
++
++#ifdef SDL_POCKETFOUNDRY
++    SDL_POCKETFOUNDRY_StopInput();  // before the lock: its thread takes the lock on its way out
++#endif
+ 
+     SDL_LockJoysticks();
+ 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pocket Foundry</string>
+    <string name="notification_channel">Game session</string>
+    <string name="game_playing">Playing</string>
+    <string name="game_paused">Paused</string>
+    <string name="game_quitting">Quitting…</string>
+    <string name="quit">Quit</string>
+</resources>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Replaces Termux:X11's X icon (its notification, its "no display" screen) with Pocket Foundry's. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@mipmap/ic_launcher" android:inset="0dp" />

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- DNS servers for the game's resolv.conf. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Controller rumble and button haptics. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Keeps a paused game alive in the background, with Quit in its notification. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".PocketFoundryApp"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        tools:replace="android:name">
+
+        <activity
+            android:name=".LauncherActivity"
+            android:theme="@style/Theme.PocketFoundry.Launcher"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".LogActivity"
+            android:label="Logs"
+            android:theme="@style/Theme.PocketFoundry.Launcher"
+            android:screenOrientation="sensorLandscape"
+            android:exported="false" />
+
+        <!-- Termux:X11's display: the game screen, not a second launcher entry. -->
+        <activity
+            android:name="com.termux.x11.MainActivity"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            tools:replace="android:label,android:icon,android:roundIcon">
+            <intent-filter tools:node="removeAll" />
+        </activity>
+
+        <service
+            android:name=".GameService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the player's game session alive while it is paused in the background" />
+        </service>
+
+        <service android:name="com.termux.x11.utils.KeyInterceptor" tools:node="remove" />
+    </application>
+</manifest>

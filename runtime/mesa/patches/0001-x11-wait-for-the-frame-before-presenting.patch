@@ -1,0 +1,20 @@
+--- a/src/vulkan/wsi/wsi_common_x11.c
++++ b/src/vulkan/wsi/wsi_common_x11.c
+@@ -2595,10 +2595,13 @@
+ 
+       VkPresentModeKHR present_mode = chain->images[image_index].present_mode;
+ 
+-      /* Not necessary to block when we have explicit sync */
+-      bool need_fence_wait =
+-            x11_needs_wait_for_fences(chain->base.wsi, wsi_conn, present_mode) &&
+-            !chain->base.image_info.explicit_sync;
++      /* Not necessary to block when we have explicit sync.
++       *
++       * Pocket Foundry: always wait otherwise. Termux:X11 shows a pixmap as soon as
++       * PresentPixmap arrives, and KGSL's dma-bufs carry no implicit fences, so a
++       * frame the GPU is still drawing would be shown half done (black flashes).
++       * The wait happens here, on the present thread, not the app's. */
++      bool need_fence_wait = !chain->base.image_info.explicit_sync;
+ 
+       bool need_timing_fence_wait = x11_swapchain_present_timing_is_out_of_order_completion(
+             chain, wsi_conn, &chain->images[image_index].timing_request);

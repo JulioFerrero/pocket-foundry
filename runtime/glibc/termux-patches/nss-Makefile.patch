@@ -1,0 +1,10 @@
+--- src/nss/Makefile	2024-01-31 03:34:58.000000000 +0300
++++ src/nss/Makefile.patch	2024-02-09 09:09:23.564952587 +0300
+@@ -53,6 +53,7 @@
+   rewrite_field \
+   valid_field \
+   valid_list_field \
++  android_passwd_group \
+   # routines
+ 
+ # alias routines:

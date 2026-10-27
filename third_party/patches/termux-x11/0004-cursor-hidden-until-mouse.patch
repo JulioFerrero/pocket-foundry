@@ -1,0 +1,14 @@
+diff --git a/lorie/src/main/cpp/lorie/InitOutput.c b/lorie/src/main/cpp/lorie/InitOutput.c
+index 356931a..d639f5c 100644
+--- a/lorie/src/main/cpp/lorie/InitOutput.c
++++ b/lorie/src/main/cpp/lorie/InitOutput.c
+@@ -167,7 +167,8 @@ void OsVendorInit(void) {
+     pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+     pthread_mutex_init(&lorieScreen.state->lock, &mutex_attr);
+     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
+-    lorieScreen.state->cursor.visible = TRUE;
++    // Hidden until a real mouse moves: touch never shows it (Pocket Foundry).
++    lorieScreen.state->cursor.visible = FALSE;
+ 
+     lorieListenForKnocks(documentTag ? DOCUMENT_PORT_BASE + atoi(display) : PORT, documentTag);
+ }

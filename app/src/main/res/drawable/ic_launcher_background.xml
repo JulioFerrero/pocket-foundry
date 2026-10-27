@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pocket Foundry's blueprint paper, behind the icon's assembling machine. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="54" android:centerY="50" android:gradientRadius="76"
+                android:startColor="#1A3D61" android:endColor="#091726" />
+        </aapt:attr>
+    </path>
+    <path android:pathData="M13.5,0 V108 M27.0,0 V108 M40.5,0 V108 M54.0,0 V108 M67.5,0 V108 M81.0,0 V108 M94.5,0 V108 M0,13.5 H108 M0,27.0 H108 M0,40.5 H108 M0,54.0 H108 M0,67.5 H108 M0,81.0 H108 M0,94.5 H108" android:strokeColor="#1F78AAE6" android:strokeWidth="0.5" />
+    <path android:pathData="M27,0 V108 M54,0 V108 M81,0 V108 M0,27 H108 M0,54 H108 M0,81 H108" android:strokeColor="#3878AAE6" android:strokeWidth="0.9" />
+</vector>

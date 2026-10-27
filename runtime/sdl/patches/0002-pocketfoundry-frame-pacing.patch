@@ -1,0 +1,22 @@
+--- a/src/video/SDL_video.c	2026-10-27 17:09:21
++++ b/src/video/SDL_video.c	2026-10-27 17:09:21
+@@ -37,6 +37,9 @@
+ #include "../camera/SDL_camera_c.h"
+ #include "../render/SDL_sysrender.h"
+ #include "../main/SDL_main_callbacks.h"
++#ifdef SDL_POCKETFOUNDRY
++#include "../pocketfoundry/SDL_pocketfoundry.h"
++#endif
+ 
+ #ifdef SDL_VIDEO_OPENGL
+ #include <SDL3/SDL_opengl.h>
+@@ -5630,6 +5633,9 @@
+         return SDL_SetError("The specified window has not been made current");
+     }
+ 
++#ifdef SDL_POCKETFOUNDRY
++    SDL_POCKETFOUNDRY_PaceFrame();
++#endif
+     return _this->GL_SwapWindow(_this, window);
+ }
+ 

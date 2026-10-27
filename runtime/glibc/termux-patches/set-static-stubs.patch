@@ -1,0 +1,120 @@
+diff --git a/elf/static-stubs.c b/elf/static-stubs.c
+index d676aa5a..e4181b62 100644
+--- a/elf/static-stubs.c
++++ b/elf/static-stubs.c
+@@ -21,6 +21,9 @@
+    sysdeps/unix/sysv/linux/libc_fatal.c.  */
+ #include <sysdeps/posix/libc_fatal.c>
+ 
++#define STATIC_STUBS
++#include <unwind-resume.c>
++
+ #include <stdlib.h>
+ #include <unwind.h>
+ 
+diff --git a/sysdeps/arm/unwind-resume.c b/sysdeps/arm/unwind-resume.c
+index 8742b08e..bd780854 100644
+--- a/sysdeps/arm/unwind-resume.c
++++ b/sysdeps/arm/unwind-resume.c
+@@ -21,5 +21,5 @@
+ void *
+ __unwind_link_get_resume (void)
+ {
+-  return UNWIND_LINK_PTR (link (), _Unwind_Resume);
++  return UNWIND_LINK_PTR (link_unwind (), _Unwind_Resume);
+ }
+diff --git a/sysdeps/generic/unwind-resume.c b/sysdeps/generic/unwind-resume.c
+index 18c40501..d0512889 100644
+--- a/sysdeps/generic/unwind-resume.c
++++ b/sysdeps/generic/unwind-resume.c
+@@ -21,8 +21,19 @@
+ #include <sysdep.h>
+ #include <unwind-resume.h>
+ 
++#ifdef STATIC_STUBS
++# define HAVE_ARCH_UNWIND_RESUME 1
++# define HAVE_GCC_PERSONALITY_V0 1
++#endif
++#ifndef HAVE_ARCH_UNWIND_RESUME
++# define HAVE_ARCH_UNWIND_RESUME 0
++#endif
++#ifndef HAVE_GCC_PERSONALITY_V0
++# define HAVE_GCC_PERSONALITY_V0 0
++#endif
++
+ static struct unwind_link *
+-link (void)
++link_unwind (void)
+ {
+   struct unwind_link *unwind_link = __libc_unwind_link_get ();
+   if (unwind_link == NULL)
+@@ -34,45 +45,47 @@ link (void)
+ void
+ _Unwind_Resume (struct _Unwind_Exception *exc)
+ {
+-  UNWIND_LINK_PTR (link (), _Unwind_Resume) (exc);
++  UNWIND_LINK_PTR (link_unwind (), _Unwind_Resume) (exc);
+ }
+ #endif
+ 
+ #ifndef HAVE_CC_WITH_LIBUNWIND
++# if !HAVE_GCC_PERSONALITY_V0
+ _Unwind_Reason_Code
+ __gcc_personality_v0 PERSONALITY_PROTO
+ {
+-  return UNWIND_LINK_PTR (link (), personality) PERSONALITY_ARGS;
++  return UNWIND_LINK_PTR (link_unwind (), personality) PERSONALITY_ARGS;
+ }
++# endif
+ #else
+ void *
+ _Unwind_GetLanguageSpecificData (struct _Unwind_Context *context)
+ {
+-  return UNWIND_LINK_PTR (link (), _Unwind_GetLanguageSpecificData) (context);
++  return UNWIND_LINK_PTR (link_unwind (), _Unwind_GetLanguageSpecificData) (context);
+ }
+ 
+ void
+ _Unwind_SetGR (struct _Unwind_Context *context, int index, _Unwind_Word val)
+ {
+-  UNWIND_LINK_PTR (link (), _Unwind_SetGR) (context, index, val);
++  UNWIND_LINK_PTR (link_unwind (), _Unwind_SetGR) (context, index, val);
+ }
+ 
+ _Unwind_Ptr
+ _Unwind_GetIP (struct _Unwind_Context *context)
+ {
+-  return UNWIND_LINK_PTR (link (), _Unwind_GetIP) (context);
++  return UNWIND_LINK_PTR (link_unwind (), _Unwind_GetIP) (context);
+ }
+ 
+ void
+ _Unwind_SetIP (struct _Unwind_Context *context, _Unwind_Ptr val)
+ {
+-  UNWIND_LINK_PTR (link (), _Unwind_SetIP) (context, val);
++  UNWIND_LINK_PTR (link_unwind (), _Unwind_SetIP) (context, val);
+ }
+ 
+ _Unwind_Ptr
+ _Unwind_GetRegionStart (struct _Unwind_Context *context)
+ {
+-  return UNWIND_LINK_PTR (link (), _Unwind_GetRegionStart) (context);
++  return UNWIND_LINK_PTR (link_unwind (), _Unwind_GetRegionStart) (context);
+ }
+ #endif
+ 
+@@ -80,12 +93,12 @@ _Unwind_Reason_Code
+ _Unwind_ForcedUnwind (struct _Unwind_Exception *exc, _Unwind_Stop_Fn stop,
+                       void *stop_argument)
+ {
+-  return UNWIND_LINK_PTR (link (), _Unwind_ForcedUnwind)
++  return UNWIND_LINK_PTR (link_unwind (), _Unwind_ForcedUnwind)
+     (exc, stop, stop_argument);
+ }
+ 
+ _Unwind_Word
+ _Unwind_GetCFA (struct _Unwind_Context *context)
+ {
+-  return UNWIND_LINK_PTR (link (), _Unwind_GetCFA) (context);
++  return UNWIND_LINK_PTR (link_unwind (), _Unwind_GetCFA) (context);
+ }

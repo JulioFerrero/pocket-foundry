@@ -1,0 +1,13 @@
+diff --git a/lorie/src/main/cpp/lorie/lorie.h b/lorie/src/main/cpp/lorie/lorie.h
+index a8c36d0..32b69d3 100644
+--- a/lorie/src/main/cpp/lorie/lorie.h
++++ b/lorie/src/main/cpp/lorie/lorie.h
+@@ -15,7 +15,7 @@
+ #include "linux/input-event-codes.h"
+ #include "buffer.h"
+ 
+-#define PORT 7892
++#define PORT 7894  // 7892 is Termux:X11's; both can be installed
+ #define DOCUMENT_PORT_BASE 7900
+ #define MAGIC "0xDEADBEEF"
+ 

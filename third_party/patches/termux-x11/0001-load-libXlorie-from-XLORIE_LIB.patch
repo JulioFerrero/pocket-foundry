@@ -1,0 +1,16 @@
+diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+index 1872369..c47755c 100644
+--- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
++++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+@@ -199,7 +199,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+         String path = "lib/" + (android.os.Process.is64Bit() ? Build.SUPPORTED_64_BIT_ABIS[0] : Build.SUPPORTED_32_BIT_ABIS[0]) + "/libXlorie.so";
+         ClassLoader loader = CmdEntryPoint.class.getClassLoader();
+         URL res = loader != null ? loader.getResource(path) : null;
+-        String libPath = res != null ? res.getFile().replace("file:", "") : null;
++        // Host apps that extract their native libraries pass the extracted path.
++        String libPath = System.getenv("XLORIE_LIB");
++        if (libPath == null)
++            libPath = res != null ? res.getFile().replace("file:", "") : null;
+         if (libPath != null) {
+             try {
+                 System.load(libPath);
