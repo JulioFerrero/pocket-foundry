@@ -937,6 +937,20 @@ on its first press. Tested with an idc in `/data/system/devices/idc/` marking th
 controls, only the toolbar's keyboard. Logs now lists the controllers Android sees, "(built in)" where it applies,
 so a report shows whether a handheld's pad is recognised as built in.
 
+### "Not connected": the game runs, its screen never joins (2026-10-28)
+A Snapdragon 865 (Adreno 650) phone on Android 13 heard the menu but saw Termux:X11's "Not connected". game.log
+had the X server's default `1280x1024` "screen" output, so the game activity never got the server's binder (the
+`ACTION_START` broadcast, repeated every second until a screen connects) or couldn't use it. Why, Termux:X11 only
+tells Android's log, and reading that from the app (`logcat -d`, own uid) brought up Android's "Allow access to all
+device logs?" dialog (emulator, API 36). So instead:
+- Patch 0006: the X server's own log lines, its first three announcements and any broadcast failure also go to
+  stderr, which is logs/x11.log. Its knocks (4 a second while unconnected) are logged only three times.
+- logs/screen.log, from the app: X server started, its announcement reached the app, game screen opened, and
+  whether the screen connected within 20 s. Logs shows it.
+
+Emulator: a normal start connected in 0.5 s. With `LorieApp$Receiver` disabled (`pm disable`, root), "Not connected",
+screen.log "the announcement never arrived", x11.log three announcements and three knocks.
+
 ## Planned (not built yet)
 
 - **Controller button remapping.** Factorio rebinds its own actions (Settings → Controls), so this covers only what

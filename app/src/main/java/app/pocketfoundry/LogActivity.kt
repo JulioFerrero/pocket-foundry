@@ -107,7 +107,7 @@ class LogActivity : Activity() {
 
     private fun load() {
         val logs = Paths(this).logs
-        val raw = phone + listOf("game.log" to 400, "wm.log" to 20, "x11.log" to 120).joinToString("\n") { (name, lines) ->
+        val raw = phone + listOf("game.log" to 400, "wm.log" to 20, "screen.log" to 20, "x11.log" to 120).joinToString("\n") { (name, lines) ->
             "── $name ──\n" + tail(File(logs, name), lines)
         }
         if (raw == shown) return

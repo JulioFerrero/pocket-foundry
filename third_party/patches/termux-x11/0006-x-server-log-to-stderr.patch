@@ -1,0 +1,90 @@
+diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
+--- a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
++++ b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
+@@ -33,7 +33,12 @@ extern "C" {
+ #include <poll.h>
+ #include "lorie.h"
+ 
+-#define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
++// Also to stderr, which a host app can show: reading Android's log from an app can bring up a system dialog.
++#define log(prio, ...) do { \
++        __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__); \
++        fprintf(stderr, "LorieNative: " __VA_ARGS__); \
++        fputc('\n', stderr); \
++    } while (0)
+ 
+ static int argc = 0;
+ static char** argv = nullptr;
+@@ -205,7 +210,7 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
+ 
+     XkbBaseDirectory = getenv("XKB_CONFIG_ROOT");
+     if (access(XkbBaseDirectory, F_OK) != 0) {
+-        log(ERROR, "%s is unaccessible: %s\n", XkbBaseDirectory, strerror(errno));
++        log(ERROR, "%s is unaccessible: %s", XkbBaseDirectory, strerror(errno));
+         printf("%s is unaccessible: %s\n", XkbBaseDirectory, strerror(errno));
+         return JNI_FALSE;
+     }
+@@ -680,7 +685,10 @@ void lorieListenForKnocks(int port, const char *tag) {
+         if (poll((struct pollfd[]) {{ .fd = client, .events = POLLIN }}, 1, 200) > 0 &&
+             (count = recv(client, buffer, sizeof(buffer), MSG_DONTWAIT)) > 0 &&
+             !memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
+-            log(DEBUG, "New client connection!\n");
++            // An unconnected screen knocks 4 times a second: the first few say enough.
++            static int knocks = 0;
++            if (knocks++ < 3)
++                log(DEBUG, "New client connection!");
+             serverEnv->CallVoidMethod(thiz, sendBroadcast);
+         }
+         close(client);
+diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+--- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
++++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+@@ -91,10 +91,18 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+         }, 250);
+     }
+ 
++    // The first few announcements and their failures also go to stderr (see the native log macro).
++    private static int announcements = 0;
++
+     static void sendBroadcast(Intent intent) {
++        boolean report = announcements++ < 3;
++        if (report)
++            System.err.println("CmdEntryPoint: announcing the X server to the app" + (ctx == null ? " (no context)" : ""));
+         try {
+             ctx.sendBroadcast(intent);
+         } catch (Exception e) {
++            if (report)
++                System.err.println("CmdEntryPoint: broadcast through Context failed, using the activity manager: " + e);
+             if (e instanceof NullPointerException && ctx == null)
+                 Log.i("Broadcast", "Context is null, falling back to manual broadcasting");
+             else
+@@ -133,6 +141,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+                             @Override public void performReceive(Intent i, int r, String d, Bundle e, boolean o, boolean s, int a) {}
+                         }, null, null);
+             } catch (Exception ex) {
++                System.err.println("CmdEntryPoint: announcing through the activity manager failed: " + ex);
+                 throw new RuntimeException(ex);
+             }
+         }
+@@ -151,6 +160,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+     @SuppressLint("DiscouragedPrivateApi")
+     public static Context createContext() {
+         Context context;
++        Exception failure = null;
+         PrintStream err = System.err;
+         try {
+             java.lang.reflect.Field f = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+@@ -170,10 +180,13 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+             }
+         } catch (Exception e) {
+             Log.e("Context", "Failed to instantiate context:", e);
++            failure = e;
+             context = null;
+         } finally {
+             System.setErr(err);
+         }
++        if (failure != null)
++            System.err.println("CmdEntryPoint: no Android context, so no broadcasts through one: " + failure);
+         return context;
+     }
+ 

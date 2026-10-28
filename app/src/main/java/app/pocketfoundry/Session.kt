@@ -52,6 +52,7 @@ object Session {
         Settings.writeFrameRate(context)
         AudioBridge.start(paths)
         InputBridge.start(context, paths)
+        if (game?.isAlive != true) ScreenLog.begin(context)
         startX(context, paths)
         if (wm?.isAlive != true) {
             wm = glibc(paths, listOf(File(paths.prefix, "bin/pocketfoundry-wm").path), "wm.log")
@@ -68,6 +69,7 @@ object Session {
                                 Drivers.environment(context) + uiScale(context) + debugEnvironment(context, "game"))
             game = started
             gamePid = childPid(command.first())
+            ScreenLog.add("game started")
             lastFailure = null
             noWindow = false
             setState(State.RUNNING)
@@ -105,6 +107,7 @@ object Session {
     @Synchronized
     private fun onGameExit(process: Process, status: Int) {
         if (process !== game) return
+        ScreenLog.add("game exited ($status)")
         val quitting = state == State.QUITTING
         wm?.destroy()
         xServer?.destroy()
@@ -174,6 +177,7 @@ object Session {
             if (System.currentTimeMillis() > deadline) throw IOException("The X server didn't start in 10 s")
             Thread.sleep(50)
         }
+        ScreenLog.add("X server started")
     }
 
     /** files/debug.env, to try things on the phone without a rebuild. */

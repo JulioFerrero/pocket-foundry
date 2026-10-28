@@ -4,6 +4,9 @@ import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
@@ -11,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import com.termux.x11.MainActivity
 import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.ScreenLog
 import app.pocketfoundry.Session
 import app.pocketfoundry.Settings
 import kotlin.math.abs
@@ -53,6 +57,25 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         activity.window.callback = TouchRouter(activity.window.callback, view, mouse, controller::key, controller::motion, launcher)
         views[activity] = view
         borders[activity] = GameBorder(activity)
+        ScreenLog.add("game screen opened")
+        watchConnection(activity)
+    }
+
+    /** Termux:X11 shows "Not connected" until its screen joins the X server; screen.log says whether it did. */
+    private fun watchConnection(activity: MainActivity) {
+        val since = SystemClock.uptimeMillis()
+        val handler = Handler(Looper.getMainLooper())
+        handler.post(object : Runnable {
+            override fun run() {
+                if (activity.isDestroyed) return
+                if (activity.lorieView.connected()) return ScreenLog.add("game screen connected")
+                if (SystemClock.uptimeMillis() - since > 20_000) {
+                    return ScreenLog.add("game screen still not connected after 20 s; the announcement " +
+                                         if (ScreenLog.announced) "arrived" else "never arrived")
+                }
+                handler.postDelayed(this, 250)
+            }
+        })
     }
 
     override fun onActivityStarted(activity: Activity) {
