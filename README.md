@@ -18,6 +18,22 @@ the phone's GPU, played with an on-screen controller or a real one. No streaming
 
 Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 830, Android 16): 60 FPS and 60 UPS on an early-game save.
 
+## Other phones
+
+So far Pocket Foundry has been played on one phone. Help taking it to more is very welcome, whether testing or code.
+
+- **Testing:** try it on your phone and [open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with
+  the phone, its GPU and Android version, how far it got (import, main menu, a save), the frame rate, and what the
+  Logs screen shows. Reports that it works help too.
+- **Developing:** the open fronts are
+  - **Mali and Xclipse GPUs** (MediaTek Dimensity, Samsung Exynos): Turnip only drives Adreno, so these need another
+    Vulkan path, such as Mesa's PanVK or a wrapper over the phone's own driver.
+  - **Other Adreno generations:** which Turnip works on each, bundled or imported in Settings → Driver.
+  - **Other screens:** foldables, 4:3, tablets, and the on-screen controls on them.
+  - **Other Android skins:** how each treats a game running in the background.
+
+[Building](#building) has the setup, and `NOTES.md` every finding so far.
+
 ## Controls
 
 Factorio runs in its gamepad mode, so its hints and the tutorial ("press A", "hold LB") name the buttons on screen.
