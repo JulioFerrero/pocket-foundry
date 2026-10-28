@@ -778,7 +778,7 @@ display points come from SDL's display content scale, which on X11 is `SDL_VIDEO
 applies on top. Checked on the phone at Native. The log's display line (`{1, [0,0], …}`) starts with SDL's display
 id, not the scale.
 
-### Keyboards, and the same size on every phone (2026-10-28)
+### Keyboards, the same size on every phone, and releases (2026-10-28)
 **Keyboards.** A keyboard with letters, connected and external (`isExternal`, `KEYBOARD_TYPE_ALPHABETIC`; the
 emulator's own `qwerty2` is alphabetic but internal), puts Factorio in keyboard-and-mouse mode at start (a controller
 wins if both are there), and the touch set's stick and keys step aside while one is connected (`InUse`, now shared
@@ -795,6 +795,15 @@ equal at scale = density / 3. This phone stays at 200; a 420 dpi phone gets 140 
 Default, and Default. The UI scale is density / 3 / scale, so the UI keeps that size at the sharper ones too. Termux:X11
 takes any integer scale (only its own slider rounds to tens). A saved scale the phone doesn't offer (an old default,
 prefs from another phone) snaps to the nearest at launch.
+
+**Releases** (`tools/release.sh <version> [--draft]`): from a clean `main` equal to `origin/main`; bumps
+`versionCode`/`versionName` in `app/build.gradle`, builds the release APK, checks it's signed with Pocket Foundry's key
+(the keystore certificate's SHA-256 against `apksigner`'s), checks no game files are in the APK or the runtime tarball,
+commits "Pocket Foundry <version>", tags `v<version>`, pushes, and publishes the APK and its `.sha256` with notes (what
+it is, how to install, commits since the last tag, where the sources are). The key never leaves the Mac. The runtime
+must match the commit: `runtime/build.sh` now writes `out/<piece>.stamp` with the git trees of `runtime/<piece>` and
+the Dockerfile ("uncommitted" if either had local changes), and the release checks each stamp and that `assemble` came
+after the others. The whole runtime was rebuilt once for this (glibc, Mesa, SDL, wm, assemble).
 
 **Testing with real devices on the emulator:** Android's `hid` tool (`adb shell hid -`, JSON on stdin) registers a UHID
 device with any HID descriptor; with `"bus": "usb"` Android treats it as external. A boot keyboard descriptor and a
