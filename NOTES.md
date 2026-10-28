@@ -871,3 +871,10 @@ the selected control and Reset brings back the default set. The saved layout lis
 extras. No keyboard keys on the pad: one pressed mid-play would switch Factorio to keyboard and mouse. Checked on the
 emulator: L3, a re-added A, and a latched Shift with F reach the game; the right stick takes the left's path to the
 virtual pad (whose six axes are all declared), as the input test prints no stick motion.
+
+### The game turns either way up (2026-10-28)
+The launcher follows the phone between both landscape sides (`sensorLandscape`), but the game stayed one way up:
+Termux:X11 requests its `forceOrientation` preference at runtime, overriding the manifest, and the "landscape" we set
+maps to a fixed `SCREEN_ORIENTATION_LANDSCAPE`. Patch 0005 makes it `SENSOR_LANDSCAPE`. On the emulator, set gravity
+with `adb emu sensor set acceleration 9.8:0:0` / `-9.8:0:0` (`adb emu rotate` doesn't move the sensor): the game now
+turns between ROTATION_90 and ROTATION_270, stays landscape held upright, and touches still land.

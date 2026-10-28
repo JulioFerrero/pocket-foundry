@@ -1,0 +1,13 @@
+diff --git a/lorie/src/main/java/com/termux/x11/MainActivity.java b/lorie/src/main/java/com/termux/x11/MainActivity.java
+index 9bba771..dc1a870 100644
+--- a/lorie/src/main/java/com/termux/x11/MainActivity.java
++++ b/lorie/src/main/java/com/termux/x11/MainActivity.java
+@@ -1143,7 +1143,7 @@ public class MainActivity extends AppCompatActivity {
+         int requestedOrientation;
+         switch (isInMultiWindowMode() ? "auto" : prefs.forceOrientation.get()) {
+             case "portrait": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT; break;
+-            case "landscape": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE; break;
++            case "landscape": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE; break;  // either way up
+             case "reverse portrait": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT; break;
+             case "reverse landscape": requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE; break;
+             default: requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
