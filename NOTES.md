@@ -936,3 +936,40 @@ on USB or Bluetooth without an idc saying `device.internal = 1`) hides the on-sc
 on its first press. Tested with an idc in `/data/system/devices/idc/` marking the UHID pad internal: no on-screen
 controls, only the toolbar's keyboard. Logs now lists the controllers Android sees, "(built in)" where it applies,
 so a report shows whether a handheld's pad is recognised as built in.
+
+## Planned (not built yet)
+
+- **Controller button remapping.** Factorio rebinds its own actions (Settings → Controls), so this covers only what
+  it can't: buttons `Gamepads` drops today (anything outside A B X Y, shoulders, triggers, stick clicks, Select,
+  Start and the D-pad: C, Z, numbered buttons, paddles), the launcher's own A/B, and layouts with A/B and X/Y in
+  each other's places. Settings → Controls gets "Controller buttons": the pad's buttons drawn as in the game; pick
+  one, press the physical button for it. Saved per controller (`InputDevice.descriptor`), so a handheld's mapping
+  doesn't follow a Bluetooth pad; any key code Android reports can be assigned; Reset goes back. Usable with the
+  controller alone: the capture ignores the press that opened it. Testable on the emulator with `hid` pads sending
+  odd buttons.
+- **GPUs other than Adreno 6xx+** (reported so far: Mali-G52 on Helio G81/G88, Immortalis-G925 on Dimensity 9400+,
+  PowerVR DXT-48-1536 on the Pixel 10). Every route keeps Zink on top, as with Turnip. As of 2026-10-28:
+  - **A wrapper over the phone's own Vulkan driver** (first choice: one piece of work for Mali, PowerVR and Xclipse).
+    The phone's driver is bionic, our process glibc. DroidDeck, a glibc-on-Android project shaped like ours, is
+    building two ways across: a libhybris Vulkan ICD loading the vendor driver into the glibc process (its PR #6,
+    reported running games on a Mali G1-Ultra, a PowerVR CXTP-48-1536 and an Xclipse 530; can't yet read every
+    capability of the vendor driver, no zero-copy AHardwareBuffer path), and Mesa's Venus over vtest to a
+    virglrenderer render server running as an Android process with the system driver (issue #165: a Pixel 10 Pro
+    XL's PowerVR reports Vulkan 1.4; its buffer export needed a Venus patch). Venus adds a serialisation hop;
+    libhybris doesn't. Licences to check before reusing anything (libhybris Apache-2.0, virglrenderer and Mesa MIT,
+    DroidDeck's own code unknown).
+  - **Mali: PanVK on Arm's kbase kernel driver.** Community forks only, nothing upstream:
+    zenithblue-oss/panvk-kbase-android (MIT; 0.1.0 RC4 on 2026-10-20 added experimental Bifrost v7, the G52),
+    JimVulkan/mali-panvk (MIT), whaltermc/panvk, MineGraph-bilibili/panvk-Android (G610–G720); a Termux package was
+    proposed on 2026-10-21 (172 patches on Mesa). SaicharanKandukuri/tensor-g1-proot-gpu shows presenting through
+    Termux:X11. Older Malis (G52) first; the newest (G925) are experimental everywhere.
+  - **Xclipse (Samsung, AMD-based): RADV ports** on Samsung's kernel driver: JimVulkan/radv-xclipse (v1.8.0,
+    2026-10-19, Mesa 27.0.0-devel, Android 14+), Dnyw/radv-xclipse (claims Xclipse 920 to 960), and emX running it
+    in proot Linux, close to our setup.
+  - **PowerVR:** Imagination's open Vulkan driver works under Zink (2026-03) and Linux 7.4 is getting Pixel 10
+    device trees, but both are for Linux's own kernel driver, not Android's: only the wrapper reaches it.
+  - **Adreno 5xx:** no Turnip, and freedreno needs dma-buf heaps the old kernels lack: out of reach.
+  Each needs testers with the phones; several reporters offered.
+- **A start held upright.** Factorio reads the screen size as it starts, sometimes before the game screen is up
+  (1280 × 1024 on the emulator, portrait on a Redmi 12 and a Pixel 10). To check on the phone: start a game with the phone upright
+  and see that it fills the screen in landscape; if not, start Factorio once the screen has its landscape size.
