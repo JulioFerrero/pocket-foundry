@@ -21,6 +21,7 @@ import java.util.WeakHashMap
 object OnScreenController : Application.ActivityLifecycleCallbacks {
     private val views = WeakHashMap<Activity, ControllerView>()
     private val gestures = WeakHashMap<Activity, PointerGestures>()
+    private val pads = WeakHashMap<Activity, Gamepads>()
     private val borders = WeakHashMap<Activity, GameBorder>()
     private var resumed: Activity? = null
 
@@ -50,9 +51,11 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
             if (Settings.vibration(activity)) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
         mouse?.let { gestures[activity] = it }
-        activity.window.callback = TouchRouter(activity.window.callback, view, mouse) {
-            activity.startActivity(Intent(activity, LauncherActivity::class.java))
-        }
+        val launcher = { activity.startActivity(Intent(activity, LauncherActivity::class.java)) }
+        // A real controller plays through the same virtual pad, and the drawn one steps aside while it does.
+        val controller = Gamepads.attach(activity, launcher) { view.padInHand = it }
+        pads[activity] = controller
+        activity.window.callback = TouchRouter(activity.window.callback, view, mouse, controller, launcher)
         views[activity] = view
         borders[activity] = GameBorder(activity)
     }
@@ -87,6 +90,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         if (resumed === activity) resumed = null
         views[activity]?.releaseAll()
         gestures[activity]?.cancel()
+        pads[activity]?.release()
     }
 
     override fun onActivityStopped(activity: Activity) {
@@ -98,5 +102,6 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
     override fun onActivityDestroyed(activity: Activity) {
         views.remove(activity)
         gestures.remove(activity)
+        pads.remove(activity)?.close()
     }
 }

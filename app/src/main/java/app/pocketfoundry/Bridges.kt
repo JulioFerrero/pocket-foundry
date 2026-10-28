@@ -10,6 +10,7 @@ import android.net.LocalSocketAddress
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
+import app.pocketfoundry.controller.Gamepads
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.File
@@ -127,7 +128,7 @@ enum class PadAxis { LEFT_X, LEFT_Y, RIGHT_X, RIGHT_Y, LEFT_TRIGGER, RIGHT_TRIGG
 
 /**
  * The virtual gamepad: plugged into the game while its SDL is connected here.
- * Rumble from the game comes back as phone vibration.
+ * Rumble from the game comes back in the controller in hand if it has a motor, else the phone.
  */
 object InputBridge {
     private var started = false
@@ -140,17 +141,16 @@ object InputBridge {
         if (started) return
         started = true
         val app = context.applicationContext
-        val vibrator = context.getSystemService(Vibrator::class.java)
+        val phone = context.getSystemService(Vibrator::class.java)
         serve(paths.inputSocket, "pocketfoundry-input") { accepted ->
             client = accepted
             Log.i(TAG, "Gamepad plugged in")
             try {
-                readRumble(DataInputStream(accepted.inputStream), vibrator) { Settings.vibration(app) }
+                readRumble(DataInputStream(accepted.inputStream), { Gamepads.vibrator(app) ?: phone }) { Settings.vibration(app) }
             } catch (e: IOException) {
                 // Unplugged.
             } finally {
                 client = null
-                vibrator?.cancel()
                 Log.i(TAG, "Gamepad unplugged")
             }
         }
@@ -177,20 +177,28 @@ object InputBridge {
         }
     }
 
-    private fun readRumble(input: DataInputStream, vibrator: Vibrator?, wanted: () -> Boolean) {
+    /** [motor]: where rumble goes now, asked again each time as controllers come and go. */
+    private fun readRumble(input: DataInputStream, motor: () -> Vibrator?, wanted: () -> Boolean) {
         val message = ByteArray(4)
-        while (true) {
-            input.readFully(message)
-            if (message[0] != 'R'.code.toByte()) continue
-            val strength = (message[2].toInt() and 0xFF) or ((message[3].toInt() and 0x7F) shl 8)
-            if (vibrator == null) continue
-            if (strength == 0 || !wanted()) {
-                vibrator.cancel()
-            } else {
-                // Rumble lasts until the game sends 0; SDL repeats it before this runs out.
-                val amplitude = (strength * 255 / 32767).coerceIn(1, 255)
-                vibrator.vibrate(VibrationEffect.createOneShot(2000, amplitude))
+        var vibrator: Vibrator? = null
+        try {
+            while (true) {
+                input.readFully(message)
+                if (message[0] != 'R'.code.toByte()) continue
+                val strength = (message[2].toInt() and 0xFF) or ((message[3].toInt() and 0x7F) shl 8)
+                val now = motor()
+                if (now !== vibrator) vibrator?.cancel()
+                vibrator = now ?: continue
+                if (strength == 0 || !wanted()) {
+                    now.cancel()
+                } else {
+                    // Rumble lasts until the game sends 0; SDL repeats it before this runs out.
+                    val amplitude = (strength * 255 / 32767).coerceIn(1, 255)
+                    now.vibrate(VibrationEffect.createOneShot(2000, amplitude))
+                }
             }
+        } finally {
+            vibrator?.cancel()
         }
     }
 }

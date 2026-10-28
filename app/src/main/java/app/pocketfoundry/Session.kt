@@ -8,6 +8,7 @@ import android.os.Looper
 import android.system.Os
 import android.system.OsConstants
 import android.util.Log
+import app.pocketfoundry.controller.Gamepads
 import java.io.File
 import java.io.IOException
 import java.util.TimeZone
@@ -29,7 +30,7 @@ object Session {
 
     @Volatile var state = State.STOPPED
         private set
-    /** The controls the running game was started with (Settings.controls): its input mode can't change until it restarts. */
+    /** The controls the running game was started with (Settings.controls, or gamepad with a controller plugged in): its input mode can't change until it restarts. */
     @Volatile var controls = Settings.CONTROLS[0]
         private set
     /** How the last session ended: null after a normal quit, else Factorio's exit status. */
@@ -66,7 +67,8 @@ object Session {
             // An autosave cut short when the game was killed; Factorio offers it as
             // "Continue" and then can't open it.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
-            controls = Settings.controls(context)
+            // A controller plugged in plays: Factorio in its controller mode, whatever the on-screen choice.
+            controls = if (Gamepads.connected(context)) Settings.CONTROLS[0] else Settings.controls(context)
             writeConfig(paths, Settings.spriteQuality(context), controls)
             // Debug builds: `test.program=<tool>` in files/debug.env runs a runtime tool in the game's place,
             // e.g. pocketfoundry-inputtest to see what the controls send without the game (or a GPU).

@@ -728,3 +728,45 @@ Lilittium (OFL), is Titillium Web with Cyrillic added: the app's Titillium alrea
 Home, Settings, a drop-down open, the Saves dialog, the pause menu, Logs, a disabled button (the game's dark face, grey
 text). The README's Home, Settings, driver, pause and playing screenshots were retaken on the phone with it (and the
 new controls, in Julio's tutorial game); Welcome and Importing come before an import, so they keep the drawn look.
+
+### Real controllers (2026-10-28)
+Tested with a phone-clamp controller on the USB-C port that presents itself as a USB DualSense (054c:0ce6, Android's
+`Vendor_054c_Product_0ce6.kl`; the port is taken, so adb went over wireless debugging). `controller/Gamepads.kt`
+feeds any controller into the same virtual pad as the on-screen one:
+- **Termux:X11 takes keys first.** `LorieView.dispatchKeyEventPreIme` hands every key to `MainActivity.handleKey`,
+  which sends it to the X server, before the window callback ever sees it; a pad's buttons would arrive as X keys.
+  `Gamepads.attach` wraps the activity's private `mLorieKeyListener` (reflection, like `mInputHandler` for touch) so
+  a controller's keys go to the pad first; `TouchRouter.dispatchKeyEvent` offers them too, for keys that get past.
+  Sticks, triggers and hat are generic motion, which reaches `TouchRouter.dispatchGenericMotionEvent` first.
+- **Mapping:** Android's key layouts already normalise pads, so the code reads the standard names: BUTTON_A/B/X/Y by
+  position, L1/R1, THUMBL/R, SELECT → BACK, START; X/Y left stick, Z/RZ right stick (RX/RY if a pad has no Z);
+  triggers LTRIGGER or BRAKE, RTRIGGER or GAS, with L2/R2 keys standing in only for pads without an analog axis
+  (the DualSense sends both); the hat as D-pad buttons, and DPAD keys for pads whose D-pad is keys. Only changes are
+  sent; Factorio applies its own dead zone (`[controller] deadzone=0.1`). BUTTON_MODE (the PS/Xbox button) opens
+  the launcher instead of reaching the game, like Back.
+- **What counts as a controller:** a non-virtual device with `SOURCE_GAMEPAD`. The vivo has a built-in
+  `vforce_input` device with `SOURCE_JOYSTICK` and an X/Y axis, so joystick alone isn't enough.
+- **The on-screen pad steps aside** (`ControllerView.padInHand`, toolbar included) on the first real press or a stick
+  past halfway, not on connecting (a phone may list a controller nobody holds), and returns when the last controller
+  goes. The layout editor still shows it. Touch controls stay: their game ignores the pad.
+- **A controller connected at start** makes `Session.controls` gamepad: Factorio never switches input method by itself.
+- **Rumble** goes to the first controller with a motor (`InputDevice.getVibratorManager`, `getVibrator` before
+  Android 12), else the phone; the target is asked again on each rumble message. Factorio does rumble:
+  `[controller] vibration-intensity=0.6`.
+- Factorio's `[controller] icons=auto|xbox|steam-deck|playstation|nintendo-switch` picks button symbols; on auto it
+  follows the virtual pad, which says Xbox (045e:0b12). Giving the virtual pad the real controller's ids would make
+  auto right for any pad; not done.
+
+**The launcher with a controller.** Android already turns a pad into navigation: the hat and left stick are
+synthesised into D-pad keys, and `Generic.kcm` falls back BUTTON_A → DPAD_CENTER, B → BACK, Y → SPACE (a confirm key,
+so Y also clicks, as in Factorio's menus), START → DPAD_CENTER, SELECT → MENU, MODE → HOME. What was missing:
+- A focused look: `BevelDrawable` treats focused or hovered as the game's hovered state, from the same sheet: button
+  34,17, `green_button` 102,17, `red_button` 170,17, selected-hovered 369,17, the arrow tileset's state 2, checkbox
+  56,132, with the outer glow in each style's colour (`default_glow_color` 225,177,106, green 135,216,139, red
+  254,90,90). The factorio.com link turns the same orange.
+- The stage's WebView kept out of focus (`FOCUS_BLOCK_DESCENDANTS`), or focus vanished into it.
+- Each screen starts on its first choice (Welcome on Import), a dialog on its first button (Cancel or Close) with the
+  screen behind blocked until it closes, then focus goes back where it was. The three dialogs share `showDialog`.
+- The drop-down's popup isn't focusable (a focused popup brings back the system bars), so the drop-down button keeps
+  the keys while it's open: up and down move a hovered row, A picks, B closes.
+The first key press only shows the focus (Android leaving touch mode).

@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -96,6 +97,10 @@ class LauncherActivity : Activity() {
     private lateinit var homeGroove: View
 
     private var dialog: View? = null
+    /** What a controller was on before the dialog opened, to go back to. */
+    private var beforeDialog: View? = null
+    private lateinit var importFirst: FButton
+    private var shownScreen: View? = null
     private var importingNow = false
     private var settingsOpen = false
     private var busy: String? = null
@@ -127,7 +132,8 @@ class LauncherActivity : Activity() {
         overlay.addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
         overlay.addView(settings, FrameLayout.LayoutParams(MATCH, MATCH).apply { setMargins(dpi(24), dpi(16), dpi(24), dpi(16)) })
 
-        stageHolder = FrameLayout(this)
+        // The stage is a WebView: a controller's focus would vanish into it.
+        stageHolder = FrameLayout(this).apply { descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS }
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(0xFF091726.toInt())
             addView(stageHolder, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -187,14 +193,17 @@ class LauncherActivity : Activity() {
             addView(label(context, "The Linux arm64 .tar.xz from ", 14f, Factorio.MUTED))
             addView(label(context, "factorio.com", 14f, Factorio.LINK).apply {
                 paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+                // Lit like a hovered button while a controller is on it.
+                setTextColor(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
+                                            intArrayOf(Tone.GREY.glow, Factorio.LINK)))
                 setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://factorio.com/download"))) }
             })
         })
         welcomeError = label(this, "", 14f, Factorio.ERROR)
         inset.addView(welcomeError)
         panel.addView(inset)
-        panel.addView(FButton(this, "Import Factorio", Tone.GREEN, Arrow.RIGHT).apply { setOnClickListener { pickGame() } },
-                      LinearLayout.LayoutParams(WRAP, dpi(44)).apply { gravity = Gravity.END })
+        importFirst = FButton(this, "Import Factorio", Tone.GREEN, Arrow.RIGHT).apply { setOnClickListener { pickGame() } }
+        panel.addView(importFirst, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { gravity = Gravity.END })
         return panel
     }
 
@@ -378,6 +387,12 @@ class LauncherActivity : Activity() {
         importing.visibility = if (importingNow) View.VISIBLE else View.GONE
         home.visibility = if (!importingNow && version != null && !settingsOpen) View.VISIBLE else View.GONE
         settings.visibility = if (!importingNow && version != null && settingsOpen) View.VISIBLE else View.GONE
+        val screen = listOf(welcome, importing, home, settings).firstOrNull { it.visibility == View.VISIBLE }
+        if (screen !== shownScreen) {
+            shownScreen = screen
+            // A controller lands on the new screen's first choice; touch shows no focus, so nothing changes.
+            if (dialog == null) (if (screen === welcome) importFirst else screen)?.requestFocus()
+        }
         when {
             importingNow -> stage?.show("build")
             version == null -> stage?.show("blueprint")
@@ -496,19 +511,33 @@ class LauncherActivity : Activity() {
             addView(FButton(context, "Quit", Tone.GREEN, Arrow.RIGHT).apply { setOnClickListener { closeDialog(); Session.quit() } },
                     LinearLayout.LayoutParams(WRAP, dpi(44)))
         })
+        showDialog(panel, 440)
+    }
+
+    /**
+     * [panel] over everything, the rest dimmed; a tap outside closes it. A controller starts on its first
+     * button and can't wander out to the screen behind.
+     */
+    private fun showDialog(panel: View, widthDp: Int) {
         val scrim = FrameLayout(this).apply {
             setBackgroundColor(0x99000000.toInt())
-            isClickable = true
             setOnClickListener { closeDialog() }
-            addView(panel.apply { isClickable = true }, centered(440))
+            isFocusable = false
+            addView(panel.apply { isClickable = true; isFocusable = false }, centered(widthDp))
         }
+        beforeDialog = currentFocus
+        findViewById<ViewGroup>(android.R.id.content).descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         (window.decorView as ViewGroup).addView(scrim, ViewGroup.LayoutParams(MATCH, MATCH))
         dialog = scrim
+        scrim.requestFocus()
     }
 
     private fun closeDialog() {
+        findViewById<ViewGroup>(android.R.id.content).descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
         dialog?.let { (it.parent as? ViewGroup)?.removeView(it) }
         dialog = null
+        beforeDialog?.takeIf { it.isShown }?.requestFocus()
+        beforeDialog = null
         savesStatus = null
         driverList = null
         driverStatus = null
@@ -545,14 +574,7 @@ class LauncherActivity : Activity() {
             addView(remove, LinearLayout.LayoutParams(WRAP, dpi(44)))
             addView(import, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
         })
-        val scrim = FrameLayout(this).apply {
-            setBackgroundColor(0x99000000.toInt())
-            isClickable = true
-            setOnClickListener { closeDialog() }
-            addView(panel.apply { isClickable = true }, centered(460))
-        }
-        (window.decorView as ViewGroup).addView(scrim, ViewGroup.LayoutParams(MATCH, MATCH))
-        dialog = scrim
+        showDialog(panel, 460)
         driverList = list
         driverStatus = status
         listDrivers()
@@ -632,14 +654,7 @@ class LauncherActivity : Activity() {
             addView(import, LinearLayout.LayoutParams(WRAP, dpi(44)))
             addView(export, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
         })
-        val scrim = FrameLayout(this).apply {
-            setBackgroundColor(0x99000000.toInt())
-            isClickable = true
-            setOnClickListener { closeDialog() }
-            addView(panel.apply { isClickable = true }, centered(440))
-        }
-        (window.decorView as ViewGroup).addView(scrim, ViewGroup.LayoutParams(MATCH, MATCH))
-        dialog = scrim
+        showDialog(panel, 440)
         savesStatus = status
         savesDetail = detail
         showSaveCount()

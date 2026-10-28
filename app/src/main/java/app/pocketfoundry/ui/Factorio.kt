@@ -21,6 +21,7 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
 import android.util.Log
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -112,12 +113,12 @@ class GuiSheet(dir: File) {
     val deepFrame = nine(17, 0, centerX = 42)
     val shallowFrame = nine(17, 0, centerX = 76)
 
-    // button, green_button and red_button: idle, clicked, disabled. Orange is button's selected look.
+    // button, green_button and red_button: idle, clicked, disabled, hovered. Orange is button's selected look.
     private val buttons = mapOf(
-        Tone.GREY to listOf(nine(0, 17), nine(51, 17), nine(17, 17)),
-        Tone.GREEN to listOf(nine(68, 17), nine(119, 17), nine(85, 17)),
-        Tone.ORANGE to listOf(nine(225, 17), nine(352, 17), nine(17, 17)),
-        Tone.RED to listOf(nine(136, 17), nine(187, 17), nine(153, 17)),
+        Tone.GREY to listOf(nine(0, 17), nine(51, 17), nine(17, 17), nine(34, 17)),
+        Tone.GREEN to listOf(nine(68, 17), nine(119, 17), nine(85, 17), nine(102, 17)),
+        Tone.ORANGE to listOf(nine(225, 17), nine(352, 17), nine(17, 17), nine(369, 17)),
+        Tone.RED to listOf(nine(136, 17), nine(187, 17), nine(153, 17), nine(170, 17)),
     )
 
     // back_button and confirm_button (arrow_back, arrow_forward): the arrow end from a 48 × 64 tile of the
@@ -129,7 +130,7 @@ class GuiSheet(dir: File) {
             Tone.RED -> 360 to 136
             else -> 232 to 0
         }
-        listOf(if (tone == Tone.ORANGE) 2 else 0, 3, 1).map { i ->
+        listOf(if (tone == Tone.ORANGE) 2 else 0, 3, 1, 2).map { i ->
             val x = i * 96
             val end = tile + i * 17
             ArrowButton(piece(x, row, 24, 64), piece(x + 24, row, 24, 64), piece(x + 24, row, 1, 64),
@@ -138,8 +139,8 @@ class GuiSheet(dir: File) {
         }
     }
 
-    // checkbox: idle, clicked, disabled; the checkmark goes on top.
-    val checkbox = listOf(piece(0, 132, 28, 28), piece(84, 132, 28, 28), piece(28, 132, 28, 28))
+    // checkbox: idle, clicked, disabled, hovered; the checkmark goes on top.
+    val checkbox = listOf(piece(0, 132, 28, 28), piece(84, 132, 28, 28), piece(28, 132, 28, 28), piece(56, 132, 28, 28))
     val check = piece(112, 132, 28, 28)
 
     /** The drop-down's arrow, icons/mip/dropdown.png's largest size. */
@@ -167,6 +168,8 @@ class GuiSheet(dir: File) {
         const val IDLE = 0
         const val PRESSED = 1
         const val DISABLED = 2
+        /** Under a mouse, or a controller's focus. */
+        const val HOVERED = 3
         /** A sprite pixel is a dp: the game's 100% scale. */
         const val CORNER = 8f
         /** The arrow end's width, per height of the face. */
@@ -280,19 +283,21 @@ class FramedDrawable(context: Context, private val fill: Int, private val sunken
     override fun getOpacity() = PixelFormat.TRANSLUCENT
 }
 
-enum class Tone(val face: Int, val light: Int, val dark: Int) {
-    GREY(0xFF8E8E8E.toInt(), 0xFFE3E3E3.toInt(), 0xFF282828.toInt()),
-    GREEN(0xFF5EB663.toInt(), 0xFF95DF99.toInt(), 0xFF163218.toInt()),
-    ORANGE(0xFFE39C40.toInt(), 0xFFF7CC8F.toInt(), 0xFF5C3D12.toInt()),
-    RED(0xFFE8605A.toInt(), 0xFFF5A29E.toInt(), 0xFF4A1514.toInt()),
+/** [glow]: round the button while hovered, the game's default, green and red button glows. */
+enum class Tone(val face: Int, val light: Int, val dark: Int, val glow: Int) {
+    GREY(0xFF8E8E8E.toInt(), 0xFFE3E3E3.toInt(), 0xFF282828.toInt(), 0xFFE1B16A.toInt()),
+    GREEN(0xFF5EB663.toInt(), 0xFF95DF99.toInt(), 0xFF163218.toInt(), 0xFF87D88B.toInt()),
+    ORANGE(0xFFE39C40.toInt(), 0xFFF7CC8F.toInt(), 0xFF5C3D12.toInt(), 0xFFE1B16A.toInt()),
+    RED(0xFFE8605A.toInt(), 0xFFF5A29E.toInt(), 0xFF4A1514.toInt(), 0xFFFE5A5A.toInt()),
 }
 
 enum class Arrow { NONE, LEFT, RIGHT }
 
 /**
  * The game's button: a flat face with a light top edge, a dark bottom edge, shaded sides and a
- * dark glow, optionally with an arrow tip. Grey turns orange while pressed, like the game's hover;
- * the others darken. Leaves [MARGIN] dp round the face for the glow.
+ * dark glow, optionally with an arrow tip. Hovered (a mouse, or a controller's focus) it lights up
+ * with a glow of its colour, as in the game: grey turns orange. Pressed, grey turns orange and the
+ * others darken. Leaves [MARGIN] dp round the face for the glow.
  */
 class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arrow.NONE,
                     private val width: Int = -1, private val height: Int = -1) : Drawable() {
@@ -300,7 +305,7 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
     private val density = context.resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val sprite = Paint(Paint.FILTER_BITMAP_FLAG)
-    private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { setShadowLayer(MARGIN * density, 0f, 0f, 0xCC000000.toInt()) }
+    private val glow = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
     private var pathTip = -1f
     private val box = RectF()
@@ -308,6 +313,7 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
     private val caretBox = RectF()
     private var sides: LinearGradient? = null
     private var pressed = false
+    private var hovered = false
     private var enabled = true
     var checkmark = false
     var caret = false
@@ -320,10 +326,12 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
 
     override fun onStateChange(state: IntArray): Boolean {
         val now = android.R.attr.state_pressed in state
+        val hover = android.R.attr.state_focused in state || android.R.attr.state_hovered in state
         val check = android.R.attr.state_checked in state
         val on = android.R.attr.state_enabled in state
-        if (now == pressed && check == checked && on == enabled) return false
+        if (now == pressed && hover == hovered && check == checked && on == enabled) return false
         pressed = now
+        hovered = hover
         checked = check
         enabled = on
         invalidateSelf()
@@ -369,11 +377,16 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
             return
         }
         val path = outline(TIP * density)
-        val shown = if (pressed && tone == Tone.GREY) Tone.ORANGE else tone
-        glow.color = shown.face
+        val lit = hovered && !pressed && enabled
+        val shown = if ((pressed || lit) && tone == Tone.GREY) Tone.ORANGE else tone
+        glow(shown.face, lit)
         canvas.drawPath(path, glow)
         paint.shader = null
-        paint.color = if (pressed && tone != Tone.GREY) darken(shown.face) else shown.face
+        paint.color = when {
+            pressed && tone != Tone.GREY -> darken(shown.face)
+            lit && tone != Tone.GREY -> shown.light
+            else -> shown.face
+        }
         canvas.drawPath(path, paint)
         canvas.save()
         canvas.clipPath(path)
@@ -415,6 +428,7 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
         val state = when {
             !enabled -> GuiSheet.DISABLED
             pressed -> GuiSheet.PRESSED
+            hovered -> GuiSheet.HOVERED
             else -> GuiSheet.IDLE
         }
         if (checkmark) {
@@ -422,11 +436,17 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
             if (checked) canvas.drawBitmap(sheet.check, null, box, sprite)
             return
         }
-        glow.color = Color.BLACK
+        glow(Color.BLACK, state == GuiSheet.HOVERED)
         canvas.drawPath(outline(if (arrow == Arrow.NONE) 0f else face.height() * GuiSheet.ARROW_TIP), glow)
         if (arrow == Arrow.NONE) sheet.button(tone, state).draw(canvas, face, GuiSheet.CORNER * density, sprite)
         else sheet.arrowButton(tone, state).draw(canvas, face, arrow == Arrow.LEFT, sprite)
         if (caret) sheet.caret?.let { canvas.drawBitmap(it, null, caretBox, sprite) }
+    }
+
+    /** The glow paint: the button's [fill], ringed in black, or in its own colour while [lit]. */
+    private fun glow(fill: Int, lit: Boolean) {
+        glow.color = fill
+        glow.setShadowLayer(MARGIN * density, 0f, 0f, if (lit) tone.glow else 0xCC000000.toInt())
     }
 
     private fun darken(color: Int) = Color.rgb((Color.red(color) * 0.82f).toInt(), (Color.green(color) * 0.82f).toInt(),
@@ -480,12 +500,16 @@ open class FButton(context: Context, label: CharSequence, tone: Tone = Tone.GREY
 
 /**
  * The game's drop-down: a grey button showing the choice; a tap opens the list under it, with
- * the current choice in orange.
+ * the current choice in orange. With a controller, up and down go through the open list, A picks
+ * and B closes it.
  */
 class Dropdown(context: Context, private val options: List<CharSequence>, private val onSelect: (Int) -> Unit) :
     FButton(context, "", size = 15f) {
     var selected = -1
         set(value) { field = value; text = options.getOrNull(value) ?: "" }
+    private var popup: PopupWindow? = null
+    private val items = ArrayList<FButton>()
+    private var highlight = -1
 
     init {
         bevel.caret = true
@@ -497,17 +521,40 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
     private fun open() {
         val list = stack(context, Factorio.PANEL, sunken = false, padding = 2, gap = 2)
         val popup = PopupWindow(list, width, ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        items.clear()
         options.forEachIndexed { i, option ->
-            list.addView(FButton(context, option, if (i == selected) Tone.ORANGE else Tone.GREY, size = 15f).apply {
+            items += FButton(context, option, if (i == selected) Tone.ORANGE else Tone.GREY, size = 15f).apply {
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 setPadding(context.dpi(14), 0, context.dpi(14), 0)
                 setOnClickListener { popup.dismiss(); selected = i; onSelect(i) }
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dpi(40)))
+            }
+            list.addView(items.last(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dpi(40)))
         }
-        // Not focusable: a focused popup would bring back the system bars.
+        // Not focusable: a focused popup would bring back the system bars. Keys stay with this button instead.
         popup.isOutsideTouchable = true
         popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         popup.showAsDropDown(this, 0, context.dpi(2))
+        this.popup = popup
+        highlight(if (isFocused) selected.coerceAtLeast(0) else -1)
+    }
+
+    private fun highlight(index: Int) {
+        highlight = index
+        items.forEachIndexed { i, item -> item.isHovered = i == index }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val open = popup?.takeIf { it.isShowing } ?: return super.onKeyDown(keyCode, event)
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> highlight((highlight - 1).coerceAtLeast(0))
+            KeyEvent.KEYCODE_DPAD_DOWN -> highlight((highlight + 1).coerceAtMost(items.lastIndex))
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {}   // the list stays open
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_BUTTON_A ->
+                items.getOrNull(highlight)?.performClick() ?: open.dismiss()
+            KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_BUTTON_B -> open.dismiss()
+            else -> return super.onKeyDown(keyCode, event)
+        }
+        return true
     }
 }
 

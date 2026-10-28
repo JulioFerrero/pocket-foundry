@@ -142,6 +142,19 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
 
     private var editing = false
     private var hidden = false
+
+    /**
+     * A real controller is being played ([Gamepads]): the drawn one steps aside, toolbar and all, until it's
+     * unplugged; the layout editor still shows it. Touch controls stay, as their game ignores the pad.
+     */
+    var padInHand = false
+        set(value) {
+            if (touch || field == value) return
+            field = value
+            if (value && !editing) releaseAll()
+            invalidate()
+        }
+    private val stepAside get() = padInHand && !editing
     private var opacity = DEFAULT_OPACITY
 
     // Toolbar taps act when the finger lifts on the same tool.
@@ -192,6 +205,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     // Touch, from TouchRouter (view coordinates).
 
     fun pointerDown(id: Int, x: Float, y: Float): Boolean {
+        if (stepAside) return false
         toolAt(x, y)?.let { toolPointers[id] = it; invalidate(); return true }
         if (stripOpen && !editing) stripAt(x, y)?.let { pressStrip(id, it); return true }
         if (hidden) return false
@@ -525,6 +539,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     // Drawing.
 
     override fun onDraw(canvas: Canvas) {
+        if (stepAside) return
         if (editing) canvas.drawColor(0x55000000)
         if (!hidden) controls.forEach { draw(canvas, it) }
         drawToolbar(canvas)
