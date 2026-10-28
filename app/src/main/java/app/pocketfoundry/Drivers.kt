@@ -3,6 +3,7 @@ package app.pocketfoundry
 import android.content.Context
 import android.net.Uri
 import org.apache.commons.compress.archivers.ArchiveInputStream
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
@@ -10,7 +11,6 @@ import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.IOException
-import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -20,7 +20,6 @@ object Drivers {
 
     const val ZINK = "zink"
     const val FREEDRENO = "freedreno"
-    private const val LIBRARY = "libvulkan_freedreno.so"
 
     private fun dir(paths: Paths) = File(paths.files, "drivers")
 
@@ -48,56 +47,85 @@ object Drivers {
         return if (all(context).any { it.id == id }) id else ZINK
     }
 
+    fun imported(context: Context) = chosen(context).let { it != ZINK && it != FREEDRENO }
+
     /** Over Session's defaults, which are Zink on our Turnip. */
     fun environment(context: Context): Map<String, String> = when (val id = chosen(context)) {
         ZINK -> emptyMap()
         FREEDRENO -> mapOf("MESA_LOADER_DRIVER_OVERRIDE" to "kgsl")
-        // Imported Turnips lack our wait-before-present patch; the software path waits for the GPU instead.
+        // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
         else -> mapOf("VK_DRIVER_FILES" to File(dir(Paths(context)), "$id/icd.json").path,
                       "MESA_VK_WSI_DEBUG" to "sw")
     }
+
+    /** The libraries an imported driver brought, searched after the runtime's. */
+    fun libraries(context: Context): File? = if (imported(context)) File(dir(Paths(context)), chosen(context)) else null
+
+    /** Settings → Driver → Options: `NAME=value` pairs for the game's environment, to test drivers with. */
+    fun options(context: Context): Map<String, String> = Settings.driverOptions(context).split(Regex("\\s+"))
+        .mapNotNull { OPTION.matchEntire(it)?.destructured }.associate { (name, value) -> name to value }
+
+    private val OPTION = Regex("""([A-Za-z_][A-Za-z0-9_]*)=(\S*)""")
 
     fun remove(context: Context, id: String) {
         if (id == ZINK || id == FREEDRENO) return
         File(dir(Paths(context)), id).deleteRecursively()
     }
 
+    /**
+     * A Linux (glibc) build of a Mesa Vulkan driver (Turnip, PanVK…), as a .tar.gz, .tar.xz or .zip, or the library
+     * alone. Other libraries in the package stay beside it, for what it needs and the runtime lacks.
+     */
     fun import(context: Context, uri: Uri): Driver {
         val paths = Paths(context)
         if (!Runtime.isInstalled(context)) Runtime.install(context)   // to check the libraries against
         val staging = File(dir(paths), ".importing").apply { deleteRecursively(); mkdirs() }
         try {
-            val library = File(staging, LIBRARY)
-            var apiVersion: String? = null
+            val fileName = displayName(context, uri)
+            var icd: JSONObject? = null
+            val links = HashMap<String, String>()
             val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Can't open the selected file")
-            archive(input).use { entries ->
-                while (true) {
-                    val entry = entries.nextEntry ?: break
-                    val name = entry.name.substringAfterLast('/')
-                    when {
-                        entry.isDirectory -> {}
-                        name == LIBRARY -> library.outputStream().use { entries.copyTo(it) }
-                        name.startsWith("freedreno_icd") && name.endsWith(".json") -> apiVersion = runCatching {
-                            JSONObject(entries.readBytes().decodeToString()).getJSONObject("ICD").getString("api_version")
-                        }.getOrNull()
+            BufferedInputStream(input).use { stream ->
+                if (isElf(stream)) {
+                    File(staging, fileName?.substringAfterLast('/')?.takeIf { SHARED.matches(it) } ?: "libvulkan_driver.so")
+                        .outputStream().use { stream.copyTo(it) }
+                } else archive(stream).use { entries ->
+                    while (true) {
+                        val entry = entries.nextEntry ?: break
+                        val name = entry.name.substringAfterLast('/')
+                        when {
+                            entry.isDirectory -> {}
+                            entry is TarArchiveEntry && entry.isSymbolicLink -> links[name] = entry.linkName.substringAfterLast('/')
+                            name.endsWith(".json") -> runCatching {
+                                JSONObject(entries.readBytes().decodeToString()).getJSONObject("ICD")
+                            }.getOrNull()?.let { icd = it }
+                            SHARED.matches(name) -> File(staging, name).outputStream().use { entries.copyTo(it) }
+                        }
                     }
                 }
             }
-            if (!library.exists()) throw IOException("No Turnip in that file ($LIBRARY is missing)")
-            val needed = neededLibraries(library)
-            if ("libc.so.6" !in needed) throw IOException("That Turnip is built for Android, not Linux: it can't load here")
-            val missing = needed.filter { !File(paths.lib, it).exists() }
-            if (missing.isNotEmpty()) throw IOException("That Turnip needs ${missing.joinToString()}, which Pocket Foundry doesn't have")
+            // libfoo.so.1 -> libfoo.so.1.2 and the like: a copy under the linked name.
+            for ((name, target) in links) File(staging, target).takeIf { it.exists() }?.copyTo(File(staging, name), overwrite = true)
 
+            val libraries = staging.listFiles().orEmpty().filter { SHARED.matches(it.name) }
+            val named = icd?.optString("library_path")?.substringAfterLast('/')
+            val library = libraries.firstOrNull { it.name == named }
+                ?: libraries.singleOrNull { it.name.startsWith("libvulkan_") }
+                ?: throw IOException("No Vulkan driver in that file (no libvulkan_….so)")
+            val needed = neededLibraries(library)
+            if ("libc.so.6" !in needed) throw IOException("That driver is built for Android, not Linux: it can't load here")
+            val missing = needed.filter { need -> !File(paths.lib, need).exists() && libraries.none { it.name == need } }
+            if (missing.isNotEmpty()) throw IOException("That driver needs ${missing.joinToString()}, which Pocket Foundry doesn't have")
+
+            val kind = KINDS[KIND.find(named ?: library.name)?.groupValues?.get(1)] ?: "Vulkan"
             val version = mesaVersion(library) ?: "unknown"
-            val id = "turnip-" + version.lowercase().replace(Regex("[^a-z0-9.]+"), "-")
+            val id = kind.lowercase() + "-" + version.lowercase().replace(Regex("[^a-z0-9.]+"), "-")
             val target = File(dir(paths), id).apply { deleteRecursively(); mkdirs() }
-            val placed = File(target, LIBRARY)
-            if (!library.renameTo(placed)) throw IOException("Couldn't keep the driver")
+            for (file in libraries) if (!file.renameTo(File(target, file.name))) throw IOException("Couldn't keep the driver")
             File(target, "icd.json").writeText(JSONObject().put("file_format_version", "1.0.1").put("ICD",
-                JSONObject().put("library_path", placed.path).put("library_arch", "64")
-                    .put("api_version", apiVersion ?: "1.4.0")).toString(2))
-            val driver = Driver(id, "Turnip $version", "Imported · ${displayName(context, uri) ?: "driver"}")
+                JSONObject().put("library_path", File(target, library.name).path).put("library_arch", "64")
+                    .put("api_version", icd?.optString("api_version")?.ifEmpty { null } ?: "1.4.0")).toString(2))
+            val driver = Driver(id, "$kind $version", "Imported · ${fileName ?: "driver"}")
             File(target, "driver.json").writeText(JSONObject().put("name", driver.name).put("detail", driver.detail).toString())
             return driver
         } finally {
@@ -105,8 +133,18 @@ object Drivers {
         }
     }
 
-    private fun archive(input: InputStream): ArchiveInputStream<*> {
-        val stream = BufferedInputStream(input)
+    private val SHARED = Regex("""[^/]+\.so(\.\d+)*""")
+    private val KIND = Regex("""libvulkan_([a-z0-9]+)""")
+    private val KINDS = mapOf("freedreno" to "Turnip", "panfrost" to "PanVK", "radeon" to "RADV", "powervr" to "PowerVR")
+
+    private fun isElf(stream: BufferedInputStream): Boolean {
+        stream.mark(4)
+        val head = ByteArray(4).also { stream.read(it) }
+        stream.reset()
+        return head.contentEquals(byteArrayOf(0x7F, 'E'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte()))
+    }
+
+    private fun archive(stream: BufferedInputStream): ArchiveInputStream<*> {
         stream.mark(8)
         val head = ByteArray(6).also { stream.read(it) }
         stream.reset()

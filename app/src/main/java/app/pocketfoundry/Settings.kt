@@ -47,6 +47,8 @@ object Settings {
 
     fun driver(context: Context) = prefs(context).getString("driver", Drivers.ZINK)!!
     fun setDriver(context: Context, id: String) = prefs(context).edit().putString("driver", id).apply()
+    fun driverOptions(context: Context) = prefs(context).getString("driverOptions", "")!!
+    fun setDriverOptions(context: Context, options: String) = prefs(context).edit().putString("driverOptions", options).apply()
 
     fun requestLayoutEditor(context: Context) = prefs(context).edit().putBoolean("editLayout", true).apply()
     fun takeLayoutEditorRequest(context: Context): Boolean {

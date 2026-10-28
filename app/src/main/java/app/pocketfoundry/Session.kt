@@ -65,8 +65,8 @@ object Session {
             val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
             val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
                           else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
-            val started = glibc(paths, command, "game.log",
-                                Drivers.environment(context) + uiScale(context) + debugEnvironment(context, "game"))
+            val started = glibc(paths, command, "game.log", Drivers.environment(context) + uiScale(context) +
+                                Drivers.options(context) + debugEnvironment(context, "game"), Drivers.libraries(context))
             game = started
             gamePid = childPid(command.first())
             ScreenLog.add("game started")
@@ -209,8 +209,10 @@ object Session {
         return mapOf("SDL_VIDEO_X11_SCALING_FACTOR" to "%.4f".format(Locale.ROOT, points.coerceAtLeast(1f)))
     }
 
-    private fun glibc(paths: Paths, command: List<String>, log: String, extra: Map<String, String> = emptyMap()): Process {
-        val pb = ProcessBuilder(listOf(paths.loader.path, "--library-path", paths.lib.path) + command)
+    private fun glibc(paths: Paths, command: List<String>, log: String, extra: Map<String, String> = emptyMap(),
+                      libraries: File? = null): Process {
+        val libraryPath = listOfNotNull(paths.lib, libraries).joinToString(":") { it.path }
+        val pb = ProcessBuilder(listOf(paths.loader.path, "--library-path", libraryPath) + command)
         pb.environment().apply {
             clear()
             put("HOME", paths.home.path)

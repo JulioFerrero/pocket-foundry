@@ -29,10 +29,11 @@ So far Pocket Foundry has been played on one phone. Help taking it to more is ve
   the phone, its GPU and Android version, how far it got (import, main menu, a save), the frame rate, and what the
   Logs screen shows (its Copy button takes it all). Reports that it works help too.
 - **Developing:** the open fronts are
-  - **Mali, PowerVR and Xclipse GPUs** (MediaTek, Google Tensor, Samsung Exynos): Turnip only drives Adreno. The
-    likeliest path is a wrapper over the phone's own Vulkan driver, which DroidDeck is building for the same kind
-    of Linux-on-Android setup; Mesa's community ports (PanVK on Arm's kernel driver, RADV for Xclipse) are the other.
-    `NOTES.md` has the details.
+  - **Mali, PowerVR and Xclipse GPUs** (MediaTek, Google Tensor, Samsung Exynos): Turnip only drives Adreno. Linux
+    builds of Mesa's community ports import in Settings → Driver, such as PanVK on Arm's kernel driver for Mali (the
+    glibc `.so` from [panvk-kbase-android](https://github.com/zenithblue-oss/panvk-kbase-android/releases), up to
+    RC3); RADV for Xclipse is the other port. The likeliest path for all three is a wrapper over the phone's own Vulkan driver, which DroidDeck is
+    building for the same kind of Linux-on-Android setup. `NOTES.md` has the details.
   - **Other Adreno generations:** which Turnip works on each, bundled or imported in Settings → Driver.
   - **Other screens:** foldables, 4:3, tablets, and the on-screen controls on them.
   - **Other Android skins:** how each treats a game running in the background.
@@ -87,9 +88,11 @@ clicks as on a computer; touch still works as the mouse too.
   round the game that keeps the screen's rounded corners off its menus, sprite quality (Medium takes ~700 MB off a
   phone's shared memory, for very big saves), pausing in the background and vibration.
 - **Saves:** export them all to `Download/Pocket Foundry`, where uninstalling leaves them, and import saves from anywhere.
-- **Graphics driver:** Zink on Turnip (the default), freedreno, or a newer Turnip you import, such as the
-  `turnip_*_arm64.tar.gz` builds from [lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases).
-  Pocket Foundry checks an imported driver can load before keeping it.
+- **Graphics driver:** Zink on Turnip (the default), freedreno, or a Linux build of a Mesa Vulkan driver you import:
+  a newer Turnip, such as the `turnip_*_arm64.tar.gz` builds from [lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases),
+  or PanVK for Mali. A `.tar.gz`, `.tar.xz`, `.zip` or the `.so` alone; libraries in the package come along.
+  Pocket Foundry checks an imported driver can load before keeping it. Options passes `NAME=value` settings to it
+  (`PANVK_DEBUG=…`, `TU_DEBUG=…`), and Logs shows them.
 
 | | |
 |---|---|

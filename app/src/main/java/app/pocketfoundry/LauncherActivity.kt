@@ -6,11 +6,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.text.Editable
+import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.TextWatcher
 import android.text.format.DateUtils
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.ForegroundColorSpan
@@ -18,6 +22,9 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -411,7 +418,7 @@ class LauncherActivity : Activity() {
 
         val failure = error ?: Session.lastFailure?.let { status ->
             when {
-                !Gpu.supported -> "This phone's GPU isn't supported yet."
+                !Gpu.supported && !Drivers.imported(this) -> "This phone's GPU isn't supported yet."
                 Session.noWindow -> "The graphics driver didn't start. See Logs."
                 else -> "Factorio stopped unexpectedly ($status). See Logs."
             }
@@ -533,6 +540,33 @@ class LauncherActivity : Activity() {
         panel.addView(heading(this, "Graphics driver"))
         val list = stack(this, Factorio.INSET_DARK, sunken = true, padding = 6, gap = 4)
         panel.addView(ScrollView(this).apply { addView(list) }, LinearLayout.LayoutParams(MATCH, WRAP))
+        val options = stack(this, Factorio.INSET_DARK, sunken = true, padding = 6, gap = 0)
+        val field = EditText(this).apply {
+            setText(Settings.driverOptions(context))
+            hint = "Options  NAME=value …"
+            typeface = Typeface.MONOSPACE
+            textSize = 13f
+            setTextColor(Factorio.TEXT)
+            setHintTextColor(0xFF8A8580.toInt())
+            background = null
+            setPadding(dpi(8), dpi(6), dpi(8), dpi(6))
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            imeOptions = EditorInfo.IME_ACTION_DONE
+            addTextChangedListener(object : TextWatcher {
+                override fun afterTextChanged(s: Editable) = Settings.setDriverOptions(context, s.toString().trim())
+                override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
+            })
+            setOnEditorActionListener { view, _, _ ->
+                view.clearFocus()
+                getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(view.windowToken, 0)
+                immersive()
+                true
+            }
+        }
+        options.addView(field, LinearLayout.LayoutParams(MATCH, WRAP))
+        panel.addView(options)
         val status = label(this, "Applies when Factorio next starts.", 14f, Factorio.MUTED)
         status.visibility = if (Session.state != Session.State.STOPPED) View.VISIBLE else View.GONE
         panel.addView(status)
@@ -554,6 +588,7 @@ class LauncherActivity : Activity() {
             addView(import, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
         })
         showDialog(panel, 460)
+        field.clearFocus()   // the dialog would otherwise open typing in it
         driverList = list
         driverStatus = status
         listDrivers()

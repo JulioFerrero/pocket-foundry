@@ -102,7 +102,8 @@ class LogActivity : Activity() {
             .joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
         "── phone ──\n" + listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
             Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${packageManager.getPackageInfo(packageName, 0).versionName}")
-            .joinToString(" · ") + "\n" + (if (pads.isNotEmpty()) "Controllers: $pads\n" else "")
+            .joinToString(" · ") + "\n" + (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +
+            Settings.driverOptions(this).ifEmpty { null }?.let { "Driver options: $it\n" }.orEmpty()
     }
 
     private fun load() {

@@ -951,6 +951,32 @@ device logs?" dialog (emulator, API 36). So instead:
 Emulator: a normal start connected in 0.5 s. With `LorieApp$Receiver` disabled (`pm disable`, root), "Not connected",
 screen.log "the announcement never arrived", x11.log three announcements and three knocks.
 
+### Any Mesa Vulkan driver imports, PanVK for Mali (2026-10-29)
+A Mali-G615 tester got Zink on PanVK-kbase's glibc build to the loading screen by repackaging it as a Turnip
+(renamed to `libvulkan_freedreno.so`, two NEEDED entries stripped, their symbols made weak); it then died at ~50% of
+sprite loading with "CSF group 0 tiler heap OOM" and DEVICE LOST, a PanVK bug. So the import opened up:
+- Settings → Driver takes a Linux (glibc) build of any Mesa Vulkan driver: a `.tar.gz`, `.tar.xz` or `.zip`, or
+  the `.so` alone. The driver is the library its ICD .json names, else the one `libvulkan_*.so`; other libraries in
+  the package are kept beside it and searched after the runtime's (`--library-path runtime:driver`). Named from the
+  library (freedreno → Turnip, panfrost → PanVK, radeon → RADV, powervr → PowerVR) and the Mesa version inside.
+- PanVK RC3's glibc `.so` needs `libwayland-client.so.0` and `libSPIRV-Tools.so` besides what we ship. Debian 13's
+  Wayland (1.23) lacks `wl_fixes_interface` and `wl_display_dispatch_queue_timeout` (1.24), and Debian ships
+  SPIRV-Tools only static. Both are used only for Wayland windows and for printing shaders while debugging, so
+  the runtime has stand-ins (`runtime/assemble/*.c`, 67 KB each): Wayland's interfaces and client API with every
+  call failing, SPIRV-Tools' C API likewise. PanVK binds lazily; only its eight `wl_*_interface` objects must exist
+  at load. All 31 symbols it imports are defined.
+- Options (Settings → Driver): `NAME=value` pairs for the game's environment, after the driver's own (so they can
+  override `MESA_VK_WSI_DEBUG`); Logs prints them. For testers: `PANVK_KBASE_HEAP_CHUNKS`, `PANVK_DEBUG`, `TU_DEBUG`.
+- With an imported driver chosen, a failure says "The graphics driver didn't start" rather than "GPU isn't supported".
+- panvk-kbase-android's RC4 "EMULATOR" zip is its Android (bionic) build in another layout (its meta.json says so):
+  the newest glibc PanVK is RC3 / RC3 lowmem (`libvulkan_panfrost-glibc-aarch64.so`), v9 (G57, G77, G78) to v13.
+
+Emulator (no Mali): RC4 zip refused ("built for Android"); RC3 `.so` and a `.tar.gz` of it with its ICD .json
+imported as "PanVK 26.3.0-devel" (API version from the .json, else 1.4.0); with `VK_LOADER_DEBUG=all
+PANVK_DEBUG=startup` in Options the game log showed "panvk_debug: startup", "Created an instance" and the loader
+taking PanVK's entry points, then "Failed to detect any valid GPUs" (no /dev/mali0). An lfdevs Turnip still imports
+as "Turnip 27.0.0-devel".
+
 ## Planned (not built yet)
 
 - **Controller button remapping.** Factorio rebinds its own actions (Settings → Controls), so this covers only what
@@ -972,7 +998,8 @@ screen.log "the announcement never arrived", x11.log three announcements and thr
     XL's PowerVR reports Vulkan 1.4; its buffer export needed a Venus patch). Venus adds a serialisation hop;
     libhybris doesn't. Licences to check before reusing anything (libhybris Apache-2.0, virglrenderer and Mesa MIT,
     DroidDeck's own code unknown).
-  - **Mali: PanVK on Arm's kbase kernel driver.** Community forks only, nothing upstream:
+  - **Mali: PanVK on Arm's kbase kernel driver.** Its glibc builds import since 2026-10-29 (see above); the
+    tiler heap OOM at sprite loading is the open bug. Community forks only, nothing upstream:
     zenithblue-oss/panvk-kbase-android (MIT; 0.1.0 RC4 on 2026-10-20 added experimental Bifrost v7, the G52),
     JimVulkan/mali-panvk (MIT), whaltermc/panvk, MineGraph-bilibili/panvk-Android (G610–G720); a Termux package was
     proposed on 2026-10-21 (172 patches on Mesa). SaicharanKandukuri/tensor-g1-proot-gpu shows presenting through
