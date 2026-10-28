@@ -22,6 +22,10 @@ cp -a $MESA/share/. $OUT/share/
 
 cp /out/wm/pocketfoundry-wm $OUT/bin/
 
+# Stand-ins for two libraries that imported Vulkan drivers link but never use here (see the .c files).
+gcc -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -o $OUT/lib/libwayland-client.so.0 /runtime/assemble/wayland-client.c
+gcc -shared -fPIC -O2 -Wl,-soname,libSPIRV-Tools.so -o $OUT/lib/libSPIRV-Tools.so /runtime/assemble/spirv-tools.c
+
 cp -a /out/sdl$PREFIX/lib/libSDL3.so* $OUT/lib/
 cp /out/sdl$PREFIX/bin/pocketfoundry-padtest /out/sdl$PREFIX/bin/pocketfoundry-inputtest $OUT/bin/
 
