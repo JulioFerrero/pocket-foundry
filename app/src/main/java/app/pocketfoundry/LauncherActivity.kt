@@ -829,7 +829,7 @@ class LauncherActivity : Activity() {
             if (prefs.getBoolean("pocketFoundryDefaults", false)) return
             prefs.edit()
                 .putString("displayResolutionMode", "scaled")
-                .putInt("displayScale", 200)
+                .putInt("displayScale", Settings.DEFAULT_RESOLUTION_SCALE)
                 .putString("forceOrientation", "landscape")
                 .putBoolean("fullscreen", true)
                 .putBoolean("hideCutout", true)

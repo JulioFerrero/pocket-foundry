@@ -61,7 +61,7 @@ Alt, F, Z, T, Space and the phone's own keyboard.
 
 - **Controls that match the game's hints** ([above](#controls)): your finger as the cursor, gestures for the common
   presses and Xbox buttons in the game's own look, sized by how much Factorio uses them.
-- **Settings:** the resolution the game draws at, a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
+- **Settings:** the resolution the game draws at (the game's UI keeps its size at each), a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
   round the game that keeps the screen's rounded corners off its menus, sprite quality (Medium takes ~700 MB off a
   phone's shared memory, for very big saves), gamepad or touch controls, pausing in the background and vibration.
 - **Saves:** export them all to `Download/Pocket Foundry`, where uninstalling leaves them, and import saves from anywhere.
@@ -80,7 +80,8 @@ Alt, F, Z, T, Space and the phone's own keyboard.
   Termux:X11's X server as the screen and a tiny window manager. The game binary itself is never modified.
 - **Sound and controls through SDL:** the game's static SDL3 hands over to Pocket Foundry's SDL 3.4 through SDL's dynamic
   API. That SDL plays audio through the app, adds a virtual gamepad driven by the on-screen controller or a real one
-  (rumble goes back to the controller, or the phone) and paces frames for the 30 FPS cap. Touching the game reaches it through the X server, as a
+  (rumble goes back to the controller, or the phone) and paces frames for the 30 FPS cap. It also tells the game how
+  many pixels make a display point, so the UI scale you pick in Factorio looks the same at every resolution. Touching the game reaches it through the X server, as a
   mouse (and, in Touch controls, a keyboard).
 - **The launcher:** drawn with Factorio's own GUI sprites, read from your copy (`data/core/graphics/gui-new.png`, cut
   where the game's `style.lua` says): its panels, buttons, drop-downs and checkboxes, with the game's hover look on

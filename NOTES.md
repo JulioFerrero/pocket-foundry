@@ -770,3 +770,10 @@ so Y also clicks, as in Factorio's menus), START → DPAD_CENTER, SELECT → MEN
 - The drop-down's popup isn't focusable (a focused popup brings back the system bars), so the drop-down button keeps
   the keys while it's open: up and down move a hovered row, A picks, B closes.
 The first key press only shows the focus (Android leaving touch mode).
+
+**The game's UI keeps its size at every resolution.** Factorio's scale here is `manual-display-points` (125%), and
+display points come from SDL's display content scale, which on X11 is `SDL_VIDEO_X11_SCALING_FACTOR` when set
+(accepted 1 to 10, else Xft.dpi, XSETTINGS, GDK_SCALE, 1). The game now starts with it at 200 / the resolution scale:
+1 at Default, 2 at Native, so Native draws the same UI with twice the pixels, and a scale chosen in the game still
+applies on top. Checked on the phone at Native. The log's display line (`{1, [0,0], …}`) starts with SDL's display
+id, not the scale.

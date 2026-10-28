@@ -36,7 +36,8 @@ object Settings {
      * 200, half the panel each way, is the default.
      */
     val RESOLUTION_SCALES = listOf(100, 125, 150, 200)
-    fun resolutionScale(context: Context) = x11(context).getInt("displayScale", 200)
+    const val DEFAULT_RESOLUTION_SCALE = 200
+    fun resolutionScale(context: Context) = x11(context).getInt("displayScale", DEFAULT_RESOLUTION_SCALE)
     fun setResolutionScale(context: Context, scale: Int) =
         x11(context).edit().putString("displayResolutionMode", "scaled").putInt("displayScale", scale).apply()
 

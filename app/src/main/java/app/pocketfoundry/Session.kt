@@ -11,6 +11,7 @@ import android.util.Log
 import app.pocketfoundry.controller.Gamepads
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 import java.util.TimeZone
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
@@ -75,7 +76,8 @@ object Session {
             val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
             val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
                           else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
-            val started = glibc(paths, command, "game.log", Drivers.environment(context) + debugEnvironment(context, "game"))
+            val started = glibc(paths, command, "game.log",
+                                Drivers.environment(context) + uiScale(context) + debugEnvironment(context, "game"))
             game = started
             gamePid = childPid(command.first())
             lastFailure = null
@@ -189,6 +191,16 @@ object Session {
         AudioBridge.start(paths)
         InputBridge.start(context, paths)
         return glibc(paths, listOf(File(paths.prefix, "bin/$name").path), "$name.log")
+    }
+
+    /**
+     * Factorio's UI scale counts display points, and SDL says how many pixels make one: as many more as
+     * the resolution has over Default's, so the game's UI is the same size on the screen at every one
+     * (Native: twice the pixels, twice the scale), and the player's own scale in the game still applies.
+     */
+    private fun uiScale(context: Context): Map<String, String> {
+        val points = Settings.DEFAULT_RESOLUTION_SCALE.toFloat() / Settings.resolutionScale(context)
+        return mapOf("SDL_VIDEO_X11_SCALING_FACTOR" to "%.4f".format(Locale.ROOT, points.coerceAtLeast(1f)))
     }
 
     /**
