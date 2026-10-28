@@ -45,11 +45,6 @@ object Settings {
     fun spriteQuality(context: Context) = prefs(context).getString("spriteQuality", "high")!!
     fun setSpriteQuality(context: Context, quality: String) = prefs(context).edit().putString("spriteQuality", quality).apply()
 
-    /** "gamepad" plays Factorio in its controller mode, "touch" in keyboard-and-mouse mode. */
-    fun controls(context: Context) = prefs(context).getString("controls", CONTROLS[0])!!
-    fun setControls(context: Context, controls: String) = prefs(context).edit().putString("controls", controls).apply()
-    val CONTROLS = listOf("gamepad", "touch")
-
     fun driver(context: Context) = prefs(context).getString("driver", Drivers.ZINK)!!
     fun setDriver(context: Context, id: String) = prefs(context).edit().putString("driver", id).apply()
 

@@ -885,3 +885,12 @@ on the CPU, its system calls go to Android's kernel, nothing emulates it), but t
 (our glibc, an X server) and the GPU half is where the translation is: by default OpenGL goes through Zink onto
 Vulkan. The README, the repo description and the release notes now say "without emulation", and the welcome panel
 "running on this phone".
+
+### Touch controls removed (2026-10-28)
+Settings → Controls is gone, and with it the Touch set (WASD stick, the E R Q M Esc keys and the pickaxe, the strip
+of Tab, Shift…). Next to the gamepad its icons were hard to read and its hints didn't match the screen, and the
+gamepad with touch as the cursor already covered it. Factorio's keyboard-and-mouse mode stays for a real keyboard
+connected at start (a controller still wins): touch is the mouse, as before, and the on-screen pad shows only in the
+layout editor, since that mode ignores the pad. It stays hidden if the keyboard is unplugged mid-game, as the game
+can't switch modes until it restarts. Checked on the emulator with a virtual USB keyboard: `input-method=keyboard-and-mouse`,
+no controls or toolbar, a tap clicks, the layout editor opens and closes; without it, the pad and taps as before.

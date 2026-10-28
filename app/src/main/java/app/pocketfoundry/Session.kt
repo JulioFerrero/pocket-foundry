@@ -22,8 +22,8 @@ object Session {
 
     @Volatile var state = State.STOPPED
         private set
-    /** What the running game started with: its input mode can't change until it restarts. */
-    @Volatile var controls = Settings.CONTROLS[0]
+    /** Whether the running game started in keyboard-and-mouse mode: its input mode can't change until it restarts. */
+    @Volatile var keyboard = false
         private set
     /** Factorio's exit status, or null after a normal quit. */
     @Volatile var lastFailure: Int? = null
@@ -56,13 +56,8 @@ object Session {
         if (game?.isAlive != true) {
             // Autosaves cut short by a kill: Factorio offers them as "Continue" and can't open them.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
-            // A keyboard plays in "touch", Factorio's keyboard-and-mouse mode.
-            controls = when {
-                Gamepads.connected(context) -> Settings.CONTROLS[0]
-                Keyboards.connected(context) -> Settings.CONTROLS[1]
-                else -> Settings.controls(context)
-            }
-            writeConfig(paths, Settings.spriteQuality(context), controls)
+            keyboard = Keyboards.connected(context) && !Gamepads.connected(context)
+            writeConfig(paths, Settings.spriteQuality(context), keyboard)
             val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
             val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
                           else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
@@ -216,14 +211,14 @@ object Session {
     }
 
     /** Factorio derives its paths from its executable, here the loader, so the config names them. */
-    private fun writeConfig(paths: Paths, spriteQuality: String, controls: String) {
+    private fun writeConfig(paths: Paths, spriteQuality: String, keyboard: Boolean) {
         var config = if (paths.config.exists()) paths.config.readText() else ""
         // Without its version header Factorio calls the file invalid and offers a reset.
         if (!config.startsWith("; version=")) config = "; version=13\n"
         config = setIni(config, "path", "read-data", File(paths.game, "data").path)
         config = setIni(config, "path", "write-data", paths.gameData.path)
         // Factorio doesn't switch between mouse and gamepad by itself.
-        config = setIni(config, "input", "input-method", if (controls == "touch") "keyboard-and-mouse" else "game-controller")
+        config = setIni(config, "input", "input-method", if (keyboard) "keyboard-and-mouse" else "game-controller")
         // Factorio's automatic UI scale is too small on a phone.
         if (!Regex("(?m)^ui-scale-mode=").containsMatchIn(config)) {
             config = setIni(config, "interface", "ui-scale-mode", "manual-display-points")

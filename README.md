@@ -62,23 +62,17 @@ Your finger is the cursor: touch the game where you want something to happen.
 | The two under the toolbar | Map and game menu. |
 
 The toolbar at the top moves, resizes (pinch a button), adds and removes the buttons (a right stick and the sticks'
-clicks; in Touch, more keys), fades or hides them all, and opens the phone's keyboard, for naming a save.
+clicks), fades or hides them all, and opens the phone's keyboard, for naming a save.
 
 **A controller**, USB or Bluetooth (Xbox, PlayStation, Switch Pro, 8BitDo, phone clamps), plays the game directly:
 the on-screen buttons step aside as soon as you use it, all but the toolbar's keyboard, and come back when it's unplugged, and touch still moves the
-cursor. Its home button opens Pocket Foundry's menu, and the game's rumble comes through the controller. A controller
-connected when the game starts puts Factorio in its gamepad mode whatever Settings say. The launcher takes it too: the
+cursor. Its home button opens Pocket Foundry's menu, and the game's rumble comes through the controller. The launcher takes it too: the
 D-pad or stick moves between buttons, lit as in the game, A picks and B goes back. The game names the buttons the
 Xbox way; Factorio's own settings can show PlayStation or Switch symbols instead.
 
 **A keyboard**, USB or Bluetooth, does the same for Factorio's keyboard-and-mouse mode: connected when the game
-starts, it puts the game in that mode, and the on-screen stick and keys step aside while it's connected. A mouse
-points and clicks as on a computer; touch still works as the mouse too.
-
-**Settings → Controls → Touch** is the other way to play: Factorio in its keyboard-and-mouse mode. Tap clicks, drag
-holds the button (lines of belts, items across the inventory), long press mines, pinch zooms. A stick walks, buttons
-carry the inventory, rotate, pipette, mining, map and menu keys, and the toolbar's keyboard opens Tab, Shift, Ctrl,
-Alt, F, Z, T, Space and the phone's own keyboard.
+starts without a controller, it puts the game in that mode and the on-screen controls step aside. A mouse points and
+clicks as on a computer; touch still works as the mouse too.
 
 ## What's in it
 
@@ -87,7 +81,7 @@ Alt, F, Z, T, Space and the phone's own keyboard.
 - **Settings:** the resolution the game draws at (Default comes from the screen's density, so the game looks the same
   size on any phone; the sharper ones keep the UI that size), a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
   round the game that keeps the screen's rounded corners off its menus, sprite quality (Medium takes ~700 MB off a
-  phone's shared memory, for very big saves), gamepad or touch controls, pausing in the background and vibration.
+  phone's shared memory, for very big saves), pausing in the background and vibration.
 - **Saves:** export them all to `Download/Pocket Foundry`, where uninstalling leaves them, and import saves from anywhere.
 - **Graphics driver:** Zink on Turnip (the default), freedreno, or a newer Turnip you import, such as the
   `turnip_*_arm64.tar.gz` builds from [lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases).
@@ -105,8 +99,7 @@ Alt, F, Z, T, Space and the phone's own keyboard.
 - **Sound and controls through SDL:** the game's static SDL3 hands over to Pocket Foundry's SDL 3.4 through SDL's dynamic
   API. That SDL plays audio through the app, adds a virtual gamepad driven by the on-screen controller or a real one
   (rumble goes back to the controller, or the phone) and paces frames for the 30 FPS cap. It also tells the game how
-  many pixels make a display point, so the UI scale you pick in Factorio looks the same at every resolution. Touching the game reaches it through the X server, as a
-  mouse (and, in Touch controls, a keyboard).
+  many pixels make a display point, so the UI scale you pick in Factorio looks the same at every resolution. Touching the game reaches it through the X server, as a mouse.
 - **The launcher:** drawn with Factorio's own GUI sprites, read from your copy (`data/core/graphics/gui-new.png`, cut
   where the game's `style.lua` says): its panels, buttons, drop-downs and checkboxes, with the game's hover look on
   whatever a controller is on. Before the import, a look drawn

@@ -87,7 +87,6 @@ class LauncherActivity : Activity() {
     private lateinit var fps30: FButton
     private lateinit var fps60: FButton
     private lateinit var sprites: Dropdown
-    private lateinit var controlsChoice: Dropdown
     private lateinit var settingsNote: TextView
     private lateinit var editLayout: FButton
     private lateinit var importAgain: FButton
@@ -271,7 +270,7 @@ class LauncherActivity : Activity() {
 
     private fun buildSettings(): View {
         val panel = stack(this, Factorio.PANEL, sunken = false, padding = 8, gap = 10)
-        settingsNote = label(this, "Resolution, sprites and controls change when Factorio next starts.", 13f, Factorio.MUTED)
+        settingsNote = label(this, "Resolution and sprites change when Factorio next starts.", 13f, Factorio.MUTED)
         panel.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(heading(context, "Settings"), LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -298,8 +297,6 @@ class LauncherActivity : Activity() {
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         controller.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
-        controlsChoice = Dropdown(this, listOf("Gamepad", "Touch")) { Settings.setControls(this, Settings.CONTROLS[it]) }
-        controller.addView(row("Controls", controlsChoice.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
         }
@@ -438,7 +435,6 @@ class LauncherActivity : Activity() {
         fps30.tone = if (fps == 30) Tone.ORANGE else Tone.GREY
         fps60.tone = if (fps == 60) Tone.ORANGE else Tone.GREY
         sprites.selected = SPRITE_QUALITIES.indexOf(Settings.spriteQuality(this)).coerceAtLeast(0)
-        controlsChoice.selected = Settings.CONTROLS.indexOf(Settings.controls(this)).coerceAtLeast(0)
         settingsNote.visibility = if (inGame) View.VISIBLE else View.GONE
         border.selected = Settings.BORDERS.indexOf(Settings.border(this)).coerceAtLeast(0)
         editLayout.visibility = if (live) View.VISIBLE else View.GONE

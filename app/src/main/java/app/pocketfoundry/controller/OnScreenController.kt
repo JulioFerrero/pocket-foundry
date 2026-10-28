@@ -21,7 +21,6 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
     private val views = WeakHashMap<Activity, ControllerView>()
     private val gestures = WeakHashMap<Activity, PointerGestures>()
     private val pads = WeakHashMap<Activity, Gamepads>()
-    private val keyboards = WeakHashMap<Activity, InUse>()
     private val borders = WeakHashMap<Activity, GameBorder>()
     private var resumed: Activity? = null
 
@@ -37,22 +36,19 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityPostCreated(activity: Activity, savedInstanceState: Bundle?) {
         if (activity !is MainActivity) return
-        // The controls the game started with, not Settings': its input mode was set then.
-        val touch = Session.controls == "touch"
-        val view = ControllerView(activity, touch)
+        // The input mode the game started with: it can't change until the game restarts.
+        val keyboard = Session.keyboard
+        val view = ControllerView(activity, keyboard)
         activity.addContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                                              ViewGroup.LayoutParams.MATCH_PARENT))
-        val lorie = activity.lorieView
-        view.keys = { code, down -> lorie.sendKeyEvent(0, code, down) }
-        view.onKeyboard = { lorie.toggleKeyboardVisible() }
-        val mouse = PointerGestures.attach(activity, { view.mining }, if (touch) null else PadPresses()) {
+        view.onKeyboard = { activity.lorieView.toggleKeyboardVisible() }
+        val mouse = PointerGestures.attach(activity, if (keyboard) null else PadPresses()) {
             if (Settings.vibration(activity)) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
         mouse?.let { gestures[activity] = it }
         val launcher = { activity.startActivity(Intent(activity, LauncherActivity::class.java)) }
         val controller = Gamepads(activity, launcher) { view.padInHand = it }
         pads[activity] = controller
-        keyboards[activity] = InUse(activity, Keyboards::isKeyboard, fromConnecting = true) { view.keyboardInHand = it }
         takeKeysFirst(activity, controller::key)
         activity.window.callback = TouchRouter(activity.window.callback, view, mouse, controller::key, controller::motion, launcher)
         views[activity] = view
@@ -113,6 +109,5 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         views.remove(activity)
         gestures.remove(activity)
         pads.remove(activity)?.close()
-        keyboards.remove(activity)?.close()
     }
 }

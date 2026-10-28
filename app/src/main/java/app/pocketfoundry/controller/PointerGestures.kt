@@ -22,7 +22,6 @@ import kotlin.math.pow
 class PointerGestures private constructor(
     private val lorie: LorieView,
     private val renderData: RenderData,
-    private val mining: () -> Boolean,
     private val onLongPress: () -> Unit,
     private val pad: PadPresses?,
 ) {
@@ -77,8 +76,6 @@ class PointerGestures private constructor(
                 lastTapAt = 0
                 moveTo(x, y)
                 holdPad(PadButton.SOUTH)
-            } else if (pad == null && mining()) {
-                press(InputStub.BUTTON_RIGHT, x, y)
             } else {
                 moveTo(x, y)   // the game shows what's under the finger meanwhile
                 handler.postDelayed(longPress, LONG_PRESS_MS)
@@ -228,11 +225,11 @@ class PointerGestures private constructor(
         private const val SCROLL_STEP_DP = 36f
 
         /** Null if Termux:X11's private fields were renamed: touches then reach the game as Termux:X11 sends them. */
-        fun attach(activity: MainActivity, mining: () -> Boolean, pad: PadPresses?, onLongPress: () -> Unit): PointerGestures? = runCatching {
+        fun attach(activity: MainActivity, pad: PadPresses?, onLongPress: () -> Unit): PointerGestures? = runCatching {
             // Termux:X11's own view-to-X-screen mapping, letterboxing included.
             val handler = MainActivity::class.java.getDeclaredField("mInputHandler").apply { isAccessible = true }.get(activity)!!
             val renderData = handler.javaClass.getDeclaredField("mRenderData").apply { isAccessible = true }.get(handler) as RenderData
-            PointerGestures(activity.lorieView, renderData, mining, onLongPress, pad)
+            PointerGestures(activity.lorieView, renderData, onLongPress, pad)
         }.onFailure { Log.w("PocketFoundry", "Touch controls unavailable, touches go to Termux:X11", it) }.getOrNull()
     }
 }
