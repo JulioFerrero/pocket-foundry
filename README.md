@@ -1,7 +1,8 @@
 # Pocket Foundry
 
-**Play your own copy of Factorio on Android.** The official Linux ARM64 build from factorio.com runs natively on
-the phone's GPU, played with an on-screen controller or a real one. No streaming, no Windows emulation, no game files in the app.
+**Play your own copy of Factorio on Android.** The official Linux ARM64 build from factorio.com runs on the phone
+itself, with no emulation: straight on its CPU, and on its GPU through Mesa. Played with an on-screen controller or a
+real one. No streaming, no game files in the app.
 
 | | |
 |---|---|

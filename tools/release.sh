@@ -71,7 +71,7 @@ git push -q origin main "$tag"
 notes=$out/notes.md
 # One line per paragraph: GitHub keeps a release's line breaks.
 {
-    echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, native on the phone's GPU."
+    echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, run without emulation on the phone's GPU."
     echo
     echo "**Install:** open \`$name\` on the phone (Android 10 or later, Adreno GPU), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
     echo

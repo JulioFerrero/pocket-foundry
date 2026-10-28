@@ -878,3 +878,10 @@ Termux:X11 requests its `forceOrientation` preference at runtime, overriding the
 maps to a fixed `SCREEN_ORIENTATION_LANDSCAPE`. Patch 0005 makes it `SENSOR_LANDSCAPE`. On the emulator, set gravity
 with `adb emu sensor set acceleration 9.8:0:0` / `-9.8:0:0` (`adb emu rotate` doesn't move the sensor): the game now
 turns between ROTATION_90 and ROTATION_270, stays landscape held upright, and touches still land.
+
+### Not "native" (2026-10-28)
+The tagline said the game runs "native on the phone's GPU". The CPU half holds (the game's ARM64 code runs straight
+on the CPU, its system calls go to Android's kernel, nothing emulates it), but the stack isn't native to Android
+(our glibc, an X server) and the GPU half is where the translation is: by default OpenGL goes through Zink onto
+Vulkan. The README, the repo description and the release notes now say "without emulation", and the welcome panel
+"running on this phone".

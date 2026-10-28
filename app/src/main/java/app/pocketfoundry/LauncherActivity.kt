@@ -179,7 +179,7 @@ class LauncherActivity : Activity() {
         val panel = stack(this, Factorio.PANEL, sunken = false, padding = 8, gap = 10)
         panel.addView(heading(this, "Pocket Foundry"))
         val inset = stack(this, Factorio.INSET_LIGHT, sunken = true, padding = 12, gap = 6)
-        inset.addView(label(this, "Your own Factorio, native on this phone.", 17f, weight = 600))
+        inset.addView(label(this, "Your own Factorio, running on this phone.", 17f, weight = 600))
         inset.addView(LinearLayout(this).apply {
             addView(label(context, "The Linux arm64 .tar.xz from ", 14f, Factorio.MUTED))
             addView(label(context, "factorio.com", 14f, Factorio.LINK).apply {
