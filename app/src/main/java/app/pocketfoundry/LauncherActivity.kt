@@ -24,6 +24,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.termux.x11.MainActivity
+import app.pocketfoundry.stage.Stage
 import app.pocketfoundry.ui.Arrow
 import app.pocketfoundry.ui.BarView
 import app.pocketfoundry.ui.Dropdown
@@ -132,8 +133,7 @@ class LauncherActivity : Activity() {
         overlay.addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
         overlay.addView(settings, FrameLayout.LayoutParams(MATCH, MATCH).apply { setMargins(dpi(24), dpi(16), dpi(24), dpi(16)) })
 
-        // The stage is a WebView: a controller's focus would vanish into it.
-        stageHolder = FrameLayout(this).apply { descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS }
+        stageHolder = FrameLayout(this)
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(0xFF091726.toInt())
             addView(stageHolder, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -146,7 +146,7 @@ class LauncherActivity : Activity() {
         if (stage == null) stage = Stage(this, paths).also { stageHolder.addView(it, FrameLayout.LayoutParams(MATCH, MATCH)) }
     }
 
-    /** Off screen, the stage goes entirely: its WebView, its renderer process, its GPU memory. */
+    /** Off screen, the stage goes entirely, the factory's sprites with it: the game needs the memory more. */
     override fun onStop() {
         stage?.let { stageHolder.removeView(it); it.release() }
         stage = null
@@ -155,7 +155,7 @@ class LauncherActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        stage?.onResume()
+        stage?.resume()
         immersive()
         Session.addListener(sessionChanged)
         refresh()
@@ -163,7 +163,7 @@ class LauncherActivity : Activity() {
 
     override fun onPause() {
         Session.removeListener(sessionChanged)
-        stage?.onPause()
+        stage?.pause()
         super.onPause()
     }
 
@@ -396,11 +396,11 @@ class LauncherActivity : Activity() {
             if (dialog == null) (if (screen === welcome) importFirst else screen)?.requestFocus()
         }
         when {
-            importingNow -> stage?.show("build")
-            version == null -> stage?.show("blueprint")
-            settingsOpen -> stage?.show("factory", dim = 0.55f)
-            inGame -> stage?.show("factory", dim = 0.55f, saturate = 0.8f)
-            else -> stage?.show("factory", dim = 0.75f)
+            importingNow -> stage?.show(Stage.Scene.IMPORT)
+            version == null -> stage?.show(Stage.Scene.WELCOME)
+            settingsOpen -> stage?.show(Stage.Scene.FACTORY, dim = 0.55f)
+            inGame -> stage?.show(Stage.Scene.FACTORY, dim = 0.55f, saturate = 0.8f)
+            else -> stage?.show(Stage.Scene.FACTORY, dim = 0.75f)
         }
 
         welcomeError.text = error

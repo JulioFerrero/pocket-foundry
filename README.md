@@ -5,7 +5,7 @@ the phone's GPU, played with an on-screen controller or a real one. No streaming
 
 | | |
 |---|---|
-| ![Welcome: Pocket Foundry's blueprint](docs/screenshots/welcome.jpg) | ![Importing: the blueprint built in 3D](docs/screenshots/importing.jpg) |
+| ![Welcome: Pocket Foundry's blueprint](docs/screenshots/welcome.jpg) | ![Importing: the blueprint built as the import goes](docs/screenshots/importing.jpg) |
 | ![Home over a factory drawn from your own copy](docs/screenshots/home.jpg) | ![Playing with the on-screen controller](docs/screenshots/playing.jpg) |
 
 ## Playing
@@ -108,8 +108,8 @@ Alt, F, Z, T, Space and the phone's own keyboard.
 - **The launcher:** drawn with Factorio's own GUI sprites, read from your copy (`data/core/graphics/gui-new.png`, cut
   where the game's `style.lua` says): its panels, buttons, drop-downs and checkboxes, with the game's hover look on
   whatever a controller is on. Before the import, a look drawn
-  in code. Behind it, a living backdrop: Pocket Foundry's own blueprint, built in 3D (three.js) while the game
-  imports, then a working factory drawn from the sprites in your copy.
+  in code. Behind it, a living backdrop drawn natively: Pocket Foundry's own blueprint, built piece by piece while
+  the game imports, then a working factory drawn from the sprites in your copy.
 
 ![The pause menu](docs/screenshots/paused.jpg)
 
@@ -128,7 +128,7 @@ the icon. `NOTES.md` has every finding and decision along the way.
 
 ## Licence
 
-GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD), three.js (MIT),
+GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD),
 Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0).
 
 Factorio is © Wube Software. Pocket Foundry isn't affiliated with Wube and includes none of its files; the game

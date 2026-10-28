@@ -811,3 +811,28 @@ device with any HID descriptor; with `"bus": "usb"` Android treats it as externa
 aside and came back on unplugging, the launcher's quit dialog was driven with the stick and A, and the pad stepped
 aside on A. The input test sometimes plugs its pad in late or not at all on the emulator (it started once before the X
 screen had its size, and once crashed after Zink failed); Factorio itself reports its controller 1.3 s in on the phone.
+
+### The stage without a WebView (2026-10-28)
+The launcher's backdrop was a WebView (three.js and a 2D canvas): a Chromium renderer process of ~180 MB on the phone
+(350 MB on the emulator, which renders in software), the extra memory that got Gridlocked killed, ~1 s to rebuild
+Paused after every game, WebGL that some phones' WebView turns off, and a second graphics stack beside the game's.
+It is now one native view (`stage/`): `Stage` crossfades its scenes (0.8 s, CSS's "ease"), applies brightness and
+saturation as a colour matrix (CSS's `brightness() saturate()`, eased the same way), and invalidates only when a
+frame changes (the factory's 30 a second, the blueprint's 60, every vsync during a fade); `Blueprint` and `Factory`
+draw on the Canvas.
+- **Factory:** `factory.js` ported line for line (same `factory-sim.json`, sprites, layering, wires, robots, the CSS
+  vignette as an ellipse at 60% 40% reaching the farthest corner). The transport belt and grass sheets are decoded
+  only in the bands drawn (`BitmapRegionDecoder`: 2 MB and 4 MB instead of 21 MB and 9 MB); all sprites come to
+  ~18 MB, read off the main thread, and freed in `onStop` with the view.
+- **Blueprint:** `tools/stage/blueprint.py` now writes `blueprint.json` (the same simulation; each piece's Welcome
+  time and import percent) instead of the SVG and the 3D plan; checked identical to the old data. Drawn as the SVG
+  was: cover-fit 880 × 400, elliptical gradients (SVG's bounding-box units on a wide box), the grid as the pattern
+  clips it, dashed ghosts, slats as a moving 2-on-10 dash, the inserters' keySplines, the CSS pulses and spins, drones
+  at an even speed along their curves (`PathMeasure`). Welcome builds it from ghosts once; Importing is the
+  blueprint's own import mode: each piece crosses from ghost to built over two percent as the import passes it.
+- **The 3D build is gone** (the 2D blueprint was chosen over pre-rendering the 3D models into sprites), and three.js
+  with it. Its minified build had never been in git: the `.gitignore` rule `build/` matched `vendor/three/build/`,
+  so a clone (v0.3's tag included) lacked `three.module.min.js` and its import scene.
+- Measured on the emulator, Home: v0.3 had the app at 287 MB RSS plus a 350 MB renderer; now the app is 201 MB
+  (71 MB PSS), no renderer. Compared frame by frame against screenshots of the WebView version: Home, Settings's
+  dimming and its crossfade, Welcome's build-up, Importing at 0, 35, 70 and 100%.

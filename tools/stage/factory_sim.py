@@ -1,4 +1,4 @@
-"""The launcher's working factory (Home, Paused, Settings), drawn by assets/stage/factory.js from
+"""The launcher's working factory (Home, Paused, Settings), drawn by stage/Factory.kt from
 the player's own Factorio sprites. This plays the belts and inserters ahead of time: plates come in
 on a belt, inserters feed them into assembling machines, output inserters put gears on the belt
 above; below, inserters feed science from a belt into labs. An inserter takes one real item off its
