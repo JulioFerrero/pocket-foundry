@@ -862,3 +862,12 @@ and map and menu under the toolbar instead of beside it. The right hand's button
 game's info panel when it's tall; the toolbar's eye hides them. Layouts saved before kept every button where it was
 then (hiding or showing saved them all), so the new defaults have a new key, `layout-edges`, taking only the opacity
 and hiding from `layout-hybrid`; saving now keeps only what the player changed, so later defaults reach everyone.
+
+### Adding and removing controls (2026-10-28)
+The layout editor's ＋ lists the set's controls that aren't on screen: on the pad the right stick (the game's cursor
+without touching), L3, R3 and any default removed; in Touch the strip's keys (Tab, Shift, Ctrl, Alt, F, Z, T, Space;
+Shift and Ctrl latch, as in the strip). Tapping one puts it at its default place, selected, to drag. The bin removes
+the selected control and Reset brings back the default set. The saved layout lists `removed` defaults and `added`
+extras. No keyboard keys on the pad: one pressed mid-play would switch Factorio to keyboard and mouse. Checked on the
+emulator: L3, a re-added A, and a latched Shift with F reach the game; the right stick takes the left's path to the
+virtual pad (whose six axes are all declared), as the input test prints no stick motion.

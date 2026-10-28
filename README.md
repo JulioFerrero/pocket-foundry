@@ -60,8 +60,8 @@ Your finger is the cursor: touch the game where you want something to happen.
 | D-pad | Right rotates, down picks up items, up shows details on the map. |
 | The two under the toolbar | Map and game menu. |
 
-The toolbar at the top moves, resizes (pinch a button) and fades the buttons, hides them all, or opens the phone's
-keyboard, for naming a save.
+The toolbar at the top moves, resizes (pinch a button), adds and removes the buttons (a right stick and the sticks'
+clicks; in Touch, more keys), fades or hides them all, and opens the phone's keyboard, for naming a save.
 
 **A controller**, USB or Bluetooth (Xbox, PlayStation, Switch Pro, 8BitDo, phone clamps), plays the game directly:
 the on-screen buttons step aside as soon as you use it, all but the toolbar's keyboard, and come back when it's unplugged, and touch still moves the
