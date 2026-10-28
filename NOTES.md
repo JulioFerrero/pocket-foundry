@@ -855,3 +855,10 @@ shows when it's shut. The emulator plays the open Fold with `wm size 2256x2504`,
 `wm set-ignore-orientation-request false`; left on (the AVD's default), a large screen letterboxes an app with a
 fixed orientation (ours targets SDK 34) at 4:3 instead of rotating. Not yet known: whether Factorio follows when the
 Fold is opened mid-game (the emulator can't run it).
+
+### The pad's right hand by the right edge (2026-10-28)
+RB, RT and Y X A B moved to the right edge, mirroring LB, LT and the stick (where the very first layout had them),
+and map and menu under the toolbar instead of beside it. The right hand's buttons now cover the lower part of the
+game's info panel when it's tall; the toolbar's eye hides them. Layouts saved before kept every button where it was
+then (hiding or showing saved them all), so the new defaults have a new key, `layout-edges`, taking only the opacity
+and hiding from `layout-hybrid`; saving now keeps only what the player changed, so later defaults reach everyone.

@@ -113,26 +113,28 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         // the inventory and only a button does that, so it's the largest; A, X and B stay as a smaller
         // Xbox diamond the game's hints point at. RT is the modifier most combinations need, LB holds
         // the quick panel; LT and RB (shoot) less. The D-pad rotates, picks up and shows info. Map and
-        // menu sit up by the toolbar, leaving the bottom to the game. Touch is the cursor, so no right
-        // stick, L3 or R3. The right hand's buttons stay left of the game's minimap and info panel,
-        // which fill the right edge in controller mode.
+        // menu sit under the toolbar, leaving the bottom to the game. Touch is the cursor, so no right
+        // stick, L3 or R3. Each hand's buttons sit by its own edge, the right's over the lower part of
+        // the game's info panel; the toolbar's eye hides them.
         Control("LS", Kind.STICK, "L", 0.10f, 0.70f, 0.28f, axis = PadAxis.LEFT_X, axisY = PadAxis.LEFT_Y),
         Control("DPAD", Kind.DPAD, "", 0.245f, 0.88f, 0.20f),
-        Control("Y", Kind.BUTTON, "Y", 0.715f, 0.635f, 0.125f, PadButton.NORTH),
-        Control("A", Kind.BUTTON, "A", 0.715f, 0.895f, 0.13f, PadButton.SOUTH),
-        Control("X", Kind.BUTTON, "X", 0.657f, 0.765f, 0.115f, PadButton.WEST),
-        Control("B", Kind.BUTTON, "B", 0.773f, 0.765f, 0.115f, PadButton.EAST),
+        Control("Y", Kind.BUTTON, "Y", 0.885f, 0.635f, 0.125f, PadButton.NORTH),
+        Control("A", Kind.BUTTON, "A", 0.885f, 0.895f, 0.13f, PadButton.SOUTH),
+        Control("X", Kind.BUTTON, "X", 0.827f, 0.765f, 0.115f, PadButton.WEST),
+        Control("B", Kind.BUTTON, "B", 0.943f, 0.765f, 0.115f, PadButton.EAST),
         Control("LB", Kind.BUTTON, "LB", 0.075f, 0.42f, 0.10f, PadButton.LEFT_SHOULDER, pill = true),
         Control("LT", Kind.TRIGGER, "LT", 0.17f, 0.42f, 0.085f, axis = PadAxis.LEFT_TRIGGER, pill = true),
-        Control("RB", Kind.BUTTON, "RB", 0.655f, 0.47f, 0.085f, PadButton.RIGHT_SHOULDER, pill = true),
-        Control("RT", Kind.TRIGGER, "RT", 0.75f, 0.47f, 0.10f, axis = PadAxis.RIGHT_TRIGGER, pill = true),
-        Control("VIEW", Kind.BUTTON, "", 0.585f, 0.075f, 0.085f, PadButton.BACK),
-        Control("MENU", Kind.BUTTON, "", 0.645f, 0.075f, 0.085f, PadButton.START),
+        Control("RB", Kind.BUTTON, "RB", 0.83f, 0.47f, 0.085f, PadButton.RIGHT_SHOULDER, pill = true),
+        Control("RT", Kind.TRIGGER, "RT", 0.925f, 0.47f, 0.10f, axis = PadAxis.RIGHT_TRIGGER, pill = true),
+        Control("VIEW", Kind.BUTTON, "", 0.4715f, 0.18f, 0.085f, PadButton.BACK),
+        Control("MENU", Kind.BUTTON, "", 0.5285f, 0.18f, 0.085f, PadButton.START),
     )
 
     private val prefs = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
-    // The pad's layout was redone for touch as the cursor and its gestures: a new key, so an older one doesn't place it.
-    private val layoutKey = if (touch) "layout-touch" else "layout-hybrid"
+    // A new key when the pad's defaults change, as layouts saved before kept every button where it was then.
+    private val layoutKey = if (touch) "layout-touch" else "layout-edges"
+    /** The pad's layout before: its opacity and hiding carry over. */
+    private val oldLayoutKey = if (touch) null else "layout-hybrid"
     private val vibrator = context.getSystemService(Vibrator::class.java)
 
     /** Sends a key to the game (Android key code, down); set by [OnScreenController]. */
@@ -944,11 +946,13 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     // The saved layout.
 
     private fun load() {
-        val saved = prefs.getString(layoutKey, null) ?: return
+        val saved = prefs.getString(layoutKey, null)
+        val carried = saved ?: oldLayoutKey?.let { prefs.getString(it, null) } ?: return
         runCatching {
-            val json = JSONObject(saved)
+            val json = JSONObject(carried)
             opacity = json.optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat()
             hidden = json.optBoolean("hidden", false)
+            if (saved == null) return
             val placed = json.getJSONObject("controls")
             controls.forEach { c ->
                 placed.optJSONArray(c.id)?.let {
@@ -960,9 +964,11 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         }
     }
 
+    /** Only the buttons the player moved or resized: the rest follow the defaults, also when those change. */
     private fun save() {
         val placed = JSONObject()
-        controls.forEach { placed.put(it.id, JSONArray(listOf(it.x.toDouble(), it.y.toDouble(), it.scale.toDouble()))) }
+        controls.filter { it.x != it.defaultX || it.y != it.defaultY || it.scale != 1f }
+            .forEach { placed.put(it.id, JSONArray(listOf(it.x.toDouble(), it.y.toDouble(), it.scale.toDouble()))) }
         val json = JSONObject().put("opacity", opacity.toDouble()).put("hidden", hidden).put("controls", placed)
         prefs.edit().putString(layoutKey, json.toString()).apply()
     }

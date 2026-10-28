@@ -58,7 +58,7 @@ Your finger is the cursor: touch the game where you want something to happen.
 | RT, LT | Held with another button for more: RT + A builds a ghost, LT + map opens research. |
 | RB | Shoot. |
 | D-pad | Right rotates, down picks up items, up shows details on the map. |
-| The two by the toolbar | Map and game menu. |
+| The two under the toolbar | Map and game menu. |
 
 The toolbar at the top moves, resizes (pinch a button) and fades the buttons, hides them all, or opens the phone's
 keyboard, for naming a save.
