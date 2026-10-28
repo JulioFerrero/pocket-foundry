@@ -894,3 +894,29 @@ connected at start (a controller still wins): touch is the mouse, as before, and
 layout editor, since that mode ignores the pad. It stays hidden if the keyboard is unplugged mid-game, as the game
 can't switch modes until it restarts. Checked on the emulator with a virtual USB keyboard: `input-method=keyboard-and-mouse`,
 no controls or toolbar, a tap clicks, the layout editor opens and closes; without it, the pad and taps as before.
+
+### Phones without an Adreno (2026-10-28)
+A Helio G81 phone (Mali-G52) imported fine and then showed a black screen: Zink finds no Vulkan device
+(`vkEnumeratePhysicalDevices` fails, as Turnip only drives Adreno), SDL finds no GLX visual, and Factorio logs
+"Failed to create an application window" and then **doesn't exit**: it spins at ~80% of a core, ignores SIGTERM and
+draws nothing. The emulator does the same with the real game (it has no GPU for it), so it's reproducible on the Mac.
+Now:
+- `Gpu` asks Android's own OpenGL ES driver for the GPU's name (`GL_RENDERER` from a 1 × 1 pbuffer context, no
+  `eglTerminate` as the display is shared with the app's own drawing). Anything without "Adreno" in it isn't
+  supported; a GPU that can't be named is.
+- Welcome says so on such a phone ("Needs an Adreno GPU: this phone's … isn't supported yet."); importing and playing
+  stay possible, so a wrong guess locks no one out.
+- `Session` reads game.log until "Initialised OpenGL" (the window is up) or the failure line, and on the failure
+  kills the game with SIGKILL (Android's `destroyForcibly` only sends SIGTERM). The launcher comes back saying the
+  GPU isn't supported, or on an Adreno "The graphics driver didn't start" (a bad imported Turnip).
+- Logs starts with the phone, Android version, GPU, driver and app version, for reports, and its Copy button puts
+  all of it on the clipboard.
+Checked on the emulator: the black screen now returns to Home in about 2 s with the message.
+
+The same day: a Redmi 12 (Mali-G52), a Xiaomi 15T Pro (Immortalis-G925), a Pixel 10 (Tensor G5, an Imagination
+PowerVR DXT-48-1536) and a Redmi 4X (Adreno 505, kernel 3.18, 2.8 GB) all failed this way. The Adreno 505 shows that
+"Adreno" isn't enough: Turnip starts at 6xx, and freedreno, which knows the 5xx, fails on that kernel with
+`kgsl_bo_new_dmabuf: Failed to allocate dma-buf (Inappropriate ioctl for device)` (no dma-buf heaps), so Factorio
+stops at "Failed to create OpenGL context" instead. So `Gpu.supported` wants "Adreno (TM) " and three digits of at
+least 600 (an Adreno named otherwise, the laptops' X1-85, passes), the watcher also takes that second line, and the
+warning reads "Needs an Adreno 6xx or newer: this phone's … isn't supported yet."

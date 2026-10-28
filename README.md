@@ -17,7 +17,9 @@ real one. No streaming, no game files in the app.
 4. **Continue** your newest save or open the **Main menu**. Back (or a controller's home button) opens the pause
    menu, and the game freezes while it's off screen.
 
-Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 830, Android 16): 60 FPS and 60 UPS on an early-game save.
+Needs Android 10 or later on a Snapdragon with an Adreno 6xx or newer GPU. Mali, PowerVR and Xclipse GPUs (most
+MediaTek, Google Tensor and Exynos phones) aren't supported yet, and Pocket Foundry says so when it starts. Tested on a
+vivo X200 Ultra (Adreno 830, Android 16): 60 FPS and 60 UPS on an early-game save.
 
 ## Other phones
 
@@ -25,10 +27,12 @@ So far Pocket Foundry has been played on one phone. Help taking it to more is ve
 
 - **Testing:** try it on your phone and [open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with
   the phone, its GPU and Android version, how far it got (import, main menu, a save), the frame rate, and what the
-  Logs screen shows. Reports that it works help too.
+  Logs screen shows (its Copy button takes it all). Reports that it works help too.
 - **Developing:** the open fronts are
-  - **Mali and Xclipse GPUs** (MediaTek Dimensity, Samsung Exynos): Turnip only drives Adreno, so these need another
-    Vulkan path, such as Mesa's PanVK or a wrapper over the phone's own driver.
+  - **Mali, PowerVR and Xclipse GPUs** (MediaTek, Google Tensor, Samsung Exynos): Turnip only drives Adreno. The
+    likeliest path is a wrapper over the phone's own Vulkan driver, which DroidDeck is building for the same kind
+    of Linux-on-Android setup; Mesa's community ports (PanVK on Arm's kernel driver, RADV for Xclipse) are the other.
+    `NOTES.md` has the details.
   - **Other Adreno generations:** which Turnip works on each, bundled or imported in Settings → Driver.
   - **Other screens:** foldables, 4:3, tablets, and the on-screen controls on them.
   - **Other Android skins:** how each treats a game running in the background.

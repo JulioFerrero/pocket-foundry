@@ -188,6 +188,7 @@ class LauncherActivity : Activity() {
                 setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://factorio.com/download"))) }
             })
         })
+        if (!Gpu.supported) inset.addView(label(this, "Needs an Adreno 6xx or newer: this phone's ${Gpu.name} isn't supported yet.", 14f, Factorio.ERROR))
         welcomeError = label(this, "", 14f, Factorio.ERROR)
         inset.addView(welcomeError)
         panel.addView(inset)
@@ -408,7 +409,13 @@ class LauncherActivity : Activity() {
         for (b in listOf(resume, quit)) b.isEnabled = idle && live
         settingsButton.isEnabled = idle
 
-        val failure = error ?: Session.lastFailure?.let { "Factorio stopped unexpectedly ($it). See Logs." }
+        val failure = error ?: Session.lastFailure?.let { status ->
+            when {
+                !Gpu.supported -> "This phone's GPU isn't supported yet."
+                Session.noWindow -> "The graphics driver didn't start. See Logs."
+                else -> "Factorio stopped unexpectedly ($status). See Logs."
+            }
+        }
         footerLeft.setTextColor(if (failure != null) Factorio.ERROR else Factorio.TEXT)
         footerLeft.textSize = if (failure != null) 13f else 15f
         when {

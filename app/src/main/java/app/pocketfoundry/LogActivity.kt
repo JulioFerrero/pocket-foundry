@@ -1,8 +1,12 @@
 package app.pocketfoundry
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.hardware.input.InputManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -12,11 +16,13 @@ import android.text.style.ForegroundColorSpan
 import android.text.style.LeadingMarginSpan
 import android.text.style.StyleSpan
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import app.pocketfoundry.controller.Gamepads
 import app.pocketfoundry.ui.Arrow
 import app.pocketfoundry.ui.FButton
 import app.pocketfoundry.ui.Factorio
@@ -56,8 +62,21 @@ class LogActivity : Activity() {
         val inset = stack(this, Factorio.INSET_DARK, sunken = true, padding = 0, gap = 0)
         inset.addView(scroll, LinearLayout.LayoutParams(MATCH, MATCH))
         panel.addView(inset, LinearLayout.LayoutParams(MATCH, 0, 1f))
-        panel.addView(FButton(this, "Back", Tone.RED, Arrow.LEFT).apply { setOnClickListener { finish() } },
-                      LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dpi(44)).apply { gravity = Gravity.START })
+        val copy = FButton(this, "Copy", size = 15f).apply { minWidth = dpi(110) }
+        val copied = Runnable { copy.text = "Copy" }
+        copy.setOnClickListener {
+            getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Pocket Foundry logs", shown))
+            copy.text = "Copied"
+            handler.removeCallbacks(copied)
+            handler.postDelayed(copied, 2000)
+        }
+        panel.addView(LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(FButton(context, "Back", Tone.RED, Arrow.LEFT).apply { setOnClickListener { finish() } },
+                    LinearLayout.LayoutParams(WRAP, dpi(44)))
+            addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+            addView(copy, LinearLayout.LayoutParams(WRAP, dpi(44)))
+        }, LinearLayout.LayoutParams(MATCH, ViewGroup.LayoutParams.WRAP_CONTENT))
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Factorio.BODY)
             addView(panel, FrameLayout.LayoutParams(MATCH, MATCH).apply { setMargins(dpi(24), dpi(24), dpi(24), dpi(24)) })
@@ -75,9 +94,20 @@ class LogActivity : Activity() {
         handler.removeCallbacks(refresh)
     }
 
+    /** What a report needs besides the logs. */
+    private val phone by lazy {
+        val driver = Drivers.all(this).firstOrNull { it.id == Drivers.chosen(this) }?.name
+        val input = getSystemService(InputManager::class.java)
+        val pads = input.inputDeviceIds.asSequence().mapNotNull { input.getInputDevice(it) }.filter { Gamepads.isGamepad(it) }
+            .joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
+        "── phone ──\n" + listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
+            Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${packageManager.getPackageInfo(packageName, 0).versionName}")
+            .joinToString(" · ") + "\n" + (if (pads.isNotEmpty()) "Controllers: $pads\n" else "")
+    }
+
     private fun load() {
         val logs = Paths(this).logs
-        val raw = listOf("game.log" to 400, "wm.log" to 20, "x11.log" to 120).joinToString("\n") { (name, lines) ->
+        val raw = phone + listOf("game.log" to 400, "wm.log" to 20, "x11.log" to 120).joinToString("\n") { (name, lines) ->
             "── $name ──\n" + tail(File(logs, name), lines)
         }
         if (raw == shown) return
@@ -120,6 +150,7 @@ class LogActivity : Activity() {
 
     companion object {
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
+        private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         private val TEXT = Color.rgb(0xD5, 0xD9, 0xE0)
         private val DIM = Color.rgb(0x7A, 0x78, 0x76)
         private val HEADER = Factorio.HEADING

@@ -28,6 +28,9 @@ object Session {
     /** Factorio's exit status, or null after a normal quit. */
     @Volatile var lastFailure: Int? = null
         private set
+    /** Whether that failure was Factorio not opening its window: no GPU our drivers can use. */
+    @Volatile var noWindow = false
+        private set
 
     private var xServer: Process? = null
     private var wm: Process? = null
@@ -66,8 +69,10 @@ object Session {
             game = started
             gamePid = childPid(command.first())
             lastFailure = null
+            noWindow = false
             setState(State.RUNNING)
             thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(started, started.waitFor()) }
+            watchForNoWindow(started, gamePid, File(paths.logs, "game.log"))
             context.startForegroundService(Intent(context, GameService::class.java))
         }
     }
@@ -107,6 +112,24 @@ object Session {
         lastFailure = if (quitting || status == 0) null else status
         setState(State.STOPPED)
     }
+
+    /** Without a window or GL context Factorio doesn't exit: it spins with nothing on screen, deaf to SIGTERM. */
+    private fun watchForNoWindow(process: Process, pid: Int, log: File) = thread(name = "pocketfoundry-game-window", isDaemon = true) {
+        val deadline = System.currentTimeMillis() + 60_000
+        while (process.isAlive && System.currentTimeMillis() < deadline) {
+            val text = runCatching { log.readText() }.getOrDefault("")
+            if (WINDOW_OPENED in text) return@thread
+            if (NO_WINDOW.any { it in text }) {
+                noWindow = true
+                Os.kill(pid, OsConstants.SIGKILL)
+                return@thread
+            }
+            Thread.sleep(250)
+        }
+    }
+
+    private const val WINDOW_OPENED = "Initialised OpenGL"
+    private val NO_WINDOW = listOf("Failed to create an application window", "Failed to create OpenGL context")
 
     private fun setState(new: State) {
         state = new
