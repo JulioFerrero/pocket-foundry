@@ -27,7 +27,6 @@ import app.pocketfoundry.ui.immersive
 import app.pocketfoundry.ui.stack
 import java.io.File
 
-/** The game's output, the WM's and the X server's, newest last, refreshed while open. */
 class LogActivity : Activity() {
     private lateinit var text: TextView
     private lateinit var scroll: ScrollView
@@ -82,7 +81,6 @@ class LogActivity : Activity() {
             "── $name ──\n" + tail(File(logs, name), lines)
         }
         if (raw == shown) return
-        // Follow new output only when the reader is already at the bottom.
         val atBottom = !scroll.canScrollVertically(1)
         shown = raw
         text.text = colorize(raw)
@@ -111,7 +109,6 @@ class LogActivity : Activity() {
                 line.contains("Warning") || line.contains("warning") -> span(AMBER)
                 else -> TIMESTAMP.find(line)?.let { span(DIM, start, start + it.range.last + 1) }
             }
-            // Wrapped lines start under the message, not under the timestamp.
             TIMESTAMP.find(line)?.let {
                 val indent = text.paint.measureText(it.value).toInt()
                 out.setSpan(LeadingMarginSpan.Standard(0, indent), start, start + line.length + 1,

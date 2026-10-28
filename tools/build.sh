@@ -1,6 +1,6 @@
 #!/bin/sh
-# Build the APK. Termux:X11's CMake applies its own patches with `patch`, and
-# Apple's patch silently skips them, so GNU patch must come first in PATH.
+# Builds the APK. GNU patch goes first in PATH: Termux:X11's CMake applies
+# patches with `patch`, and Apple's silently skips them.
 set -e
 cd "$(dirname "$0")/.."
 PATH="$(brew --prefix gpatch)/libexec/gnubin:$PATH"

@@ -12,7 +12,6 @@ class PocketFoundryApp : LorieApp() {
         DebugPad.registerIfDebuggable(this)
     }
 
-    // Termux:X11 posts a notification of its own while its screen is up; Pocket Foundry's GameService
-    // already shows one, with Quit.
+    // Keeps Termux:X11 from posting its own notification: GameService shows ours.
     override fun onActivityResumed(activity: MainActivity) {}
 }

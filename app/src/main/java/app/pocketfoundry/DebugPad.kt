@@ -10,8 +10,7 @@ import android.os.Looper
 import androidx.core.content.ContextCompat
 
 /**
- * Drives the virtual gamepad from adb in debug builds, for testing without the
- * on-screen controller:
+ * Drives the virtual gamepad from adb, in debug builds:
  *   adb shell am broadcast -a app.pocketfoundry.debug.PAD --es tap south
  *   adb shell am broadcast -a app.pocketfoundry.debug.PAD --es press dpad_down   (then --es release …)
  *   adb shell am broadcast -a app.pocketfoundry.debug.PAD --es axis left_x --ei value 20000

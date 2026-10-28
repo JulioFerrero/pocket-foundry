@@ -20,23 +20,18 @@ import java.nio.ByteOrder
 import kotlin.concurrent.thread
 
 /*
- * The game can't load Android's libraries, so its sound and gamepad come through
- * Unix sockets served here and read by our SDL (runtime/sdl/pocketfoundry/SDL_pocketfoundry.c,
- * which documents the protocol).
+ * The game can't load Android's libraries, so its sound and gamepad go through these sockets
+ * to our SDL; runtime/sdl/pocketfoundry/SDL_pocketfoundry.c documents the protocol.
  */
 
 private const val TAG = "PocketFoundry"
 
-/**
- * Serves the game at [file], inside the app's private files rather than the shared abstract
- * namespace: each connection goes to [handle], one at a time, on a thread named [name].
- */
+/** In the app's private files rather than the abstract namespace, which other apps share. */
 private fun serve(file: File, name: String, handle: (LocalSocket) -> Unit) = thread(name = name, isDaemon = true) {
     while (true) {
         try {
             file.delete()
-            // The bound socket owns the descriptor the server listens on: if it were garbage
-            // collected its cleanup would close that descriptor and the game couldn't connect.
+            // Keep the bound socket referenced: its cleanup on GC would close the server's descriptor.
             LocalSocket(LocalSocket.SOCKET_STREAM).use { bound ->
                 bound.bind(LocalSocketAddress(file.path, LocalSocketAddress.Namespace.FILESYSTEM))
                 val server = LocalServerSocket(bound.fileDescriptor)
@@ -51,7 +46,6 @@ private fun serve(file: File, name: String, handle: (LocalSocket) -> Unit) = thr
     }
 }
 
-/** Plays what the game's SDL sends through an AudioTrack. */
 object AudioBridge {
     private var started = false
 
@@ -92,8 +86,7 @@ object AudioBridge {
             .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
             .setBufferSizeInBytes(maxOf(minimum, frameBytes * 2048))
             .build()
-        // Android may hand out a bigger buffer than asked for; writes block once it's full,
-        // so its size is the lag between the game and the speaker. Two of SDL's chunks.
+        // Android may give a bigger buffer than asked, and its size is the lag to the speaker: two of SDL's chunks.
         track.bufferSizeInFrames = 2048
         Log.i(TAG, "Audio: $freq Hz, $channels channels, buffer ${track.bufferSizeInFrames} of ${track.bufferCapacityInFrames} frames")
 
@@ -126,10 +119,6 @@ enum class PadButton {
 /** SDL_GamepadAxis, in SDL's order. Sticks go -32768..32767, triggers 0..32767. */
 enum class PadAxis { LEFT_X, LEFT_Y, RIGHT_X, RIGHT_Y, LEFT_TRIGGER, RIGHT_TRIGGER }
 
-/**
- * The virtual gamepad: plugged into the game while its SDL is connected here.
- * Rumble from the game comes back in the controller in hand if it has a motor, else the phone.
- */
 object InputBridge {
     private var started = false
     @Volatile private var client: LocalSocket? = null
@@ -158,10 +147,7 @@ object InputBridge {
 
     fun button(button: PadButton, down: Boolean) = send('B', button.ordinal, if (down) 1 else 0)
 
-    /**
-     * Sticks -32768..32767; triggers 0 (let go) to 32767 (pulled). SDL's virtual pad rests its triggers
-     * at -32768, so 0 there is half pulled: left that way, LT + RT + A (Factoriopedia) is a tap.
-     */
+    /** SDL's virtual pad rests its triggers at -32768, where 0 is half pulled. */
     fun axis(axis: PadAxis, value: Int) {
         val trigger = axis == PadAxis.LEFT_TRIGGER || axis == PadAxis.RIGHT_TRIGGER
         send('A', axis.ordinal, if (trigger) value.coerceIn(0, 32767) * 2 - 32768 else value.coerceIn(-32768, 32767))
@@ -173,11 +159,10 @@ object InputBridge {
         try {
             synchronized(this) { socket.outputStream.write(message) }
         } catch (e: IOException) {
-            // The game went away; the reader thread notices too.
+            // The reader thread handles the disconnect.
         }
     }
 
-    /** [motor]: where rumble goes now, asked again each time as controllers come and go. */
     private fun readRumble(input: DataInputStream, motor: () -> Vibrator?, wanted: () -> Boolean) {
         val message = ByteArray(4)
         var vibrator: Vibrator? = null
@@ -192,7 +177,7 @@ object InputBridge {
                 if (strength == 0 || !wanted()) {
                     now.cancel()
                 } else {
-                    // Rumble lasts until the game sends 0; SDL repeats it before this runs out.
+                    // Lasts until the game sends 0: SDL repeats it before this runs out.
                     val amplitude = (strength * 255 / 32767).coerceIn(1, 255)
                     now.vibrate(VibrationEffect.createOneShot(2000, amplitude))
                 }

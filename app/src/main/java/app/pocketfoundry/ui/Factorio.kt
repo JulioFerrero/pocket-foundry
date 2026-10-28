@@ -38,30 +38,23 @@ import java.io.File
 import java.io.FileNotFoundException
 import kotlin.math.roundToInt
 
-/*
- * Factorio's own GUI look: dark panels in a brown-black frame, sunken insets, cream headings,
- * bevelled buttons (grey, green to go on, orange while pressed or chosen, red to go back) in
- * Titillium Web (the game's Lilittium is Titillium with Cyrillic added). Drawn from the game's own
- * sprites once a copy is imported ([GuiSprites]), and in code until then.
- */
-
 object Factorio {
     const val PANEL = 0xFF313031.toInt()
     const val FRAME = 0xFF2E2623.toInt()
     const val INSET_DARK = 0xFF242324.toInt()
     const val INSET_LIGHT = 0xFF414040.toInt()
-    const val HEADING = 0xFFFFE6C0.toInt()   // the game's caption colour
+    const val HEADING = 0xFFFFE6C0.toInt()
     const val TEXT = Color.WHITE
     const val MUTED = 0xFFC9C0B4.toInt()
     const val FAINT = 0xFFA39B91.toInt()
     const val LINK = 0xFF7DCAED.toInt()
     const val ERROR = 0xFFFF9B8F.toInt()
     const val BAR = 0xFFF1A240.toInt()
-    const val BODY = 0xFF201810.toInt()   // factorio.com's page, behind screens without a stage
+    const val BODY = 0xFF201810.toInt()
 
     private val fonts = HashMap<Int, Typeface>()
 
-    /** Titillium Web at 400, 600, 700 or 900. */
+    /** Titillium Web: the game's Lilittium is Titillium with Cyrillic added. */
     fun font(context: Context, weight: Int): Typeface = fonts.getOrPut(weight) {
         context.resources.getFont(when (weight) {
             900 -> R.font.titillium_web_black
@@ -72,17 +65,11 @@ object Factorio {
     }
 }
 
-/**
- * Factorio's GUI sprites, cut from the player's imported copy: data/core/graphics/gui-new.png, at the
- * places data/core/prototypes/style.lua gives (Factorio 2.x). The app carries none of it. Before a copy
- * is imported, or if a later version lays the sheet out differently (it changes size), the drawables
- * draw the look themselves. Main thread only.
- */
+/** Sprite places are from data/core/prototypes/style.lua (Factorio 2.x). Main thread only. */
 object GuiSprites {
     private var sheet: GuiSheet? = null
     private var read = false
 
-    /** The imported copy's sheet, read on first use; null without one. */
     fun get(context: Context): GuiSheet? {
         if (!read) {
             read = true
@@ -93,14 +80,13 @@ object GuiSprites {
         return sheet
     }
 
-    /** A copy was just imported: the next draw reads its sheet. */
     fun reload() {
         read = false
         sheet = null
     }
 }
 
-/** The pieces of the game's GUI sheet the drawables use, each cut out so scaling can't bleed in its neighbours. */
+/** Each piece is cut out so scaling can't bleed in its neighbours. */
 class GuiSheet(dir: File) {
     private val png = BitmapFactory.decodeFile(File(dir, "gui-new.png").path) ?: throw FileNotFoundException("gui-new.png")
 
@@ -139,11 +125,11 @@ class GuiSheet(dir: File) {
         }
     }
 
-    // checkbox: idle, clicked, disabled, hovered; the checkmark goes on top.
+    // checkbox: idle, clicked, disabled, hovered.
     val checkbox = listOf(piece(0, 132, 28, 28), piece(84, 132, 28, 28), piece(28, 132, 28, 28), piece(56, 132, 28, 28))
     val check = piece(112, 132, 28, 28)
 
-    /** The drop-down's arrow, icons/mip/dropdown.png's largest size. */
+    /** dropdown.png's largest mip size. */
     val caret = BitmapFactory.decodeFile(File(dir, "icons/mip/dropdown.png").path)
         ?.let { Bitmap.createBitmap(it, 0, 0, minOf(32, it.width), minOf(32, it.height)) }
 
@@ -152,7 +138,7 @@ class GuiSheet(dir: File) {
 
     private fun piece(x: Int, y: Int, w: Int, h: Int): Bitmap = Bitmap.createBitmap(png, x, y, w, h)
 
-    /** A 17-pixel tile cut 8 | 1 | 8 both ways, its middle from ([centerX], [centerY]). */
+    /** A 17-pixel tile cut 8 | 1 | 8 both ways. */
     private fun nine(x: Int, y: Int, centerX: Int = x + 8, centerY: Int = y + 8) = NineSlice(List(9) { i ->
         val col = i % 3
         val row = i / 3
@@ -168,7 +154,6 @@ class GuiSheet(dir: File) {
         const val IDLE = 0
         const val PRESSED = 1
         const val DISABLED = 2
-        /** Under a mouse, or a controller's focus. */
         const val HOVERED = 3
         /** A sprite pixel is a dp: the game's 100% scale. */
         const val CORNER = 8f
@@ -178,7 +163,6 @@ class GuiSheet(dir: File) {
     }
 }
 
-/** A sprite whose corners keep their size and whose edges and middle stretch. */
 class NineSlice(private val parts: List<Bitmap>) {
     private val cell = RectF()
 
@@ -193,14 +177,13 @@ class NineSlice(private val parts: List<Bitmap>) {
     }
 }
 
-/** A button with an arrow end: the arrow, a stretched middle, and the other end in three pieces. */
 class ArrowButton(private val pointLeft: Bitmap, private val pointRight: Bitmap, private val middle: Bitmap,
                   private val endLeft: List<Bitmap>, private val endRight: List<Bitmap>) {
     private val cell = RectF()
 
     fun draw(canvas: Canvas, face: RectF, left: Boolean, paint: Paint) {
         val tip = face.height() * GuiSheet.ARROW_TIP
-        // The end at the arrow's scale (the 64-pixel tile is the face's height): their bevels then meet.
+        // The end at the arrow's scale, so their bevels meet.
         val c = face.height() * 8 / 64
         if (left) {
             put(canvas, pointLeft, face.left, face.top, face.left + tip, face.bottom, paint)
@@ -227,7 +210,6 @@ class ArrowButton(private val pointLeft: Bitmap, private val pointRight: Bitmap,
 
 fun Context.dp(value: Float) = value * resources.displayMetrics.density
 
-/** Full screen like the game: the bars come back with a swipe and go again. */
 fun Activity.immersive() {
     window.insetsController?.apply {
         hide(WindowInsets.Type.systemBars())
@@ -237,7 +219,6 @@ fun Activity.immersive() {
 
 fun Context.dpi(value: Int) = (value * resources.displayMetrics.density).roundToInt()
 
-/** A frame with a fill: a panel (raised), or an inset sunk into one. */
 class FramedDrawable(context: Context, private val fill: Int, private val sunken: Boolean) : Drawable() {
     private val app = context.applicationContext
     private val density = context.resources.displayMetrics.density
@@ -283,7 +264,6 @@ class FramedDrawable(context: Context, private val fill: Int, private val sunken
     override fun getOpacity() = PixelFormat.TRANSLUCENT
 }
 
-/** [glow]: round the button while hovered, the game's default, green and red button glows. */
 enum class Tone(val face: Int, val light: Int, val dark: Int, val glow: Int) {
     GREY(0xFF8E8E8E.toInt(), 0xFFE3E3E3.toInt(), 0xFF282828.toInt(), 0xFFE1B16A.toInt()),
     GREEN(0xFF5EB663.toInt(), 0xFF95DF99.toInt(), 0xFF163218.toInt(), 0xFF87D88B.toInt()),
@@ -293,12 +273,6 @@ enum class Tone(val face: Int, val light: Int, val dark: Int, val glow: Int) {
 
 enum class Arrow { NONE, LEFT, RIGHT }
 
-/**
- * The game's button: a flat face with a light top edge, a dark bottom edge, shaded sides and a
- * dark glow, optionally with an arrow tip. Hovered (a mouse, or a controller's focus) it lights up
- * with a glow of its colour, as in the game: grey turns orange. Pressed, grey turns orange and the
- * others darken. Leaves [MARGIN] dp round the face for the glow.
- */
 class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arrow.NONE,
                     private val width: Int = -1, private val height: Int = -1) : Drawable() {
     private val app = context.applicationContext
@@ -350,7 +324,6 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
                                floatArrayOf(0f, edge, 1 - edge, 1f), Shader.TileMode.CLAMP)
     }
 
-    /** The face's outline, its arrow [tip] px long. */
     private fun outline(tip: Float): Path {
         if (tip == pathTip) return path
         pathTip = tip
@@ -394,14 +367,12 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
         canvas.drawRect(face, paint)
         paint.shader = null
         val line = 2 * density
-        // Pressed, the bevel turns over: dark along the top, no highlight.
         paint.color = if (pressed) shown.dark else shown.light
         canvas.drawRect(face.left, face.top, face.right, face.top + line, paint)
         paint.color = 0xCC000000.toInt()
         canvas.drawRect(face.left, face.bottom - line * 0.75f, face.right, face.bottom, paint)
         canvas.restore()
         if (caret) {
-            // The drop-down's arrow, at the right end of the face.
             val w = 9 * density; val h = 5.5f * density
             val x = face.right - 14 * density; val y = face.centerY() - h / 3
             paint.color = 0xFF1E1E1E.toInt()
@@ -423,7 +394,6 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
         }
     }
 
-    /** The same from the game's sprites: its button faces, arrow ends and checkbox. */
     private fun drawSprites(canvas: Canvas, sheet: GuiSheet) {
         val state = when {
             !enabled -> GuiSheet.DISABLED
@@ -443,7 +413,6 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
         if (caret) sheet.caret?.let { canvas.drawBitmap(it, null, caretBox, sprite) }
     }
 
-    /** The glow paint: the button's [fill], ringed in black, or in its own colour while [lit]. */
     private fun glow(fill: Int, lit: Boolean) {
         glow.color = fill
         glow.setShadowLayer(MARGIN * density, 0f, 0f, if (lit) tone.glow else 0xCC000000.toInt())
@@ -465,7 +434,7 @@ class BevelDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arr
     }
 }
 
-/** A Factorio button. Its height includes the glow round the face. */
+/** Its height includes the glow round the face. */
 open class FButton(context: Context, label: CharSequence, tone: Tone = Tone.GREY, arrow: Arrow = Arrow.NONE,
                    size: Float = 16f) : Button(context) {
     protected val bevel = BevelDrawable(context, tone, arrow)
@@ -491,18 +460,12 @@ open class FButton(context: Context, label: CharSequence, tone: Tone = Tone.GREY
 
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
-        // The game's sprites have a face for it, with grey text; drawn in code, it fades.
         val sprites = GuiSprites.get(context) != null
         alpha = if (enabled || sprites) 1f else 0.45f
         setTextColor(if (enabled || !sprites) Color.BLACK else 0xFFB3B3B3.toInt())
     }
 }
 
-/**
- * The game's drop-down: a grey button showing the choice; a tap opens the list under it, with
- * the current choice in orange. With a controller, up and down go through the open list, A picks
- * and B closes it.
- */
 class Dropdown(context: Context, private val options: List<CharSequence>, private val onSelect: (Int) -> Unit) :
     FButton(context, "", size = 15f) {
     var selected = -1
@@ -530,7 +493,7 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
             }
             list.addView(items.last(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dpi(40)))
         }
-        // Not focusable: a focused popup would bring back the system bars. Keys stay with this button instead.
+        // Not focusable: a focused popup brings back the system bars, so keys stay with this button.
         popup.isOutsideTouchable = true
         popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         popup.showAsDropDown(this, 0, context.dpi(2))
@@ -558,7 +521,6 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
     }
 }
 
-/** The game's checkbox: a small grey button that shows a check. */
 fun checkBox(context: Context, checked: Boolean, onChange: (Boolean) -> Unit) = CheckBox(context).apply {
     val size = context.dpi(30)
     buttonDrawable = BevelDrawable(context, Tone.GREY, width = size, height = size).apply { checkmark = true }
@@ -567,7 +529,6 @@ fun checkBox(context: Context, checked: Boolean, onChange: (Boolean) -> Unit) = 
     setOnCheckedChangeListener { _, value -> onChange(value) }
 }
 
-/** The game's slider: a sunken track filling orange, a grey handle. 0..100. */
 fun slider(context: Context, value: Int, onChange: (Int) -> Unit) = SeekBar(context).apply {
     val track = object : Drawable() {
         val paint = Paint()
@@ -614,7 +575,6 @@ fun slider(context: Context, value: Int, onChange: (Int) -> Unit) = SeekBar(cont
     })
 }
 
-/** The loading bar: a sunken track filling orange. */
 class BarView(context: Context) : View(context) {
     var fraction = 0f
         set(value) { field = value.coerceIn(0f, 1f); invalidate() }
@@ -637,7 +597,6 @@ class BarView(context: Context) : View(context) {
     }
 }
 
-/** Text in the game's type: [weight] 400-900. */
 fun label(context: Context, text: CharSequence = "", size: Float = 15f, color: Int = Factorio.TEXT, weight: Int = 400) =
     TextView(context).apply {
         this.text = text
@@ -649,7 +608,6 @@ fun label(context: Context, text: CharSequence = "", size: Float = 15f, color: I
 
 fun heading(context: Context, text: CharSequence, size: Float = 22f) = label(context, text, size, Factorio.HEADING, 600)
 
-/** A panel or inset as a vertical stack with [gap] dp between its children. */
 fun stack(context: Context, fill: Int, sunken: Boolean, padding: Int, gap: Int) = LinearLayout(context).apply {
     orientation = LinearLayout.VERTICAL
     background = FramedDrawable(context, fill, sunken)
@@ -667,7 +625,6 @@ fun stack(context: Context, fill: Int, sunken: Boolean, padding: Int, gap: Int) 
     }
 }
 
-/** The thin groove between groups of buttons. */
 fun groove(context: Context) = View(context).apply {
     background = object : Drawable() {
         val paint = Paint()

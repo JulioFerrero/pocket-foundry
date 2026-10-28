@@ -1,8 +1,4 @@
-"""The launcher's working factory (Home, Paused, Settings), drawn by stage/Factory.kt from
-the player's own Factorio sprites. This plays the belts and inserters ahead of time: plates come in
-on a belt, inserters feed them into assembling machines, output inserters put gears on the belt
-above; below, inserters feed science from a belt into labs. An inserter takes one real item off its
-belt. Everything repeats every 288 frames (30 fps, 9.6 s).
+"""Plays ahead of time, at 30 fps, the belts and inserters of the factory stage/Factory.kt draws.
 
 python3 tools/stage/factory_sim.py app/src/main/assets/stage/factory-sim.json"""
 import json
@@ -10,30 +6,29 @@ import random
 import sys
 
 T = 64                      # pixels per tile: high-res sprites 1:1
-W, H = 1760, 800            # 27.5 x 12.5 tiles
+W, H = 1760, 800
 FRAMES = 288
 CYCLE = 48                  # frames per inserter swing
 SPEED = 4                   # px per frame: a yellow belt's 1.875 tiles/s at 30 fps
 GAP = 16                    # px between items, alternating lanes: 2 per lane per tile
-GRAB, DROP = 44, 20         # swing frames: the hand closes, the hand opens
+GRAB, DROP = 44, 20         # frames into a swing when the hand closes and opens
 
 random.seed(11)
 ground = [random.randrange(16) for _ in range(0, H, 256) for _ in range(0, W, 256)]
-ASSEMBLERS = [3.5, 7.5, 11.5, 15.5, 19.5, 23.5, 27.5]          # x; rows 2-4
-LABS = [11.5, 15.5, 19.5, 23.5]                                 # x; rows 10-12
+ASSEMBLERS = [3.5, 7.5, 11.5, 15.5, 19.5, 23.5, 27.5]          # x in tiles; rows 2-4
+LABS = [11.5, 15.5, 19.5, 23.5]                                 # x in tiles; rows 10-12
 poles = [(x - 2.0, 3.5) for x in ASSEMBLERS[1:]] + [(x + 2.0, 11.2) for x in LABS[:-1]]
-# Inserters: (x, y, pickup side, item, phase). North-facing ones lift from the south.
+# (x, y, pickup side, item, phase)
 inserters = ([(x, 5.5, "south", "plate", random.randrange(48)) for x in ASSEMBLERS]
              + [(x, 1.5, "south", "gear", random.randrange(48)) for x in ASSEMBLERS]
              + [(x, 9.5, "north", "science", random.randrange(48)) for x in LABS])
 asm_start = [random.randrange(64) for _ in ASSEMBLERS]
 lab_start = [random.randrange(33) for _ in LABS]
-# (direction index: 0 north, clockwise; y in tiles; phase): 3.2 tiles/s, the real speed.
+# (direction index: 0 north, clockwise; y in tiles; phase)
 robots = [(12, 4.8, 0.0), (12, 9.4, 0.55), (4, 7.6, 0.3)]
 
 
 class Belt:
-    """Item slots moving at belt speed; an inserter takes an item out or puts one in."""
     def __init__(self, y, direction, full):
         self.y, self.direction, self.full = y, direction, full
         self.changes = {}                            # slot -> [(frame, present)]
@@ -50,7 +45,7 @@ class Belt:
         return value
 
     def take(self, at, f, want):
-        """The slot nearest x=at holding (want=True) or missing (want=False) an item, flipped."""
+        """Flips the slot nearest x=at that has (want=True) or lacks (want=False) an item."""
         slots = range(-300, 500)
         for reach in (GAP / 2, GAP):
             near = [i for i in slots if abs(self.x(i, f) - at) <= reach and self.present(i, f) == want]
@@ -66,7 +61,7 @@ held = set()                                          # (inserter, frame it grab
 for f in range(-3 * FRAMES, FRAMES):
     for n, (x, y, pickup, item, phase) in sorted(enumerate(inserters), key=lambda a: a[1][0] * (1 if a[1][3] != "science" else -1)):
         c = (f + phase) % CYCLE
-        if item == "gear":                            # takes from the assembler, drops on the gear belt
+        if item == "gear":                            # from the assembler onto the belt
             if c == GRAB:
                 held.add((n, f))
             elif c == DROP:
@@ -74,7 +69,7 @@ for f in range(-3 * FRAMES, FRAMES):
         elif c == GRAB and belts[item].take(x * T + 2, f, True):
             held.add((n, f))
 
-# A seamless loop: the belt one loop later is the same belt shifted by a whole number of slots.
+# Seamless loop: one loop later, each belt is the same shifted by a whole number of slots.
 shift = SPEED * FRAMES // GAP
 for name, b in belts.items():
     for f in range(FRAMES):
@@ -90,7 +85,7 @@ def holding(n, f):
     return (n, grabbed_at) in held
 
 
-# The slots ever on screen, each as [present at frame 0, frames where it flips...].
+# Slots ever on screen, each as [present at frame 0, frames where it flips...].
 first, last = (-40 - SPEED * (FRAMES - 1)) // GAP, (W + 40) // GAP + 1
 data = {
     "W": W, "H": H, "T": T, "frames": FRAMES, "cycle": CYCLE, "speed": SPEED, "gap": GAP,

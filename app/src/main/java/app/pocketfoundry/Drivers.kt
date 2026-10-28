@@ -15,13 +15,6 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/**
- * The graphics driver the game draws with. Bundled: Zink on our Turnip (the default), and
- * freedreno, OpenGL straight to the GPU (slower; Phase 1 measured it). Imported: other Turnip
- * builds for glibc arm64 Linux, such as lfdevs/mesa-for-android-container's turnip_*.tar.gz,
- * which run under our Zink. AdrenoTools zips are built for Android's bionic and can't load in
- * the game's process, so the import checks the library before taking it.
- */
 object Drivers {
     class Driver(val id: String, val name: String, val detail: String)
 
@@ -33,7 +26,6 @@ object Drivers {
 
     fun all(context: Context): List<Driver> {
         val paths = Paths(context)
-        // The runtime's Mesa names its gallium library after its version.
         val mesa = paths.lib.list()?.firstOrNull { it.startsWith("libgallium-") }
             ?.removePrefix("libgallium-")?.removeSuffix(".so")?.let { "Mesa $it" } ?: "Mesa"
         val bundled = listOf(
@@ -51,18 +43,16 @@ object Drivers {
         return bundled + imported
     }
 
-    /** The chosen driver, falling back to Zink when an imported one has gone. */
     fun chosen(context: Context): String {
         val id = Settings.driver(context)
         return if (all(context).any { it.id == id }) id else ZINK
     }
 
-    /** What the game's environment needs on top of Session's defaults for the chosen driver. */
+    /** Over Session's defaults, which are Zink on our Turnip. */
     fun environment(context: Context): Map<String, String> = when (val id = chosen(context)) {
         ZINK -> emptyMap()
         FREEDRENO -> mapOf("MESA_LOADER_DRIVER_OVERRIDE" to "kgsl")
-        // Imported Turnips lack our wait-before-present patch: they present through the
-        // software path, which copies each frame only once the GPU has finished it.
+        // Imported Turnips lack our wait-before-present patch; the software path waits for the GPU instead.
         else -> mapOf("VK_DRIVER_FILES" to File(dir(Paths(context)), "$id/icd.json").path,
                       "MESA_VK_WSI_DEBUG" to "sw")
     }
@@ -72,7 +62,6 @@ object Drivers {
         File(dir(Paths(context)), id).deleteRecursively()
     }
 
-    /** Takes the Turnip library out of [uri], checks it can load here, and keeps it. Returns it. */
     fun import(context: Context, uri: Uri): Driver {
         val paths = Paths(context)
         if (!Runtime.isInstalled(context)) Runtime.install(context)   // to check the libraries against
@@ -116,7 +105,6 @@ object Drivers {
         }
     }
 
-    /** Entries of a .tar.gz, .tar.xz, .tar or .zip, told apart by their first bytes. */
     private fun archive(input: InputStream): ArchiveInputStream<*> {
         val stream = BufferedInputStream(input)
         stream.mark(8)
@@ -132,7 +120,6 @@ object Drivers {
         }
     }
 
-    /** "27.0.0-devel" from the "Mesa 27.0.0-devel" the library carries. */
     private fun mesaVersion(library: File): String? {
         val pattern = Regex("Mesa (\\d+\\.\\d+\\.\\d+[-A-Za-z0-9.]*)")
         library.inputStream().buffered().use { input ->
@@ -148,7 +135,7 @@ object Drivers {
         }
     }
 
-    /** The DT_NEEDED names of a 64-bit little-endian arm64 ELF library. */
+    /** DT_NEEDED of a 64-bit little-endian arm64 ELF. */
     private fun neededLibraries(file: File): List<String> = RandomAccessFile(file, "r").use { f ->
         fun read(offset: Long, size: Int): ByteBuffer {
             val bytes = ByteArray(size)

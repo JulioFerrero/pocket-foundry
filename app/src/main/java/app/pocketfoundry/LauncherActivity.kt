@@ -49,14 +49,10 @@ import java.time.format.FormatStyle
 import kotlin.concurrent.thread
 import kotlin.math.abs
 
-/**
- * Pocket Foundry's front door, in Factorio's own look over a moving stage: Welcome (Pocket Foundry's blueprint)
- * until a game is imported, Importing (the blueprint built in 3D as the import goes), then Home
- * over a factory drawn from the player's own sprites. While a game runs, Home is the pause menu.
- */
+/** Welcome, import progress and Home; while a game runs, Home is the pause menu. */
 class LauncherActivity : Activity() {
     private lateinit var paths: Paths
-    // Only while the launcher is on screen: behind the game it held ~350 MB (Gridlocked ran out).
+    // Only while on screen: behind the game it holds ~350 MB the game needs.
     private var stage: Stage? = null
     private lateinit var stageHolder: FrameLayout
 
@@ -98,7 +94,6 @@ class LauncherActivity : Activity() {
     private lateinit var homeGroove: View
 
     private var dialog: View? = null
-    /** What a controller was on before the dialog opened, to go back to. */
     private var beforeDialog: View? = null
     private lateinit var importFirst: FButton
     private var shownScreen: Pair<View?, Boolean>? = null
@@ -118,7 +113,6 @@ class LauncherActivity : Activity() {
         window.setDecorFitsSystemWindows(false)
 
         val overlay = FrameLayout(this)
-        // Panels keep clear of the camera cutout; the stage runs under it.
         overlay.setOnApplyWindowInsetsListener { view, insets ->
             val cutout = insets.getInsets(WindowInsets.Type.displayCutout())
             view.setPadding(cutout.left, cutout.top, cutout.right, cutout.bottom)
@@ -146,7 +140,6 @@ class LauncherActivity : Activity() {
         if (stage == null) stage = Stage(this, paths).also { stageHolder.addView(it, FrameLayout.LayoutParams(MATCH, MATCH)) }
     }
 
-    /** Off screen, the stage goes entirely, the factory's sprites with it: the game needs the memory more. */
     override fun onStop() {
         stage?.let { stageHolder.removeView(it); it.release() }
         stage = null
@@ -182,8 +175,6 @@ class LauncherActivity : Activity() {
         }
     }
 
-    // The screens.
-
     private fun buildWelcome(): View {
         val panel = stack(this, Factorio.PANEL, sunken = false, padding = 8, gap = 10)
         panel.addView(heading(this, "Pocket Foundry"))
@@ -193,7 +184,6 @@ class LauncherActivity : Activity() {
             addView(label(context, "The Linux arm64 .tar.xz from ", 14f, Factorio.MUTED))
             addView(label(context, "factorio.com", 14f, Factorio.LINK).apply {
                 paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
-                // Lit like a hovered button while a controller is on it.
                 setTextColor(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
                                             intArrayOf(Tone.GREY.glow, Factorio.LINK)))
                 setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://factorio.com/download"))) }
@@ -258,10 +248,8 @@ class LauncherActivity : Activity() {
             addView(footerRight)
         })
         panel.addView(footer)
-        // Clear of the screen's rounded corners, with room for the menu on short screens.
         root.addView(panel, FrameLayout.LayoutParams(dpi(288), MATCH).apply { setMargins(dpi(24), dpi(16), 0, dpi(16)) })
 
-        // The newest save: its name, when, and the picture Factorio keeps inside it.
         val save = stack(this, Factorio.PANEL, sunken = false, padding = 4, gap = 6)
         cardName = heading(this, "", 17f).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }
         cardTime = label(this, "", 13f, Factorio.MUTED)
@@ -283,7 +271,6 @@ class LauncherActivity : Activity() {
 
     private fun buildSettings(): View {
         val panel = stack(this, Factorio.PANEL, sunken = false, padding = 8, gap = 10)
-        // In a game, beside the title: the Display box has no room left under its rows.
         settingsNote = label(this, "Resolution, sprites and controls change when Factorio next starts.", 13f, Factorio.MUTED)
         panel.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -311,13 +298,11 @@ class LauncherActivity : Activity() {
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         controller.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
-        // The controls' opacity is in the layout editor, with their places and sizes.
         controlsChoice = Dropdown(this, listOf("Gamepad", "Touch")) { Settings.setControls(this, Settings.CONTROLS[it]) }
         controller.addView(row("Controls", controlsChoice.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
         }
-        // Moved over a running game; before one there's nothing to edit on.
         layoutLater = label(this, "In a game", 15f, Factorio.FAINT)
         controller.addView(row("Controls layout", FrameLayout(this).apply {
             addView(editLayout, FrameLayout.LayoutParams(WRAP, dpi(40), Gravity.END))
@@ -349,7 +334,6 @@ class LauncherActivity : Activity() {
         addView(control, control.layoutParams ?: LinearLayout.LayoutParams(WRAP, dpi(40)))
     }
 
-    /** "3168 × 1440  Native" … "1584 × 720  Default": what the game draws at, from the panel's own size. */
     private fun resolutionNames(): List<CharSequence> {
         val mode = display.mode
         val long = maxOf(mode.physicalWidth, mode.physicalHeight)
@@ -376,8 +360,6 @@ class LauncherActivity : Activity() {
 
     private fun centered(widthDp: Int) = FrameLayout.LayoutParams(dpi(widthDp), WRAP, Gravity.CENTER)
 
-    // What's on screen.
-
     private fun refresh() {
         val version = GameImport.installedVersion(this)
         val state = Session.state
@@ -389,10 +371,10 @@ class LauncherActivity : Activity() {
         home.visibility = if (!importingNow && version != null && !settingsOpen) View.VISIBLE else View.GONE
         settings.visibility = if (!importingNow && version != null && settingsOpen) View.VISIBLE else View.GONE
         val screen = listOf(welcome, importing, home, settings).firstOrNull { it.visibility == View.VISIBLE }
-        // Home and Paused count as two: their first choices differ (Continue, Resume).
+        // Home and Paused count as two: their first choices differ.
         if (screen to inGame != shownScreen) {
             shownScreen = screen to inGame
-            // A controller lands on the new screen's first choice; touch shows no focus, so nothing changes.
+            // Touch mode shows no focus, so only a controller sees this.
             if (dialog == null) (if (screen === welcome) importFirst else screen)?.requestFocus()
         }
         when {
@@ -464,7 +446,6 @@ class LauncherActivity : Activity() {
         importAgain.isEnabled = !inGame && idle
     }
 
-    /** "Today 14:54", "Yesterday 09:10", or the date. */
     private fun whenSaved(millis: Long): String {
         val time = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
         val clock = android.text.format.DateFormat.getTimeFormat(this).format(millis)
@@ -485,7 +466,7 @@ class LauncherActivity : Activity() {
             runOnUiThread {
                 if (previewOf != key) return@runOnUiThread
                 cardImage.setImageBitmap(bitmap)
-                // Saves from servers often carry no picture: then the card is just the name, not an empty frame.
+                // Saves from servers often carry no picture.
                 cardFrame.visibility = if (bitmap != null) View.VISIBLE else View.GONE
             }
         }
@@ -494,8 +475,6 @@ class LauncherActivity : Activity() {
     private fun newestSave() = Saves.newest(paths)
 
     private fun showGame() = startActivity(Intent(this, MainActivity::class.java))
-
-    // Quitting asks first, the game's way: red back on the left, green on to the right.
 
     private fun confirmQuit() {
         val save = newestSave()
@@ -517,10 +496,6 @@ class LauncherActivity : Activity() {
         showDialog(panel, 440)
     }
 
-    /**
-     * [panel] over everything, the rest dimmed; a tap outside closes it. A controller starts on its first
-     * button and can't wander out to the screen behind.
-     */
     private fun showDialog(panel: View, widthDp: Int) {
         val scrim = FrameLayout(this).apply {
             setBackgroundColor(0x99000000.toInt())
@@ -545,8 +520,6 @@ class LauncherActivity : Activity() {
         driverList = null
         driverStatus = null
     }
-
-    // The graphics driver: the bundled ones, and Turnip builds the player imports.
 
     private var driverList: LinearLayout? = null
     private var driverStatus: TextView? = null
@@ -583,7 +556,6 @@ class LauncherActivity : Activity() {
         listDrivers()
     }
 
-    /** One row per driver, the chosen one orange; at most three rows tall, then it scrolls. */
     private fun listDrivers() {
         val list = driverList ?: return
         val chosen = Drivers.chosen(this)
@@ -631,8 +603,6 @@ class LauncherActivity : Activity() {
         }
     }
 
-    // Saves: copies in Downloads outlive the app.
-
     private var savesStatus: TextView? = null
     private var savesDetail: TextView? = null
     private val savesButtons = ArrayList<FButton>()
@@ -669,7 +639,6 @@ class LauncherActivity : Activity() {
         savesButtons.last().isEnabled = count > 0
     }
 
-    /** Runs [work] off the main thread with the panel's buttons off, then shows what it says. */
     private fun savesJob(work: () -> Pair<String, String>) {
         savesButtons.forEach { it.isEnabled = false }
         thread(name = "pocketfoundry-saves") {
@@ -708,8 +677,6 @@ class LauncherActivity : Activity() {
         }
     }
 
-    // Importing.
-
     private fun pickGame() {
         @Suppress("DEPRECATION")
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -745,7 +712,7 @@ class LauncherActivity : Activity() {
                 if (failure == null) {
                     GuiSprites.reload()
                     showImportProgress(100)
-                    // A moment to watch the factory start before Home.
+                    // A moment to watch the factory start.
                     importBar.postDelayed({ importingNow = false; refresh() }, 2500)
                 } else {
                     importingNow = false
@@ -762,9 +729,6 @@ class LauncherActivity : Activity() {
         stage?.progress(percent)
     }
 
-    // Playing.
-
-    /** Starts the game, straight into [save] when there is one. */
     private fun play(save: File?) {
         if (askForNotifications()) {
             pendingSave = save
@@ -791,10 +755,7 @@ class LauncherActivity : Activity() {
         }
     }
 
-    /**
-     * Once, before the first game: the session's notification carries Quit. Pocket Foundry works
-     * without it. True when the question is on screen; the game starts after the answer.
-     */
+    /** Asks once: the session's notification carries Quit. True while asking; play resumes on the answer. */
     private fun askForNotifications(): Boolean {
         if (Build.VERSION.SDK_INT < 33) return false
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return false
@@ -822,12 +783,7 @@ class LauncherActivity : Activity() {
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
-        /**
-         * Termux:X11's display settings, set once so the user can still change
-         * them: landscape, fullscreen, the default resolution (Settings), taps
-         * click where you touch. A saved resolution this phone doesn't offer (an
-         * older default, prefs from another phone) moves to the nearest one.
-         */
+        /** Termux:X11's prefs, set once so the user can still change them. touchMode 3 is Direct touch: taps click where you touch. */
         fun applyDisplayDefaults(context: Context) {
             val prefs = context.getSharedPreferences("${context.packageName}_preferences", MODE_PRIVATE)
             val scales = Settings.resolutionScales(context)

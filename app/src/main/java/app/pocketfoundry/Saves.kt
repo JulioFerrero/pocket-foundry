@@ -16,22 +16,13 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipFile
 
-/**
- * Factorio's saves: the newest one as the launcher and the game's border show it, and copies in and
- * out of Downloads, where uninstalling Pocket Foundry leaves them.
- */
 object Saves {
     fun all(paths: Paths): List<File> =
         File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".zip") && !f.name.endsWith(".tmp.zip") }
             ?.sortedByDescending { it.lastModified() } ?: emptyList()
 
-    /** The save Factorio wrote last, autosaves included. */
     fun newest(paths: Paths): File? = all(paths).firstOrNull()
 
-    /**
-     * Copies every save into a new folder, Download/Pocket Foundry/Saves <date time>, so each export is
-     * a snapshot and nothing there is ever overwritten. Returns the folder as the Files app shows it.
-     */
     fun export(context: Context): String {
         val folder = "${Environment.DIRECTORY_DOWNLOADS}/Pocket Foundry/Saves " +
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss").format(LocalDateTime.now())
@@ -49,11 +40,7 @@ object Saves {
         return folder
     }
 
-    /**
-     * Copies the picked files in when they are Factorio saves, keeping their dates so an old save
-     * doesn't become Continue. A save already here byte for byte is skipped; another one with the
-     * same name gets " (2)". Returns how many were added.
-     */
+    /** Keeps the saves' dates, so an old one doesn't become Continue. */
     fun import(context: Context, uris: List<Uri>): Int {
         val dir = File(Paths(context).gameData, "saves").apply { mkdirs() }
         var added = 0
@@ -77,14 +64,12 @@ object Saves {
         return added
     }
 
-    /** A zip with Factorio's level data in it. */
     private fun isSave(file: File) = runCatching {
         ZipFile(file).use { zip ->
             zip.entries().asSequence().any { e -> e.name.substringAfterLast('/').let { it == "level.dat0" || it == "level-init.dat" } }
         }
     }.getOrDefault(false)
 
-    /** The picture Factorio stores in every save, decoded at 1/[sample] of its size. */
     fun preview(save: File, sample: Int): Bitmap? = runCatching {
         ZipFile(save).use { zip ->
             val entry = zip.entries().asSequence().firstOrNull { it.name.substringAfterLast('/') == "preview.jpg" } ?: return null
@@ -102,7 +87,7 @@ object Saves {
         while (right > bitmap.width / 2 && blackColumn(right - 1)) right--
         while (top < bitmap.height / 2 && blackRow(top)) top++
         while (bottom > bitmap.height / 2 && blackRow(bottom - 1)) bottom--
-        // All dark (a night shot, say): keep it as it is.
+        // All dark, like a night shot: keep it whole.
         if (right - left < bitmap.width / 2 || bottom - top < bitmap.height / 2) return bitmap
         return Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
     }
@@ -113,7 +98,6 @@ private fun lastModified(context: Context, uri: Uri): Long? = runCatching {
         ?.use { if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null }
 }.getOrNull()?.takeIf { it > 0 }
 
-/** A picked document's file name, as its provider tells it. */
 fun displayName(context: Context, uri: Uri): String? =
     context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
         ?.use { if (it.moveToFirst()) it.getString(0) else null }

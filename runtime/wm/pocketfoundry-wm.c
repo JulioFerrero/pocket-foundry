@@ -1,8 +1,6 @@
 /*
- * pocketfoundry-wm: the smallest window manager the game needs. Without one, SDL's
- * fullscreen request is ignored and the game opens at 1920x1080 in a corner.
- * Every top-level window is kept at the size of the screen (also after a
- * resolution change), gets keyboard focus, and is told it is fullscreen.
+ * The smallest window manager the game needs: without one, SDL's fullscreen
+ * request is ignored and the game opens at 1920x1080 in a corner.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,7 +101,6 @@ int main(void)
         if (type == XCB_MAP_REQUEST) {
             manage(((xcb_map_request_event_t *)e)->window);
         } else if (type == XCB_CONFIGURE_REQUEST) {
-            /* Whatever size is asked for, the answer is the whole screen. */
             fill_screen(((xcb_configure_request_event_t *)e)->window);
         } else if (type == XCB_CLIENT_MESSAGE) {
             xcb_client_message_event_t *m = (xcb_client_message_event_t *)e;

@@ -1,8 +1,5 @@
 #!/bin/bash
-# Runs inside the build container: Mesa from lfdevs/mesa-for-android-container
-# (Adreno 8xx on KGSL), the same commit we tested in Phase 1, cut down to what
-# the game uses: Zink + Turnip (+ freedreno as fallback) for X11/GLX, no LLVM.
-# patches/: Turnip's X11 present waits for each frame to finish (no more sw copy).
+# Runs inside the build container: Mesa from lfdevs/mesa-for-android-container, for Adreno 8xx on KGSL.
 set -euo pipefail
 
 COMMIT=6f90e92dfdacc4759d8e9ccb328805d0f0b4439b   # tag mesa-27.0.0-devel-20261025

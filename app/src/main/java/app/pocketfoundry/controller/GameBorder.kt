@@ -15,12 +15,7 @@ import app.pocketfoundry.ui.dpi
 import java.io.File
 import kotlin.concurrent.thread
 
-/**
- * The frame round the game when Settings asks for one: Termux:X11's view drawn a little smaller,
- * so the screen's rounded corners only cut into the frame, over the newest save's picture softened
- * and darkened (a terrain texture from the player's copy before there is a save). The X screen
- * follows the view's size, and pocketfoundry-wm keeps the game filling it.
- */
+/** Shrinks Termux:X11's view so rounded screen corners only cut the frame; the X screen follows its size. */
 class GameBorder(private val activity: MainActivity) {
     private val frame: FrameLayout = activity.findViewById(com.termux.x11.R.id.frame)
     private val game: View = activity.findViewById(com.termux.x11.R.id.lorieView)
@@ -32,11 +27,9 @@ class GameBorder(private val activity: MainActivity) {
     private var shown: String? = null
 
     init {
-        // Behind the game's view, which punches its own hole through it.
         frame.addView(backdrop, 0, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
 
-    /** Settings may have changed while the launcher was in front. */
     fun apply() {
         val border = activity.dpi(Settings.border(activity))
         val params = game.layoutParams as FrameLayout.LayoutParams
@@ -62,7 +55,6 @@ class GameBorder(private val activity: MainActivity) {
         }
     }
 
-    /** A small, blurred copy: drawn full screen it keeps the colours and a little of the texture. */
     private fun soften(picture: Bitmap): Bitmap {
         val w = SOFT_WIDTH
         val h = maxOf(1, picture.height * w / picture.width)
@@ -72,7 +64,6 @@ class GameBorder(private val activity: MainActivity) {
         return Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
     }
 
-    /** One horizontal and one vertical pass of a box blur; two of them come close to a Gaussian. */
     private fun boxBlur(pixels: IntArray, w: Int, h: Int, radius: Int) {
         val out = IntArray(pixels.size)
         for (pass in 0..1) {

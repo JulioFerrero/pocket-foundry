@@ -17,19 +17,13 @@ import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.sin
 
-/**
- * Pocket Foundry's own blueprint (no Factorio assets): a small factory in lines on blueprint paper, its
- * belts, inserters and machines working, from tools/stage/blueprint.py's simulation (assets/stage/blueprint.json).
- * On Welcome ([welcome]) its pieces appear as ghosts and are built one after another; while importing, each
- * is built as [percent] passes its own threshold, and until an inserter is built its items flow past it.
- */
+/** Plays tools/stage/blueprint.py's simulation (assets/stage/blueprint.json). */
 class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
     override val fps = 60
 
-    /** The import's progress, 0-100. */
     @Volatile var percent = 0
 
-    /** When a piece is built: seconds into Welcome, or the import's percent. */
+    /** welcome in seconds, import in percent. */
     private class At(json: JSONObject) {
         val welcome = json.getDouble("welcome").toFloat()
         val import = json.getInt("import")
@@ -118,7 +112,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
             intArrayOf(c or 0x8C000000.toInt(), c or 0x8C000000.toInt(), c, c or 0x99000000.toInt()), floatArrayOf(0f, 0.35f, 0.6f, 1f))
     }
 
-    // Time and progress for the frame being drawn.
     private var time = 0.0
     private var progress = 0
 
@@ -134,7 +127,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         assemblers.forEachIndexed { k, a -> drawAssembler(canvas, a, k) }
         labs.forEachIndexed { k, l -> drawLab(canvas, l, k) }
         for (s in inserters) drawInserter(canvas, s)
-        // Each pole, then its wire to the pole on its left.
         var wire = 0
         for ((i, p) in poles.withIndex()) {
             drawPole(canvas, p)
@@ -144,9 +136,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         canvas.drawRect(0f, 0f, W, H, vignette)
         canvas.restore()
     }
-
-    // How built a piece is: 0 a ghost, 1 built. On Welcome the ghost shows for 1.1 s from its time
-    // and the building fades in over 0.45 s from 0.8 s in; while importing both cross over two percent.
 
     private fun built(at: At): Float = if (welcome) CubicBezier.EASE_OUT(((time - at.welcome - 0.8) / 0.45).toFloat())
                                         else ((progress - at.import) / 2f).coerceIn(0f, 1f)
@@ -162,7 +151,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         }
     }
 
-    /** The simulation's tick now, within its loop. */
     private fun loopTick() = (floor(time / tick).toLong() % period).toInt()
 
     private fun drawBelt(canvas: Canvas, belt: Belt) {
@@ -180,7 +168,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         solid(LINE, b, 1.2f)
         canvas.drawLine(0f, y - 8, W, y - 8, stroke)
         canvas.drawLine(0f, y + 8, W, y + 8, stroke)
-        // The slats run along the belt: a 2-on-10 dash, moving one period every 0.4 s.
         solid(AMBER, b * 0.3f, 9f)
         stroke.pathEffect = DashPathEffect(floatArrayOf(2f, 10f), (12 * (1 - frac(time / 0.4))).toFloat())
         if (belt.direction > 0) canvas.drawLine(0f, y, W, y, stroke) else canvas.drawLine(W, y, 0f, y, stroke)
@@ -192,7 +179,7 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
             val shown = if (actor < 0) {
                 if (belt.full) 1f else 0f
             } else {
-                // Taken off as simulated once its inserter is built, flowing past before.
+                // Until its inserter is built, the item flows past.
                 val by = built(inserters[actor].at)
                 by * (if (belt.visible[k][n] == '1') 1f else 0f) + (1 - by) * (if (belt.full) 1f else 0f)
             }
@@ -275,7 +262,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         fill(LINE, b); canvas.drawCircle(cx, cy, 2.5f, fill)
     }
 
-    /** The arm's angle: resting, a smooth half turn to the far side, resting, and back, every swing. */
     private fun swing(s: Inserter): Float {
         val begin = (s.phase + grab - cycle) * tick
         val c = frac((time - begin) / (cycle * tick)).toFloat()
@@ -307,7 +293,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         canvas.drawPath(w.path, stroke)
     }
 
-    /** A construction drone flying its curve at an even speed, nose first, its shadow below and behind. */
     private fun drawDrone(canvas: Canvas, d: Drone) {
         d.measure.getPosTan(frac((time - d.begin) / d.duration).toFloat() * d.measure.length, pos, tan)
         val angle = (atan2(tan[1], tan[0]) * 180 / PI).toFloat()
@@ -328,7 +313,7 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         canvas.restore()
     }
 
-    /** The grid: lines every [step] along the top and left of each cell, half a unit wide, as the SVG pattern clips them. */
+    /** Lines half a unit wide inside each cell's top and left edges, as the SVG pattern clips them. */
     private fun grid(canvas: Canvas, step: Int, alpha: Float) {
         solid(GRID, alpha, 0.5f)
         var x = 0
@@ -336,8 +321,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         var y = 0
         while (y < H) { canvas.drawLine(0f, y + 0.25f, W, y + 0.25f, stroke); y += step }
     }
-
-    // Paints: a colour at an opacity, and strokes plain or dashed.
 
     private fun fill(color: Int, alpha: Float) {
         fill.color = withAlpha(color, alpha)
@@ -357,7 +340,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
     private fun withAlpha(color: Int, alpha: Float): Int =
         (((color ushr 24) * alpha.coerceIn(0f, 1f)).toInt() shl 24) or (color and 0xFFFFFF)
 
-    /** A CSS ease-in-out pulse between [low] and [high] and back, every [seconds]. */
     private fun pulse(t: Double, seconds: Double, low: Float, high: Float): Float {
         val p = frac(t / seconds).toFloat()
         val up = if (p < 0.5f) CubicBezier.EASE_IN_OUT(p * 2) else 1 - CubicBezier.EASE_IN_OUT((p - 0.5f) * 2)
@@ -374,7 +356,6 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
         const val BELT = 0xD9142840.toInt()
         const val BODY = 0x1A6EA0E6
         const val GRID = 0xFF78AAE6.toInt()
-        /** The inserter's keySplines, 0.45 0 0.55 1. */
         val SWING = CubicBezier(0.45f, 0f, 0.55f, 1f)
 
         fun JSONArray.objects() = (0 until length()).map { getJSONObject(it) }
@@ -394,7 +375,7 @@ class Blueprint(plan: JSONObject, private val welcome: Boolean) : Drawing() {
             lineTo(x + s - cut, y + s); lineTo(x + cut, y + s); lineTo(x, y + s - cut); lineTo(x, y + cut); close()
         }
 
-        /** SVG's objectBoundingBox radial gradient on a wide box: an ellipse, [rx] by [ry]. */
+        /** An ellipse, as SVG's objectBoundingBox radial gradient is on a wide box. */
         fun elliptical(cx: Float, cy: Float, rx: Float, ry: Float, colors: IntArray, stops: FloatArray?) =
             RadialGradient(cx, cy, rx, colors, stops, Shader.TileMode.CLAMP).apply {
                 setLocalMatrix(Matrix().apply { setScale(1f, ry / rx, cx, cy) })

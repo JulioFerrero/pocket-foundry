@@ -5,16 +5,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Window
 
-/**
- * Sits in front of the game activity's window: each finger that lands on a control
- * belongs to the controller until it lifts, every other finger reaches the game as
- * if the controller weren't there. A thumb on the stick doesn't stop the other
- * hand from tapping the game. With touch controls, those fingers go to [gestures]
- * instead, which turn them into the game's mouse.
- *
- * It also takes the Back gesture, which Termux:X11 would otherwise swallow: [onBack], and offers keys and
- * joystick motion to [keyFirst] and [motionFirst] (real controllers) before the game.
- */
+/** Back is taken here: Termux:X11 would otherwise swallow it. */
 class TouchRouter(
     private val target: Window.Callback,
     private val controller: ControllerView,
@@ -43,7 +34,6 @@ class TouchRouter(
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        // A real mouse is already the game's mouse.
         if (gestures != null && event.isFromSource(InputDevice.SOURCE_MOUSE)) return target.dispatchTouchEvent(event)
         controller.getLocationInWindow(location)
         val dx = location[0].toFloat()
@@ -54,7 +44,7 @@ class TouchRouter(
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
                     claimed.clear()
                     forwarded.clear()
-                    gestures?.cancel()   // nothing held over from a touch whose end went missing
+                    gestures?.cancel()   // in case the last touch's end went missing
                 }
                 val index = event.actionIndex
                 val id = event.getPointerId(index)
@@ -102,10 +92,8 @@ class TouchRouter(
         return target.dispatchTouchEvent(event)
     }
 
-    /** Sends [event] on with only the game's fingers; [actionId] is the one going down or up. */
     private fun forward(event: MotionEvent, action: Int, actionId: Int): Boolean {
         if (action == MotionEvent.ACTION_DOWN) forwardedDownTime = event.eventTime
-        // No finger on the controller: the event is already what the game should see.
         if (claimed.isEmpty()) return target.dispatchTouchEvent(event)
 
         val indices = (0 until event.pointerCount).filter { event.getPointerId(it) in forwarded }

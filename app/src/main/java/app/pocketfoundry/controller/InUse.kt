@@ -6,11 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.InputDevice
 
-/**
- * Whether a kind of device ([kind]: a controller, a keyboard) is in the player's hands: from its first
- * use, [used], or with [fromConnecting] from the moment one is connected, until the last one of that
- * kind is unplugged. [onChange] hears both.
- */
+/** Whether a kind of device is in the player's hands: from first use (or connection) until the last is unplugged. */
 class InUse(context: Context, private val kind: (InputDevice?) -> Boolean, private val fromConnecting: Boolean = false,
             private val onChange: (Boolean) -> Unit) : InputManager.InputDeviceListener {
     private val input = context.getSystemService(InputManager::class.java)
@@ -48,15 +44,8 @@ class InUse(context: Context, private val kind: (InputDevice?) -> Boolean, priva
     }
 }
 
-/**
- * Real keyboards, USB or Bluetooth: they type straight into the game through Termux:X11, and a mouse
- * points there too. With one connected when the game starts, Factorio plays in its keyboard-and-mouse
- * mode (Session), and the drawn stick and keys step aside while one is connected. Not from its first
- * key, as with a controller: Termux:X11 sends a keyboard's keys through the phone's keyboard app, which
- * types them into the game without a key event anyone else sees.
- */
+/** In use once connected: Termux:X11 types a keyboard's keys through the IME, with no key event we can see. */
 object Keyboards {
-    /** A keyboard with letters, plugged in or paired: not the phone's own buttons, nor a controller's. */
     fun isKeyboard(device: InputDevice?) = device != null && !device.isVirtual && device.isExternal &&
         device.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC
 

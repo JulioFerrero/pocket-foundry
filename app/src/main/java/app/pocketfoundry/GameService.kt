@@ -10,11 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import com.termux.x11.MainActivity
 
-/**
- * Keeps the app alive while a game is running, so Android doesn't reclaim a paused
- * game, and shows it in a notification with Quit. Swiping the game away in Recents
- * quits it properly instead of killing it.
- */
+/** In the foreground while a game runs, so Android doesn't reclaim a paused game. */
 class GameService : Service() {
     private val update: () -> Unit = { refresh() }
 

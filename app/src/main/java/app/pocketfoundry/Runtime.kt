@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import java.io.File
 
-/** The Linux side shipped in assets/runtime.tar.xz: glibc, Mesa, X11 libraries, pocketfoundry-wm. */
+/** assets/runtime.tar.xz: glibc, Mesa, X11 libraries, pocketfoundry-wm. */
 object Runtime {
     private fun assetVersion(context: Context) =
         context.assets.open("runtime.version").bufferedReader().readText().trim()
@@ -16,7 +16,6 @@ object Runtime {
         return stamp.exists() && stamp.readText().trim() == assetVersion(context)
     }
 
-    /** Unpacks the runtime if this APK carries a different one than what's on disk. */
     fun install(context: Context) {
         if (isInstalled(context)) return
         val paths = Paths(context)
@@ -26,7 +25,7 @@ object Runtime {
         stamp(paths).writeText(assetVersion(context))
     }
 
-    /** glibc reads files/usr/etc/resolv.conf; Android has no such file, so write the current DNS servers. */
+    /** glibc reads files/usr/etc/resolv.conf, which Android doesn't have. */
     fun writeResolvConf(context: Context) {
         val servers = runCatching {
             val cm = context.getSystemService(ConnectivityManager::class.java)

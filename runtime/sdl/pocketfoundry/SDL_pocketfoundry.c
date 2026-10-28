@@ -1,25 +1,7 @@
 /*
-  Pocket Foundry's additions to SDL: sound and a gamepad that come from the Android app.
-
-  The game runs in a glibc process that can't load Android's libraries, so both
-  go over Unix sockets that the app listens on.
-
-  Audio ($POCKETFOUNDRY_AUDIO): SDL connects when the game opens its audio device and
-  sends a 12-byte header (the bytes "FAB1", then freq and channels as
-  little-endian uint32), then interleaved float32 samples. Writes block when the
-  app's AudioTrack is full; that is the playback clock.
-
-  Gamepad ($POCKETFOUNDRY_INPUT): while SDL is connected, a virtual Xbox-style gamepad
-  is plugged in; when the app closes the connection it's unplugged. The app sends
-  4-byte messages {kind, index, int16 value (little-endian)}: kind 'B' sets
-  button `index` (SDL_GamepadButton) to value != 0, kind 'A' sets axis `index`
-  (SDL_GamepadAxis) to value. SDL sends {'R', 0, int16 strength} for rumble,
-  strength 0..32767, 0 = stop.
-
-  Frame rate ($POCKETFOUNDRY_FRAME_RATE): a file holding the frames per second the
-  player chose. Below 60, each buffer swap waits for its turn: the game keeps
-  its 60 updates a second and draws fewer frames, as it does when the GPU is
-  slow. Read once a second, so a change reaches a running game.
+  Pocket Foundry's additions to SDL: sound, a gamepad and a frame cap from the Android app.
+  The game's glibc process can't load Android's libraries, so sound and gamepad go over Unix sockets.
+  Delaying buffer swaps is enough for the cap: Factorio keeps its 60 updates a second and draws fewer frames.
 
   Copyright (C) 2026 Pocket Foundry contributors. Released under the zlib licence, like SDL.
 */
@@ -94,8 +76,6 @@ static bool POCKETFOUNDRY_RecvAll(int fd, void *data, size_t len)
     return true;
 }
 
-// Audio
-
 struct SDL_PrivateAudioData
 {
     int fd;
@@ -104,7 +84,7 @@ struct SDL_PrivateAudioData
 
 static bool POCKETFOUNDRYAUDIO_WaitDevice(SDL_AudioDevice *device)
 {
-    return true;  // PlayDevice blocks until the app has room
+    return true;  // PlayDevice blocks until the app's AudioTrack has room: that is the playback clock
 }
 
 static bool POCKETFOUNDRYAUDIO_PlayDevice(SDL_AudioDevice *device, const Uint8 *buffer, int buffer_size)
@@ -144,13 +124,13 @@ static bool POCKETFOUNDRYAUDIO_OpenDevice(SDL_AudioDevice *device)
         return SDL_SetError("Pocket Foundry audio: can't connect to %s", path ? path : "(POCKETFOUNDRY_AUDIO unset)");
     }
 
-    // What Android mixes natively; SDL converts whatever the game plays.
+    // Android's native mix format; SDL converts whatever the game plays.
     device->spec.format = SDL_AUDIO_F32LE;
     device->spec.channels = 2;
     device->spec.freq = 48000;
     SDL_UpdatedAudioDeviceFormat(device);
 
-    // Keep only a couple of buffers in flight so sound stays in sync with the game.
+    // A couple of buffers in flight at most, so sound stays in sync with the game.
     sndbuf = device->buffer_size * 2;
     setsockopt(device->hidden->fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
 
@@ -188,16 +168,14 @@ AudioBootStrap POCKETFOUNDRYAUDIO_bootstrap = {
     "pocketfoundry", "Pocket Foundry (Android app)", POCKETFOUNDRYAUDIO_Init, true, false
 };
 
-// Gamepad
-
 static SDL_Thread *input_thread;
 static SDL_Semaphore *input_wakeup;
 static SDL_AtomicInt input_quitting;
-static SDL_AtomicInt input_fd;  // -1 while unplugged; read and cleared under the joystick lock
+static SDL_AtomicInt input_fd;  // -1 while unplugged; changed under the joystick lock
 
 static bool SDLCALL POCKETFOUNDRY_Rumble(void *userdata, Uint16 low_frequency_rumble, Uint16 high_frequency_rumble)
 {
-    // Called with the joystick lock held, so input_fd can't be closed under us.
+    // SDL holds the joystick lock here, so input_fd can't be closed under us.
     const int fd = SDL_GetAtomicInt(&input_fd);
     const Uint16 strength = SDL_max(low_frequency_rumble, high_frequency_rumble) >> 1;
     const Uint8 message[4] = { 'R', 0, (Uint8)(strength & 0xFF), (Uint8)(strength >> 8) };
@@ -209,7 +187,6 @@ static bool SDLCALL POCKETFOUNDRY_Rumble(void *userdata, Uint16 low_frequency_ru
     return true;
 }
 
-// Returns false when the gamepad couldn't be plugged in.
 static bool POCKETFOUNDRY_RunGamepad(int fd)
 {
     SDL_VirtualJoystickDesc desc;
@@ -242,7 +219,7 @@ static bool POCKETFOUNDRY_RunGamepad(int fd)
         SDL_SetAtomicInt(&input_fd, fd);
         SDL_UnlockJoysticks();
 
-        // Quit shuts down whatever fd it sees; checking afterwards closes the gap.
+        // StopInput shuts down whatever fd it sees; checking input_quitting after setting ours closes the gap.
         while (!SDL_GetAtomicInt(&input_quitting) && POCKETFOUNDRY_RecvAll(fd, message, sizeof(message))) {
             const Sint16 value = (Sint16)(message[2] | (message[3] << 8));
             if (message[0] == 'B') {
@@ -269,13 +246,13 @@ static int SDLCALL POCKETFOUNDRY_InputThread(void *data)
     while (!SDL_GetAtomicInt(&input_quitting)) {
         const int fd = POCKETFOUNDRY_Connect(path);
         if (fd < 0) {
-            SDL_WaitSemaphoreTimeout(input_wakeup, 1000);  // the app isn't listening yet
+            SDL_WaitSemaphoreTimeout(input_wakeup, 1000);
             continue;
         }
         const bool ran = POCKETFOUNDRY_RunGamepad(fd);
         close(fd);
         if (!ran) {
-            SDL_WaitSemaphoreTimeout(input_wakeup, 1000);  // don't spin on a failure
+            SDL_WaitSemaphoreTimeout(input_wakeup, 1000);
         }
     }
     SDL_free(data);
@@ -316,7 +293,6 @@ void SDL_POCKETFOUNDRY_StopInput(void)
     input_wakeup = NULL;
 }
 
-// The frames per second in the file at [path]; 0 when there's no cap (60 or more, or no file).
 static int POCKETFOUNDRY_ReadFrameRate(const char *path)
 {
     char text[8];
@@ -370,7 +346,7 @@ void SDL_POCKETFOUNDRY_PaceFrame(void)
         SDL_DelayPrecise(next - now);
         now = SDL_GetTicksNS();
     }
-    // Keep the cadence, but start over after a frame that came late (loading, a slow frame).
+    // Keep the cadence, but start over after a late frame.
     next = (next && now < next + interval) ? next + interval : now + interval;
 }
 

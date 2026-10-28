@@ -23,10 +23,8 @@ import kotlin.math.hypot
 import kotlin.math.sin
 
 /**
- * The Home, Paused and Settings screens' backdrop: a small working factory drawn from the player's own
- * Factorio sprites ([graphics], their import's data/base/graphics; never shipped). Belts and inserters
- * play tools/stage/factory_sim.py's loop ([sim]): an inserter takes one real item off its belt.
- * Reads its sprites when made, so make it off the main thread; throws if one is missing.
+ * Plays tools/stage/factory_sim.py's loop with the imported game's sprites, which we never ship.
+ * Reads them when made, so make it off the main thread; throws if one is missing.
  */
 class Factory(sim: JSONObject, graphics: File) : Drawing() {
     override val fps = FPS
@@ -64,7 +62,6 @@ class Factory(sim: JSONObject, graphics: File) : Drawing() {
     private val inserters = sim.getJSONArray("inserters").let { a -> (0 until a.length()).map { Inserter(a.getJSONObject(it)) } }
     private val belts = sim.getJSONObject("belts").let { b -> b.keys().asSequence().associateWith { Belt(b.getJSONObject(it)) } }
 
-    // The sheets, each only as much as is drawn: two rows of belt frames, one band of grass.
     private val grass = band(graphics, "terrain/grass-1.png", 320, 256)
     private val amBase = read(graphics, "entity/assembling-machine-2/assembling-machine-2-base.png")
     private val amAnim = read(graphics, "entity/assembling-machine-2/assembling-machine-2-anim.png")
@@ -124,7 +121,7 @@ class Factory(sim: JSONObject, graphics: File) : Drawing() {
                 }
             }
         }
-        // Ground-level objects back to front, inserter arms above them, as the game layers them.
+        // Back to front, inserter arms above, as the game layers them.
         val objects = ArrayList<Pair<Float, () -> Unit>>()
         assemblers.forEachIndexed { k, x ->
             objects += 3.5f to {
@@ -194,7 +191,7 @@ class Factory(sim: JSONObject, graphics: File) : Drawing() {
         }
     }
 
-    // Sprites: a frame of a sheet, centred on tile (cx, cy) plus Factorio's util.by_pixel shift.
+    // Centred on tile (cx, cy), shifted in Factorio's util.by_pixel units.
 
     private fun put(c: Canvas, sheet: Bitmap, sx: Int, sy: Int, sw: Int, sh: Int, cx: Float, cy: Float,
                     shiftX: Float = 0f, shiftY: Float = 0f, p: Paint = paint, dw: Int = sw, dh: Int = sh) {
@@ -213,13 +210,13 @@ class Factory(sim: JSONObject, graphics: File) : Drawing() {
         c.drawBitmap(sheet, src, dst, p)
     }
 
-    /** An item's icon: its 32 px mipmap, or the 64 px one drawn at [size]. */
+    /** Icon sheets hold the 64 px icon, then its 32 px mipmap. */
     private fun icon(c: Canvas, name: String, cx: Float, cy: Float, size: Int = 32) {
         val sheet = icons.getValue(name)
         if (size == 32) put(c, sheet, 64, 0, 32, 32, cx, cy) else put(c, sheet, 0, 0, 64, 64, cx, cy, dw = size, dh = size)
     }
 
-    /** A sprite stretched from point b (its bottom) to point a (its top), in pixels. */
+    /** b is the sprite's bottom, a its top; in pixels, not tiles. */
     private fun segment(c: Canvas, sheet: Bitmap, ax: Float, ay: Float, bx: Float, by: Float, width: Float) {
         val dx = ax - bx; val dy = ay - by
         val length = maxOf(4f, hypot(dx, dy))
@@ -231,7 +228,6 @@ class Factory(sim: JSONObject, graphics: File) : Drawing() {
         c.restore()
     }
 
-    /** The copper wires between the poles' tops, sagging, each with its shadow (drawn once as paths). */
     private fun wires(): List<Path> {
         val top = poles.filter { it[1] == 3.5f }
         val rows = listOf(listOf(floatArrayOf(-1.5f, 3.5f)) + top + listOf(floatArrayOf(29.5f, 3.5f)), poles.filter { it[1] > 10 })
@@ -251,12 +247,11 @@ class Factory(sim: JSONObject, graphics: File) : Drawing() {
         }
     }
 
-    /** Darkening the edges, lightest a little right of and above the middle, as CSS's ellipse at 60% 40%. */
     private fun vignette(width: Int, height: Int): Paint {
         val size = width.toLong() shl 32 or height.toLong()
         if (size != vignetteSize || vignette == null) {
             vignetteSize = size
-            // CSS's farthest-corner ellipse, with the box's proportions: 0.6 × √2 of each side.
+            // CSS's farthest-corner ellipse from 60% 40%: 0.6 × √2 of each side.
             val rx = 0.6f * width * SQRT2; val ry = 0.6f * height * SQRT2
             val shade = 0x201810
             vignette = Paint().apply {
@@ -284,7 +279,6 @@ class Factory(sim: JSONObject, graphics: File) : Drawing() {
             BitmapFactory.decodeFile(File(graphics, path).path, BitmapFactory.Options().apply { inScaled = false })
                 ?: throw FileNotFoundException(path)
 
-        /** Just the rows [top] to [top] + [height] of a sheet. */
         fun band(graphics: File, path: String, top: Int, height: Int): Bitmap {
             val file = File(graphics, path)
             if (!file.isFile) throw FileNotFoundException(path)

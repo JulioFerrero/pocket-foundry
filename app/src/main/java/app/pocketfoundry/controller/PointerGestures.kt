@@ -16,24 +16,8 @@ import kotlin.math.ln
 import kotlin.math.pow
 
 /**
- * The fingers that land on the game rather than on a control: the screen is the game's mouse.
- *
- * With the gamepad ([pad]: Factorio in controller mode, where the mouse moves its cursor and clicks
- * only in menus), a touch aims and the gestures press the pad's buttons where the finger is:
- * - a tap moves the cursor there (and clicks, in a menu);
- * - a double tap presses A there (build, open); left down, A stays held while the finger drags,
- *   for a line of belts;
- * - a long press holds X there (mining), wherever the finger goes after;
- * - two fingers tapped together press B (close, back, dismiss a tip);
- * - spreading two fingers zooms, with the game's own zoom.
- *
- * With touch controls (Factorio in keyboard-and-mouse mode):
- * - a tap clicks; a drag holds the left button (belts in a line, items across the inventory);
- * - a long press holds the right button (mining); [mining] makes every touch do that;
- * - spreading two fingers turns the wheel up (zoom in); two fingers tapped together right-click.
- *
- * Either way, a drag in a menu moves items, and two fingers sliding turn the wheel, to scroll a list.
- * Coordinates are the window's, as [TouchRouter] sees them.
+ * Fingers on the game, in window coordinates. With [pad] (controller mode) Factorio's mouse clicks only
+ * in menus, so gestures press the pad's buttons where the finger is.
  */
 class PointerGestures private constructor(
     private val lorie: LorieView,
@@ -51,17 +35,15 @@ class PointerGestures private constructor(
     private val location = IntArray(2)
     private val mapped = FloatArray(2)
 
-    private val fingers = LinkedHashMap<Int, FloatArray>()   // id → x, y now
+    private val fingers = LinkedHashMap<Int, FloatArray>()   // id → x, y
     private var downX = 0f
     private var downY = 0f
     private var held = InputStub.BUTTON_UNDEFINED
     private var heldPad: PadButton? = null
     private val holding get() = held != InputStub.BUTTON_UNDEFINED || heldPad != null
-    // Where and when the last tap was, for a double tap.
     private var lastTapAt = 0L
     private var lastTapX = 0f
     private var lastTapY = 0f
-    /** Two fingers came down: the rest of this touch is theirs, until every finger lifts. */
     private var twoFinger = false
     private var twoFingerStart = 0L
     private var spanRef = 0f
@@ -98,12 +80,11 @@ class PointerGestures private constructor(
             } else if (pad == null && mining()) {
                 press(InputStub.BUTTON_RIGHT, x, y)
             } else {
-                moveTo(x, y)   // what's under the finger shows in the game while it decides
+                moveTo(x, y)   // the game shows what's under the finger meanwhile
                 handler.postDelayed(longPress, LONG_PRESS_MS)
             }
             return
         }
-        // A drag, a held A or mining already under way keeps going; extra fingers just rest.
         if (holding || twoFinger || fingers.size != 2) return
         handler.removeCallbacks(longPress)
         twoFinger = true
@@ -147,7 +128,7 @@ class PointerGestures private constructor(
                     click(InputStub.BUTTON_RIGHT)
                 }
             }
-            mode = Mode.NONE   // the other finger lifting does nothing more
+            mode = Mode.NONE   // so the other finger's lift doesn't tap again
         } else if (fingers.size == 1) {
             handler.removeCallbacks(longPress)
             if (holding) {
@@ -164,7 +145,6 @@ class PointerGestures private constructor(
         if (fingers.isEmpty()) twoFinger = false
     }
 
-    /** Lets go of everything, e.g. when the game leaves the screen. */
     fun cancel() {
         handler.removeCallbacks(longPress)
         release()
@@ -192,7 +172,7 @@ class PointerGestures private constructor(
             Mode.PINCH -> {
                 val steps = (ln(span / spanRef) / ln(ZOOM_STEP)).toInt()
                 if (steps != 0) {
-                    pad?.zoom(steps) ?: wheel(-steps)   // spreading zooms in: the wheel turned up
+                    pad?.zoom(steps) ?: wheel(-steps)   // spreading zooms in: wheel up
                     spanRef *= ZOOM_STEP.pow(steps)
                 }
             }
@@ -200,15 +180,13 @@ class PointerGestures private constructor(
                 val step = SCROLL_STEP_DP * density
                 val steps = ((scrollRef - midY) / step).toInt()
                 if (steps != 0) {
-                    wheel(steps)   // fingers up, the list moves up: scrolled down, as on a phone
+                    wheel(steps)   // fingers up scroll down, as on a phone
                     scrollRef -= steps * step
                 }
             }
             else -> {}
         }
     }
-
-    // To the X server and the pad.
 
     private fun moveTo(x: Float, y: Float) {
         lorie.getLocationInWindow(location)
@@ -239,22 +217,19 @@ class PointerGestures private constructor(
         lorie.sendMouseEvent(0f, 0f, button, false, false)
     }
 
-    /** [notches] of the wheel: negative up, positive down (the X server counts 120 a notch). */
+    /** Negative up, positive down; the X server counts 120 a notch. */
     private fun wheel(notches: Int) = lorie.sendMouseWheelEvent(0f, notches * 120f)
 
     companion object {
         private const val LONG_PRESS_MS = 300L
         private const val TAP_MS = 300L
-        /** Spreading the fingers this much further apart is one notch of zoom. */
+        /** Span ratio per notch of zoom. */
         private const val ZOOM_STEP = 1.18f
         private const val SCROLL_STEP_DP = 36f
 
-        /**
-         * [pad]: controller mode's gestures; null for touch controls. Null if Termux:X11's input mapping
-         * can't be reached (its private fields renamed): touches then reach the game as Termux:X11 sends them.
-         */
+        /** Null if Termux:X11's private fields were renamed: touches then reach the game as Termux:X11 sends them. */
         fun attach(activity: MainActivity, mining: () -> Boolean, pad: PadPresses?, onLongPress: () -> Unit): PointerGestures? = runCatching {
-            // The view-to-X-screen mapping Termux:X11 keeps for its own touch handling, letterboxing included.
+            // Termux:X11's own view-to-X-screen mapping, letterboxing included.
             val handler = MainActivity::class.java.getDeclaredField("mInputHandler").apply { isAccessible = true }.get(activity)!!
             val renderData = handler.javaClass.getDeclaredField("mRenderData").apply { isAccessible = true }.get(handler) as RenderData
             PointerGestures(activity.lorieView, renderData, mining, onLongPress, pad)

@@ -16,11 +16,7 @@ import app.pocketfoundry.Settings
 import kotlin.math.abs
 import java.util.WeakHashMap
 
-/**
- * Pocket Foundry's side of Termux:X11's game activity, without changing that activity:
- * the controller over it, Back to the launcher, the game paused while it's off
- * screen, and the activity closed when the game exits.
- */
+/** Pocket Foundry's side of Termux:X11's game activity, added from outside so that activity stays unchanged. */
 object OnScreenController : Application.ActivityLifecycleCallbacks {
     private val views = WeakHashMap<Activity, ControllerView>()
     private val gestures = WeakHashMap<Activity, PointerGestures>()
@@ -33,7 +29,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         app.registerActivityLifecycleCallbacks(this)
         Session.addListener {
             if (Session.state != Session.State.STOPPED) return@addListener
-            // Seen from the game: land back on the launcher (its own task).
+            // The game has its own task: finishing it alone wouldn't bring the launcher back.
             resumed?.let { it.startActivity(Intent(it, LauncherActivity::class.java)) }
             views.keys.toList().forEach { it.finish() }
         }
@@ -41,7 +37,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityPostCreated(activity: Activity, savedInstanceState: Bundle?) {
         if (activity !is MainActivity) return
-        // The controls the game was started with: its input mode follows them.
+        // The controls the game started with, not Settings': its input mode was set then.
         val touch = Session.controls == "touch"
         val view = ControllerView(activity, touch)
         activity.addContentView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
@@ -49,16 +45,11 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         val lorie = activity.lorieView
         view.keys = { code, down -> lorie.sendKeyEvent(0, code, down) }
         view.onKeyboard = { lorie.toggleKeyboardVisible() }
-        // Either way, touching the game is its mouse: in controller mode that moves its cursor
-        // to the spot (the buttons act there) and clicks in its menus, and gestures press the pad.
         val mouse = PointerGestures.attach(activity, { view.mining }, if (touch) null else PadPresses()) {
             if (Settings.vibration(activity)) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         }
         mouse?.let { gestures[activity] = it }
         val launcher = { activity.startActivity(Intent(activity, LauncherActivity::class.java)) }
-        // A real controller plays through the same virtual pad; a real keyboard types into the game as it
-        // is. The drawn controls step aside for them: the pad while a controller is played, the stick and
-        // keys while a keyboard is connected.
         val controller = Gamepads(activity, launcher) { view.padInHand = it }
         pads[activity] = controller
         keyboards[activity] = InUse(activity, Keyboards::isKeyboard, fromConnecting = true) { view.keyboardInHand = it }
@@ -83,9 +74,8 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
     }
 
     /**
-     * Termux:X11 hands every key to the X server before the window sees it (LorieView's pre-IME dispatch,
-     * through the activity's key listener): [look] sees each first, and keeps those it returns true for.
-     * If that listener can't be reached (renamed), [TouchRouter] still offers it the keys that get past.
+     * Termux:X11 sends keys to X before the window sees them (LorieView's pre-IME dispatch), so [look] wraps
+     * that listener. If the field can't be reached, [TouchRouter] still offers it the keys that get past.
      */
     private fun takeKeysFirst(activity: MainActivity, look: (KeyEvent) -> Boolean) = runCatching {
         val field = MainActivity::class.java.getDeclaredField("mLorieKeyListener").apply { isAccessible = true }
@@ -95,7 +85,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         activity.lorieView.setOnKeyListener(ours)
     }.onFailure { Log.w("PocketFoundry", "Controller buttons may reach Termux:X11 as keys", it) }
 
-    /** The panel at 60 Hz while playing: the game draws at most 60 frames a second, and 30 divides it evenly. */
+    /** 60 Hz: the game draws at most 60 frames a second, and 30 divides it evenly. */
     private fun applyRefreshRate(activity: Activity) {
         val display = activity.display ?: return
         val now = display.mode
@@ -106,7 +96,6 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         activity.window.attributes = activity.window.attributes.apply { preferredDisplayModeId = mode.modeId }
     }
 
-    // Nothing stays held down while the game is off screen.
     override fun onActivityPaused(activity: Activity) {
         if (resumed === activity) resumed = null
         views[activity]?.releaseAll()

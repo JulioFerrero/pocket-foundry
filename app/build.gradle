@@ -14,11 +14,9 @@ android {
         ndk { abiFilters 'arm64-v8a' }
     }
 
-    // liblzma for unpacking the game and the runtime.
     externalNativeBuild.cmake.path 'src/main/cpp/CMakeLists.txt'
 
-    // The glibc loader ships as jniLibs/libld-linux.so: extracted native
-    // libraries are the only files an app may exec on Android 10+.
+    // Extracted native libraries are the only files an app may exec on Android 10+; the glibc loader is one.
     packaging.jniLibs.useLegacyPackaging true
 
     // Built by runtime/build.sh assemble.
@@ -27,9 +25,7 @@ android {
         jniLibs.srcDirs += '../runtime/out/apk/jniLibs'
     }
 
-    // Pocket Foundry's own key, kept outside the repo (../pocketfoundry-keys next to it, or $POCKETFOUNDRY_SIGNING).
-    // It signs debug builds too, so either kind installs over the other and the imported game
-    // stays. Without it, builds get the usual debug key.
+    // The release key signs debug builds too, so either installs over the other and the imported game stays.
     def signing = file(System.getenv('POCKETFOUNDRY_SIGNING') ?: '../../pocketfoundry-keys/keystore.properties')
     if (signing.exists()) {
         def key = new Properties()

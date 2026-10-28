@@ -1,7 +1,5 @@
 #!/bin/bash
-# Runs inside the build container: glibc 2.44 with Termux's Android patches
-# (termux-patches/, see SOURCE), installed for our app's prefix into /out.
-# Mirrors termux-patches/build.sh for aarch64 only.
+# Runs inside the build container: glibc with Termux's Android patches, mirroring termux-patches/build.sh for aarch64.
 set -euo pipefail
 
 VERSION=2.44
@@ -16,8 +14,7 @@ echo "$SHA256  glibc-$VERSION.tar.xz" | sha256sum -c
 rm -rf "$SRC" && mkdir -p /work && tar -xf glibc-$VERSION.tar.xz -C /work
 cd "$SRC"
 
-# Termux's placeholders become our prefix. One change of ours: the shell for
-# system()/popen() is Android's. Apps can't exec files from their data dir.
+# system()/popen() use Android's shell: apps can't exec files from their data dir.
 for p in "$PATCHES"/*.patch; do
     sed -e "s#@TERMUX_PREFIX@/bin/sh#/system/bin/sh#g" \
         -e "s#@TERMUX_PREFIX_CLASSICAL@#$PREFIX#g" \
@@ -34,7 +31,7 @@ bash "$PATCHES"/gen-android-ids.sh /data/data/app.pocketfoundry/files nss/androi
 cp "$PATCHES"/syslog.c misc/
 cp "$PATCHES"/shmem-android.* sysvipc/
 
-# Syscalls Android's seccomp filter traps are routed to fake implementations.
+# Syscalls Android's seccomp filter traps go to fake implementations.
 A=sysdeps/unix/sysv/linux/aarch64
 J="$PATCHES"/fakesyscall.json
 mv $A/syscall.S $A/syscallS.S
@@ -70,7 +67,7 @@ for i in /dev/stderr:/proc/self/fd/2 /dev/stdin:/proc/self/fd/0 /dev/stdout:/pro
 done
 sed -i "s/\"$VERSION\"/\"$VERSION-pocketfoundry\"/" version.h
 
-# termux_step_configure (without systemtap)
+# termux_step_configure, without systemtap
 mkdir -p build && cd build
 {
     echo "slibdir=$PREFIX/lib"

@@ -1,28 +1,20 @@
-"""Pocket Foundry's own blueprint factory (no Factorio assets), drawn by the launcher's stage
-(app/src/main/java/app/pocketfoundry/stage/Blueprint.kt) on the Welcome and Importing screens.
-
-Plates come in from the left; inserters lift them into assemblers, output inserters put gears on
-the top belt. Science comes in from the right; inserters feed it into labs. The belts are simulated:
-an inserter takes one real item off its belt, so the belt thins out downstream.
-
-Welcome: buildings are placed as ghosts and built one after another (each entity's "welcome", in s).
-Import:  each building is built when the import percent passes its threshold ("import"). Until an
-         inserter is built, the items it would take flow past it.
+"""The blueprint factory (no Factorio assets) that stage/Blueprint.kt draws on Welcome and Importing.
+Each piece is built at its "welcome" time in s, or when the import passes its "import" percent.
 
 python3 tools/stage/blueprint.py app/src/main/assets/stage   writes blueprint.json"""
 import json
 import sys
 
 TICK = 0.05                 # s
-CYCLE = 64                  # ticks per inserter swing: 3.2 s
-PERIOD = 640                # ticks: one trip of an item slot along its belt, 32 s
-SPEED = 1.5                 # px per tick: 30 px/s, a yellow belt at 16 px a tile
+CYCLE = 64                  # ticks per inserter swing
+PERIOD = 640                # ticks for an item slot to travel its belt
+SPEED = 1.5                 # px per tick: a yellow belt at 16 px a tile
 GAP = 12                    # px between items
-X0, X1 = -40, 920           # belts run off both edges; X1 - X0 = SPEED * PERIOD
+X0, X1 = -40, 920           # belts run off both edges
 LENGTH = X1 - X0
 SLOTS = LENGTH // GAP
-GRAB, DROP = 0, 30          # ticks into a swing: the hand closes on an item, the hand lets go
-WAIT = 7                    # ticks the arm rests at either end, so it can wait a little for an item or a gap
+GRAB, DROP = 0, 30          # ticks into a swing when the hand closes and opens
+WAIT = 7                    # ticks the hand can wait at either end for an item or a gap
 assert SPEED * PERIOD == LENGTH and PERIOD % CYCLE == 0 and LENGTH % GAP == 0
 
 
@@ -30,7 +22,7 @@ class Belt:
     def __init__(self, y, direction, full, item):
         self.y, self.direction, self.full, self.item = y, direction, full, item
         self.present = [full] * SLOTS
-        self.actor = [None] * SLOTS            # the inserter that empties or fills the slot on its trip
+        self.actor = [None] * SLOTS            # the inserter that empties or fills each slot
         self.recording = False                 # only the settled loop counts, not the warm-up
         self.history = [[] for _ in range(SLOTS)]
 
@@ -46,7 +38,7 @@ class Belt:
                 self.present[k] = self.full
 
     def flip(self, at, n, want, who):
-        """Takes the item (want=True) or fills the gap (want=False) under the hand, if there is one."""
+        """Takes an item (want=True) or fills a gap (want=False) under the hand, if there is one."""
         near = [k for k in range(SLOTS) if abs(self.x(k, n) - at) <= 4 and self.present[k] == want]
         if not near:
             return False
@@ -66,12 +58,12 @@ class Inserter:
 
     def tick(self, n, belt):
         c = (n - self.phase) % CYCLE
-        if self.takes:                                   # belt -> machine
+        if self.takes:
             if not self.holding and GRAB <= c <= GRAB + WAIT:
                 self.holding = belt.flip(self.cx, n, True, self.n)
             elif self.holding and c == DROP:
                 self.holding = False
-        else:                                            # machine -> belt
+        else:
             if c == GRAB:
                 self.holding = True
             elif self.holding and DROP <= c <= DROP + WAIT:
@@ -79,8 +71,8 @@ class Inserter:
 
 
 def timing(x, direction, residue, window):
-    """A swing timing that puts the hand at x while a slot of the given residue (mod the slots a
-    swing lets by) passes: inserters on one belt with different residues never compete for an item."""
+    """The phase that puts the hand at x as a slot of this residue (mod the slots a swing lets by)
+    passes: inserters on one belt with different residues never compete for an item."""
     per_swing = int(SPEED * CYCLE // GAP)
     u = x - X0 if direction > 0 else X1 - x
     for phase in range(CYCLE):
@@ -151,8 +143,6 @@ def build(mode):
 
 
 def plan():
-    """Everything the stage draws: where each piece is, when it's built in either mode, which belt
-    slots hold an item at each tick of the loop and what each inserter holds."""
     belts, inserters, when, asm_x, lab_x = build("welcome")
     _, _, at_percent, _, _ = build("import")
     bits = lambda seq: "".join("1" if v else "0" for v in seq)
@@ -162,7 +152,7 @@ def plan():
     def pole_row(key, xs, y):
         poles, wires = [], []
         for i, px in enumerate(xs):
-            # A pole and its wire to the pole on its left, both built with the later building.
+            # A pole and its wire to the left go up with the later of the buildings they serve.
             def t(table):
                 return max(table[(key, i)], table[(key, i + 1)]) if key == "pole-bottom" else table[(key, i)]
             def t_wire(table):
@@ -179,7 +169,7 @@ def plan():
         "tick": TICK, "cycle": CYCLE, "period": PERIOD, "speed": SPEED, "gap": GAP, "x0": X0, "x1": X1, "grab": GRAB,
         "belts": [{"item": name, "y": b.y, "direction": b.direction, "full": b.full,
                    "welcome": belt_times[name][0], "import": belt_times[name][1],
-                   # Per slot: the inserter that acts on it (-1: none) and, if one does, whether it holds an item at each tick.
+                   # Per slot: the inserter that acts on it (-1: none) and, if any, whether it holds an item each tick.
                    "actors": [-1 if a is None else a for a in b.actor],
                    "visible": [bits(h) if a is not None else "" for a, h in zip(b.actor, b.history)]}
                   for name, b in belts.items()],

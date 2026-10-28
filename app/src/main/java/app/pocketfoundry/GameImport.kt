@@ -8,9 +8,8 @@ import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 
-/** The user's own Factorio: imported from the factorio.com Linux arm64 .tar.xz, never shipped. */
+/** The user's own Factorio, from the factorio.com Linux arm64 .tar.xz: never ship it. */
 object GameImport {
-    /** Installed version from data/base/info.json, or null when nothing is imported. */
     fun installedVersion(context: Context): String? {
         val paths = Paths(context)
         val info = File(paths.game, "data/base/info.json")
@@ -18,7 +17,7 @@ object GameImport {
         return runCatching { JSONObject(info.readText()).getString("version") }.getOrNull()
     }
 
-    /** Unpacks [uri] into files/game. [onProgress] gets 0..1 of the compressed file read. */
+    /** [onProgress] gets 0..1 of the compressed file read. */
     fun import(context: Context, uri: Uri, onProgress: (Float) -> Unit) {
         val paths = Paths(context)
         val size = context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)

@@ -1,7 +1,5 @@
 #!/bin/bash
-# Runs inside the build container: SDL 3.4 with Pocket Foundry's audio driver and virtual
-# gamepad (runtime/sdl/pocketfoundry, hooked in by runtime/sdl/patches). The game picks it
-# up through SDL3_DYNAMIC_API; its own statically linked SDL forwards every call.
+# Runs inside the build container. The game's statically linked SDL forwards every call to this one (SDL3_DYNAMIC_API).
 set -euo pipefail
 
 VERSION=3.4.18
@@ -18,9 +16,8 @@ cd "$SRC"
 for p in /runtime/sdl/patches/*.patch; do patch -p1 < "$p"; done
 mkdir -p src/pocketfoundry && cp /runtime/sdl/pocketfoundry/* src/pocketfoundry/
 
-# Only what the game needs on our X server. io_uring is off because Android's
-# syscall filter kills processes that use it; the rest would find nothing to talk to.
-# The virtual joystick is only offered with HIDAPI on; its own drivers stay off.
+# io_uring off: Android's syscall filter kills processes that use it.
+# SDL only offers the virtual joystick with HIDAPI on; HIDAPI's own drivers stay off.
 cmake -S . -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_INSTALL_LIBDIR=lib \
     -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
@@ -36,12 +33,10 @@ ninja -C build
 rm -rf /out/sdl && DESTDIR=/out/sdl ninja -C build install
 strip --strip-unneeded /out/sdl$PREFIX/lib/libSDL3.so.*.*
 
-# A small tool that prints the gamepad events SDL sees (no game needed).
 mkdir -p /out/sdl$PREFIX/bin
 gcc -O2 -o /out/sdl$PREFIX/bin/pocketfoundry-padtest /runtime/sdl/padtest.c \
     -I/out/sdl$PREFIX/include -L/out/sdl$PREFIX/lib -lSDL3
 strip /out/sdl$PREFIX/bin/pocketfoundry-padtest
-# And one that prints the mouse and keys SDL sees in a window (the touch controls, no game needed).
 gcc -O2 -o /out/sdl$PREFIX/bin/pocketfoundry-inputtest /runtime/sdl/inputtest.c \
     -I/out/sdl$PREFIX/include -L/out/sdl$PREFIX/lib -lSDL3
 strip /out/sdl$PREFIX/bin/pocketfoundry-inputtest

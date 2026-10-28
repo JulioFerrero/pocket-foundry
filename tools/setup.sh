@@ -1,6 +1,5 @@
 #!/bin/sh
-# One-time (and after pulling): fetch Termux:X11 with its submodules and apply
-# our patches to it. Safe to rerun.
+# Run once and after pulling: fetches Termux:X11 and applies our patches. Safe to rerun.
 set -e
 cd "$(dirname "$0")/.."
 git submodule update --init third_party/termux-x11

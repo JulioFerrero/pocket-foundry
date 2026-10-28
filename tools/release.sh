@@ -1,9 +1,7 @@
 #!/bin/sh
 # Builds a signed release APK and publishes it as a GitHub release:
-#   tools/release.sh 0.3            version 0.3: commit, tag v0.3, build, upload, publish
-#   tools/release.sh 0.3 --draft    the same, left as a draft that only the repo's owners see
-# It needs a clean main in step with GitHub, Pocket Foundry's key (see app/build.gradle), gh logged
-# in, and a runtime built from the committed runtime/ (runtime/build.sh glibc mesa sdl wm assemble).
+#   tools/release.sh 0.3            commit, tag v0.3, build, upload, publish
+#   tools/release.sh 0.3 --draft    the same, left as a draft
 set -e
 cd "$(dirname "$0")/.."
 
@@ -14,7 +12,6 @@ draft=
 tag=v$version
 fail() { echo "$*" >&2; exit 1; }
 
-# Releases come from exactly what's on GitHub.
 [ "$(git branch --show-current)" = main ] || fail "Releases come from main."
 [ -z "$(git status --porcelain --ignore-submodules=dirty)" ] || fail "Commit or stash your changes first."
 git fetch -q origin main --tags
@@ -24,7 +21,7 @@ gh auth status >/dev/null 2>&1 || fail "Log in to GitHub first: gh auth login"
 signing=${POCKETFOUNDRY_SIGNING:-../pocketfoundry-keys/keystore.properties}
 [ -f "$signing" ] || fail "Pocket Foundry's key is missing: a release signed with another key won't install over earlier ones."
 
-# The runtime in the APK must be what this commit's runtime/ builds, assembled after its pieces.
+# Every runtime piece built from this commit, and assemble after the others.
 stale=
 for piece in glibc mesa sdl wm assemble; do
     built=$(cat "runtime/out/$piece.stamp" 2>/dev/null || true)
@@ -36,7 +33,7 @@ done
 case "$stale" in *assemble*) ;; ?*) stale="$stale assemble" ;; esac
 [ -z "$stale" ] || fail "The runtime isn't built from this commit. Run: runtime/build.sh$stale"
 
-# The version: versionCode goes up by one for each new versionName.
+# A new versionName bumps versionCode by one.
 if ! grep -q "versionName '$version'" app/build.gradle; then
     perl -pi -e 's/^(\s*versionCode )(\d+)$/$1.($2+1)/e; s/^(\s*versionName )\x27[^\x27]*\x27$/$1\x27'"$version"'\x27/' app/build.gradle
     trap 'git checkout -q app/build.gradle' EXIT
@@ -63,7 +60,6 @@ rm -rf "$out" && mkdir -p "$out"
 cp "$apk" "$out/$name"
 (cd "$out" && shasum -a 256 "$name" > "$name.sha256")
 
-# Commit the version, tag it, and publish.
 previous=$(git describe --tags --abbrev=0 2>/dev/null || true)
 if ! git diff --quiet app/build.gradle; then
     git commit -q -m "Pocket Foundry $version" app/build.gradle

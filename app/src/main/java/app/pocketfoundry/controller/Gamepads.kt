@@ -13,27 +13,16 @@ import app.pocketfoundry.PadButton
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/**
- * Real controllers, USB or Bluetooth, playing through the game's virtual pad as the on-screen one does.
- * Android has already turned each into standard gamepad keys and axes (its key layout files), so an
- * Xbox pad, a DualSense or a phone clamp all arrive alike: A B X Y by position, the right stick on
- * Z and RZ. Several at once share the one virtual pad. The game applies its own dead zone.
- *
- * The controller's own home button (Xbox, PS) isn't the game's: it opens the launcher, [onHome], as Back does.
- *
- * [onInUse] says when one is played (a button, or a stick past halfway) and when the last is unplugged,
- * for the on-screen pad to step aside ([InUse]).
- */
+/** Real controllers, all sharing the one virtual pad; no dead zone here, the game applies its own. */
 class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boolean) -> Unit) {
     private val held = HashSet<PadButton>()
     private val sent = IntArray(PadAxis.entries.size)
-    private var hat = 0   // the D-pad when it's a hat: UP, DOWN, LEFT, RIGHT bits
+    private var hat = 0
     private val inUse = InUse(context, ::isGamepad) { on ->
         if (!on) release()
         onInUse(on)
     }
 
-    /** A controller's button, sent to the game: true when it was one. */
     fun key(event: KeyEvent): Boolean {
         val device = event.device?.takeIf(::isGamepad) ?: return false
         val down = event.action == KeyEvent.ACTION_DOWN
@@ -42,7 +31,7 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
             return true
         }
         TRIGGER_KEYS[event.keyCode]?.let { trigger ->
-            // Analog triggers send an axis as well: the key only stands in when there is none.
+            // Analog triggers also send an axis: the key only stands in when there is none.
             if (event.repeatCount == 0 && !hasAxis(device, TRIGGER_AXES.getValue(trigger))) {
                 setAxis(trigger, if (down) 32767 else 0)
                 if (down) used()
@@ -57,7 +46,6 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
         return true
     }
 
-    /** A controller's sticks, triggers and hat, sent to the game: true when it was one. */
     fun motion(event: MotionEvent): Boolean {
         if (!event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.actionMasked != MotionEvent.ACTION_MOVE) return false
         val device = event.device?.takeIf(::isGamepad) ?: return false
@@ -72,7 +60,7 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
         )
         PadAxis.entries.forEach { axis ->
             val value = values[axis.ordinal]
-            // A trigger whose axis this pad lacks is left to its key.
+            // A trigger without an analog axis is driven by its key: a zero here would release it.
             if (axis in TRIGGER_AXES && !hasAxis(device, TRIGGER_AXES.getValue(axis))) return@forEach
             setAxis(axis, (value.coerceIn(-1f, 1f) * 32767).roundToInt())
             if (abs(value) > 0.5f) used()
@@ -84,7 +72,6 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
         return true
     }
 
-    /** Lets go of everything, e.g. when the game leaves the screen. */
     fun release() {
         held.forEach { InputBridge.button(it, false) }
         held.clear()
@@ -132,7 +119,7 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
             KeyEvent.KEYCODE_BUTTON_THUMBR to PadButton.RIGHT_STICK,
             KeyEvent.KEYCODE_BUTTON_SELECT to PadButton.BACK,
             KeyEvent.KEYCODE_BUTTON_START to PadButton.START,
-            // Pads whose D-pad is keys rather than a hat.
+            // Some pads send the D-pad as keys rather than a hat.
             KeyEvent.KEYCODE_DPAD_UP to PadButton.DPAD_UP,
             KeyEvent.KEYCODE_DPAD_DOWN to PadButton.DPAD_DOWN,
             KeyEvent.KEYCODE_DPAD_LEFT to PadButton.DPAD_LEFT,
@@ -140,7 +127,7 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
         )
         private val TRIGGER_KEYS = mapOf(KeyEvent.KEYCODE_BUTTON_L2 to PadAxis.LEFT_TRIGGER,
                                          KeyEvent.KEYCODE_BUTTON_R2 to PadAxis.RIGHT_TRIGGER)
-        /** Each trigger's analog axes, either of which a pad may use. */
+        /** A pad may report a trigger on either axis. */
         private val TRIGGER_AXES = mapOf(
             PadAxis.LEFT_TRIGGER to intArrayOf(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE),
             PadAxis.RIGHT_TRIGGER to intArrayOf(MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS),
@@ -148,13 +135,12 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
 
         private fun hasAxis(device: InputDevice, axes: IntArray) = axes.any { device.getMotionRange(it) != null }
 
-        /** A controller: gamepad buttons, not just a joystick axis (a phone may have one of those built in). */
+        /** Gamepad buttons, not just joystick axes: a phone may have those built in. */
         fun isGamepad(device: InputDevice?) =
             device != null && !device.isVirtual && device.supportsSource(InputDevice.SOURCE_GAMEPAD)
 
         fun connected(context: Context) = InUse.connected(context, ::isGamepad)
 
-        /** The motor of the first controller that has one, for the game's rumble. */
         fun vibrator(context: Context): Vibrator? {
             val input = context.getSystemService(InputManager::class.java)
             return input.inputDeviceIds.asSequence()

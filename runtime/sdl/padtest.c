@@ -1,5 +1,4 @@
-// Prints what SDL sees from the gamepad for 30 s: checks the app → SDL path
-// without the game.  Run from a debug build:
+// Prints what SDL sees from the gamepad for 30 s, without the game. Run from a debug build:
 //   adb shell am broadcast -a app.pocketfoundry.debug.PAD --es run pocketfoundry-padtest
 #include <SDL3/SDL.h>
 #include <stdio.h>

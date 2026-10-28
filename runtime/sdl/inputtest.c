@@ -1,6 +1,4 @@
-// Opens a window on the X server and prints the mouse, wheel, keys and gamepad SDL sees, as
-// Factorio would get them: checks the controls → X / virtual pad → SDL paths without the game
-// (or a GPU).
+// Prints the mouse, keys and gamepad SDL sees in a window, without the game or a GPU.
 // Debug builds run it in the game's place with `test.program=pocketfoundry-inputtest` in
 // files/debug.env; it prints to logs/game.log.
 #include <SDL3/SDL.h>
@@ -28,7 +26,6 @@ int main(void)
     bool running = true;
     SDL_Event e;
     while (running) {
-        // A plain grey window: something on screen, no GPU needed.
         SDL_Surface *surface = SDL_GetWindowSurface(window);
         if (surface) {
             SDL_FillSurfaceRect(surface, NULL, SDL_MapSurfaceRGB(surface, 60, 60, 64));
@@ -42,7 +39,7 @@ int main(void)
             running = false;
             break;
         case SDL_EVENT_MOUSE_MOTION:
-            // Every motion while a button is held; otherwise at most every 100 ms.
+            // Timestamps are in ns: at most every 100 ms unless a button is held.
             if (e.motion.state || e.motion.timestamp - lastMotion > 100000000) {
                 printf("motion %.0f,%.0f%s\n", e.motion.x, e.motion.y, e.motion.state ? " held" : "");
                 lastMotion = e.motion.timestamp;
@@ -65,7 +62,7 @@ int main(void)
             printf("pad %s %s\n", SDL_GetGamepadStringForButton((SDL_GamepadButton) e.gbutton.button), e.gbutton.down ? "down" : "up");
             break;
         case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-            // Triggers only, in quarters (0 let go .. 4 pulled): a trigger left half pulled shows as 2.
+            // Triggers only, in quarters: 0 released .. 4 fully pulled.
             if (e.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || e.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
                 static int quarter[SDL_GAMEPAD_AXIS_COUNT];
                 int now = (e.gaxis.value + 4096) / 8192;

@@ -9,10 +9,6 @@ import java.io.InputStream
 import java.util.concurrent.ArrayBlockingQueue
 import kotlin.concurrent.thread
 
-/**
- * Unpacks a .tar.xz into [dest], dropping the first [strip] path components.
- * Decompression runs on its own thread so it overlaps with writing the files.
- */
 fun untarXz(input: InputStream, dest: File, strip: Int = 0) {
     val root = dest.canonicalFile
     val buffer = ByteArray(1 shl 20)
@@ -50,7 +46,6 @@ fun untarXz(input: InputStream, dest: File, strip: Int = 0) {
     }
 }
 
-/** Reads [source] ahead on a background thread, a few MB at a time. */
 private class PrefetchInputStream(private val source: InputStream) : InputStream() {
     private class Chunk(val bytes: ByteArray, val length: Int, val error: Throwable? = null)
 
@@ -69,7 +64,7 @@ private class PrefetchInputStream(private val source: InputStream) : InputStream
                     filled += n
                 }
                 chunks.put(Chunk(bytes, filled))
-                if (filled < bytes.size) break   // end of data
+                if (filled < bytes.size) break
             }
         } catch (e: Throwable) {
             if (!closed) chunks.put(Chunk(ByteArray(0), 0, e))
@@ -85,7 +80,7 @@ private class PrefetchInputStream(private val source: InputStream) : InputStream
         if (len == 0) return 0
         var chunk = current
         while (chunk == null || pos == chunk.length) {
-            if (chunk != null && chunk.length < chunk.bytes.size) return -1   // that was the last one
+            if (chunk != null && chunk.length < chunk.bytes.size) return -1
             chunk = chunks.take()
             chunk.error?.let { throw IOException(it.message, it) }
             current = chunk
@@ -106,7 +101,6 @@ private class PrefetchInputStream(private val source: InputStream) : InputStream
     }
 }
 
-/** Counts the bytes read through it, for progress on the compressed side. */
 class CountingInputStream(input: InputStream, private val onRead: (Long) -> Unit) :
     FilterInputStream(input) {
     private var count = 0L

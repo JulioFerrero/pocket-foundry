@@ -17,25 +17,15 @@ import java.util.TimeZone
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 
-/**
- * The processes behind a game session, all children of the app:
- * Termux:X11's server (through app_process), pocketfoundry-wm and Factorio
- * (both through our glibc loader).
- *
- * While the game is off screen it's stopped with SIGSTOP: no CPU, no battery,
- * nothing lost. Quitting asks Factorio with SIGTERM, which it handles cleanly
- * (but without saving: the last autosave is what's kept). When the game exits,
- * for whatever reason, the X server and the WM go with it.
- */
 object Session {
     enum class State { STOPPED, RUNNING, PAUSED, QUITTING }
 
     @Volatile var state = State.STOPPED
         private set
-    /** The controls the running game was started with (Settings.controls, or what's plugged in): its input mode can't change until it restarts. */
+    /** What the running game started with: its input mode can't change until it restarts. */
     @Volatile var controls = Settings.CONTROLS[0]
         private set
-    /** How the last session ended: null after a normal quit, else Factorio's exit status. */
+    /** Factorio's exit status, or null after a normal quit. */
     @Volatile var lastFailure: Int? = null
         private set
 
@@ -46,7 +36,7 @@ object Session {
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
 
-    /** [listener] runs on the main thread after every state change. */
+    /** Listeners run on the main thread. */
     fun addListener(listener: () -> Unit) = listeners.add(listener)
     fun removeListener(listener: () -> Unit) = listeners.remove(listener)
 
@@ -64,19 +54,15 @@ object Session {
             wm = glibc(paths, listOf(File(paths.prefix, "bin/pocketfoundry-wm").path), "wm.log")
         }
         if (game?.isAlive != true) {
-            // An autosave cut short when the game was killed; Factorio offers it as
-            // "Continue" and then can't open it.
+            // Autosaves cut short by a kill: Factorio offers them as "Continue" and can't open them.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
-            // What's plugged in plays, whatever the on-screen choice: a controller puts Factorio in its
-            // controller mode, a keyboard in its keyboard-and-mouse mode. A controller wins if there are both.
+            // A keyboard plays in "touch", Factorio's keyboard-and-mouse mode.
             controls = when {
                 Gamepads.connected(context) -> Settings.CONTROLS[0]
                 Keyboards.connected(context) -> Settings.CONTROLS[1]
                 else -> Settings.controls(context)
             }
             writeConfig(paths, Settings.spriteQuality(context), controls)
-            // Debug builds: `test.program=<tool>` in files/debug.env runs a runtime tool in the game's place,
-            // e.g. pocketfoundry-inputtest to see what the controls send without the game (or a GPU).
             val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
             val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
                           else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
@@ -91,7 +77,6 @@ object Session {
         }
     }
 
-    /** Freezes the game while it's off screen. */
     @Synchronized
     fun pause() {
         if (state != State.RUNNING) return
@@ -106,7 +91,7 @@ object Session {
         setState(State.RUNNING)
     }
 
-    /** Asks Factorio to quit; it takes a few seconds. Killed if it hasn't gone in 30 s. */
+    /** Factorio quits cleanly on SIGTERM, in a few seconds, but doesn't save: the last autosave is kept. */
     @Synchronized
     fun quit() {
         val process = game ?: return
@@ -133,7 +118,7 @@ object Session {
         main.post { listeners.forEach { it() } }
     }
 
-    /** Our child process whose command line mentions [needle]: Android's Process doesn't say its pid. */
+    /** Android's Process doesn't expose its pid. */
     private fun childPid(needle: String): Int {
         val me = android.os.Process.myPid().toString()
         File("/proc").listFiles { f -> f.name.all(Char::isDigit) }?.forEach { dir ->
@@ -173,10 +158,7 @@ object Session {
         }
     }
 
-    /**
-     * Debug builds only: `game.KEY=VALUE` and `x11.KEY=VALUE` lines from files/debug.env over the game's
-     * and the X server's environment, to try things on the phone without a rebuild (and `test.program`).
-     */
+    /** files/debug.env, to try things on the phone without a rebuild. */
     private fun debugEnvironment(context: Context, process: String): Map<String, String> {
         if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) return emptyMap()
         val file = File(Paths(context).files, "debug.env")
@@ -188,7 +170,6 @@ object Session {
         }.toMap().also { if (it.isNotEmpty()) Log.i("PocketFoundry", "debug.env for $process: $it") }
     }
 
-    /** Runs one of the runtime's tools (files/usr/bin) on its own, logging to logs/[name].log. */
     fun runTool(context: Context, name: String): Process {
         val paths = Paths(context)
         paths.logs.mkdirs()
@@ -198,20 +179,14 @@ object Session {
     }
 
     /**
-     * Factorio's UI scale counts display points, and SDL says how many pixels make one: as many more as
-     * the resolution has over the natural one, so the game's UI is the same size on the screen at every
-     * resolution and on every phone (Native here: twice the pixels, twice the scale), and the player's
-     * own scale in the game still applies. SDL takes 1 to 10: a screen below the natural density keeps 1.
+     * Pixels per display point, which Factorio's UI scale counts: scaled with the resolution so the UI
+     * keeps its size on screen. SDL takes 1 to 10.
      */
     private fun uiScale(context: Context): Map<String, String> {
         val points = Settings.naturalResolutionScale(context) / Settings.resolutionScale(context)
         return mapOf("SDL_VIDEO_X11_SCALING_FACTOR" to "%.4f".format(Locale.ROOT, points.coerceAtLeast(1f)))
     }
 
-    /**
-     * Runs a program from the runtime: `libld-linux.so --library-path files/usr/lib <program>`,
-     * with [extra] over the default environment (the chosen graphics driver's, for the game).
-     */
     private fun glibc(paths: Paths, command: List<String>, log: String, extra: Map<String, String> = emptyMap()): Process {
         val pb = ProcessBuilder(listOf(paths.loader.path, "--library-path", paths.lib.path) + command)
         pb.environment().apply {
@@ -228,11 +203,8 @@ object Session {
             put("VK_DRIVER_FILES", File(paths.prefix, "share/vulkan/icd.d/freedreno_icd.aarch64.json").path)
             put("__EGL_VENDOR_LIBRARY_DIRS", File(paths.prefix, "share/glvnd/egl_vendor.d").path)
             put("MESA_LOADER_DRIVER_OVERRIDE", "zink")
-            // Our Turnip waits for each frame before presenting it (runtime/mesa/patches);
-            // imported ones get the software path instead (Drivers.environment).
             put("SDL_VIDEO_DRIVER", "x11")
-            // The game's built-in SDL hands everything to ours, which brings the
-            // app's sound and gamepad (runtime/sdl).
+            // The game's built-in SDL hands everything to ours (runtime/sdl), which has the app's sound and gamepad.
             put("SDL3_DYNAMIC_API", File(paths.lib, "libSDL3.so.0").path)
             put("SDL_AUDIO_DRIVER", "pocketfoundry")
             put("POCKETFOUNDRY_AUDIO", paths.audioSocket.path)
@@ -243,20 +215,16 @@ object Session {
         return pb.redirectErrorStream(true).redirectOutput(File(paths.logs, log)).start()
     }
 
-    /**
-     * Factorio derives its paths from its executable, which here is the loader,
-     * so the config names them. Factorio fills in the rest of the file itself.
-     */
+    /** Factorio derives its paths from its executable, here the loader, so the config names them. */
     private fun writeConfig(paths: Paths, spriteQuality: String, controls: String) {
         var config = if (paths.config.exists()) paths.config.readText() else ""
         // Without its version header Factorio calls the file invalid and offers a reset.
         if (!config.startsWith("; version=")) config = "; version=13\n"
         config = setIni(config, "path", "read-data", File(paths.game, "data").path)
         config = setIni(config, "path", "write-data", paths.gameData.path)
-        // Factorio doesn't switch between mouse and gamepad by itself: Settings → Controls decides.
+        // Factorio doesn't switch between mouse and gamepad by itself.
         config = setIni(config, "input", "input-method", if (controls == "touch") "keyboard-and-mouse" else "game-controller")
-        // The automatic UI scale is too small at arm's length; 125% of display points reads
-        // well on a phone. Also only a default.
+        // Factorio's automatic UI scale is too small on a phone.
         if (!Regex("(?m)^ui-scale-mode=").containsMatchIn(config)) {
             config = setIni(config, "interface", "ui-scale-mode", "manual-display-points")
             config = setIni(config, "interface", "custom-proportional-ui-scale", "1.25")
@@ -266,7 +234,6 @@ object Session {
         paths.config.writeText(config)
     }
 
-    /** Sets `key=value` in `[section]` of an INI file, adding the line or the section when missing. */
     private fun setIni(ini: String, section: String, key: String, value: String): String {
         val line = "$key=$value"
         val existing = Regex("(?m)^${Regex.escape(key)}=.*$")

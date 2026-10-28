@@ -15,7 +15,7 @@ object NativeXz {
     @JvmStatic external fun close(handle: Long)
 }
 
-/** Decompresses an .xz stream natively: several times faster than the Java decoder. */
+/** Several times faster than the Java xz decoder. */
 class NativeXzInputStream(private val input: InputStream) : InputStream() {
     private var handle = NativeXz.open().also { if (it == 0L) throw IOException("Couldn't start the xz decoder") }
     private val buffer = ByteArray(1 shl 20)

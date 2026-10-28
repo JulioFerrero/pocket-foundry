@@ -17,21 +17,14 @@ import org.json.JSONObject
 import kotlin.concurrent.thread
 import kotlin.math.floor
 
-/**
- * The launcher's moving background, behind its native panels: Pocket Foundry's blueprint on Welcome,
- * the same blueprint built as the import goes, and a working factory drawn from the player's own
- * Factorio sprites on Home, Paused and Settings. Scenes crossfade, dimmed and desaturated as asked,
- * and only redraw when their picture changes.
- */
+/** The launcher's animated backdrop, behind its panels. */
 @SuppressLint("ViewConstructor")
 class Stage(context: Context, private val paths: Paths) : View(context), Choreographer.FrameCallback {
     enum class Scene { WELCOME, IMPORT, FACTORY }
 
-    /** A scene on screen or fading out; its clock started when it was first shown. */
     private class Layer(val drawing: Drawing, var dim: Float, var saturate: Float) {
         var shownAt = 0L
         var hiddenAt = -1L
-        // The colour filter eases from these to dim and saturate from filterAt.
         var fromDim = dim
         var fromSaturate = saturate
         var filterAt = 0L
@@ -56,12 +49,12 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
     }
 
-    /** Crossfades to [scene], dimmed and desaturated as asked (1 = as drawn). */
+    /** [dim] and [saturate] are factors: 1 is as drawn. */
     fun show(scene: Scene, dim: Float = 1f, saturate: Float = 1f) {
         wanted = Triple(scene, dim, saturate)
         val now = SystemClock.uptimeMillis()
         val top = layers.lastOrNull()?.takeIf { it.hiddenAt < 0 }
-        val drawing = drawing(scene) ?: return            // the factory is still loading: shown when it's in
+        val drawing = drawing(scene) ?: return            // the factory is loading: shown once it's in
         if (top?.drawing === drawing) {
             if (top.dim != dim || top.saturate != saturate) {
                 top.fromDim = dimNow(top, now); top.fromSaturate = saturateNow(top, now); top.filterAt = now
@@ -76,13 +69,11 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         invalidate()
     }
 
-    /** The import's progress, 0-100: the blueprint is built that far. */
     fun progress(value: Int) {
         percent = value
         (drawings[Scene.IMPORT] as? Blueprint)?.percent = value
     }
 
-    /** Off screen: nothing draws. */
     fun pause() {
         running = false
         Choreographer.getInstance().removeFrameCallback(this)
@@ -95,7 +86,7 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         Choreographer.getInstance().postFrameCallback(this)
     }
 
-    /** Gone for good: the factory's sprites go with it. */
+    /** Final: the stage can't be used after. */
     fun release() {
         released = true
         pause()
@@ -115,7 +106,7 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
                 }
             }
             Scene.FACTORY -> {
-                // No sprites (no game imported, or a version that moved them): the blueprint will do.
+                // No sprites (no game, or a version that moved them): the blueprint will do.
                 if (factoryFailed) return drawing(Scene.WELCOME)
                 if (loadingFactory) return null
                 loadingFactory = true
@@ -149,8 +140,6 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         super.onDetachedFromWindow()
     }
 
-    // Redraws only when a frame of what's on screen changes: the factory's 30 a second, the
-    // blueprint's 60, a crossfade or filter change every vsync.
     override fun doFrame(frameTimeNanos: Long) {
         if (!running) return
         val now = SystemClock.uptimeMillis()
@@ -192,7 +181,6 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
     private fun dimNow(layer: Layer, now: Long) = mix(layer.fromDim, layer.dim, ease((now - layer.filterAt) / FADE_MS.toFloat()))
     private fun saturateNow(layer: Layer, now: Long) = mix(layer.fromSaturate, layer.saturate, ease((now - layer.filterAt) / FADE_MS.toFloat()))
 
-    /** CSS's brightness(dim) saturate(saturate). */
     private fun filter(dim: Float, saturate: Float): ColorMatrixColorFilter {
         matrix.setSaturation(saturate)
         brightness.setScale(dim, dim, dim, 1f)
@@ -205,23 +193,20 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         const val BACKGROUND = 0xFF091726.toInt()
         const val FADE_MS = 800L
         fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
-        /** CSS's "ease", for the crossfades. */
+        /** CSS's "ease". */
         val EASE = CubicBezier(0.25f, 0.1f, 0.25f, 1f)
         fun ease(t: Float) = EASE(t.coerceIn(0f, 1f))
     }
 }
 
-/** One of the stage's scenes. */
 abstract class Drawing {
-    /** When it was first shown (uptime ms): its clock starts there. */
+    /** SystemClock.uptimeMillis() when first shown. */
     var born = -1L
-    /** Frames a second worth drawing. */
     abstract val fps: Int
-    /** Draws the scene [time] seconds in, covering [width] × [height]. */
+    /** [time] in seconds since [born]. */
     abstract fun draw(canvas: Canvas, width: Int, height: Int, time: Double)
     open fun release() {}
 
-    /** Scales and centres a [w] × [h] picture to cover [width] × [height], as CSS's cover and SVG's slice do. */
     protected fun cover(canvas: Canvas, width: Int, height: Int, w: Float, h: Float) {
         val scale = maxOf(width / w, height / h)
         canvas.translate((width - w * scale) / 2, (height - h * scale) / 2)
@@ -229,7 +214,7 @@ abstract class Drawing {
     }
 }
 
-/** CSS's cubic-bezier(x1, y1, x2, y2) timing function. */
+/** CSS's cubic-bezier() timing function. */
 class CubicBezier(private val x1: Float, private val y1: Float, private val x2: Float, private val y2: Float) {
     private fun curve(t: Float, a: Float, b: Float) = 3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t
     private fun slope(t: Float, a: Float, b: Float) = 3 * (1 - t) * (1 - t) * a + 6 * (1 - t) * t * (b - a) + 3 * t * t * (1 - b)
@@ -252,5 +237,5 @@ class CubicBezier(private val x1: Float, private val y1: Float, private val x2: 
     }
 }
 
-/** The fraction past the last whole one: [x] - floor(x), so negative times wrap too. */
+/** Unlike x % 1, wraps negative [x] into 0..1 too. */
 internal fun frac(x: Double) = x - floor(x)

@@ -10,7 +10,7 @@ rootProject.name = 'pocketfoundry'
 
 include ':app'
 
-// The X server comes from Termux:X11 (git submodule, patched by tools/setup.sh).
+// Termux:X11's X server, fetched and patched by tools/setup.sh.
 include ':lorie'
 project(':lorie').projectDir = file('third_party/termux-x11/lorie')
 include ':shell-loader:stub'
