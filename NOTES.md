@@ -128,7 +128,7 @@ else above is compatible with it.
 **Result: it works.** It reaches the main menu, loads a save, and the counter is visible. Default setup: Zink on Turnip,
 `MESA_VK_WSI_DEBUG=sw`, X at 1584×720 scaled to the panel. **FPS/UPS 44–60 on a fresh freeplay map, save
 loaded in 18 s.** No hardware keyboard/mouse was available: the game was driven with `xdotool` over SSH,
-watching the screen. Scripts and steps: `phase1/`.
+watching the screen. Scripts and steps: `phase1/` (in git up to tag v0.3; the launcher replaced them).
 
 Audio works: the music plays (SDL → libpulse → Termux's PulseAudio over TCP).
 
@@ -218,7 +218,7 @@ Mesa's libgallium pulls **libLLVM (about 100 MB)**, so Phase 2 should build Mesa
 
 ### Step 1: no proot, from Termux (2026-10-27) ✅
 
-`phase2/experiments/noproot.sh`: the game and Debian's libraries, started as
+`phase2/experiments/noproot.sh` (in git up to tag v0.3): the game and Debian's libraries, started as
 `ld-linux-aarch64.so.1 --library-path … factorio --config …`. No proot, no container.
 
 **Result: FPS/UPS 60.0/60.0 (three readings), initialised in 16.6 s.** Same save, same Zink + `MESA_VK_WSI_DEBUG=sw`.
@@ -273,7 +273,7 @@ the embedded X server, and the APK shell.
   (Apple's patch silently skips the CMake-applied patches). Native build about 20 s for arm64. AGP 9.3.1, Gradle 9.8.2, NDK pinned 29.0.
 - **Assembled runtime** (`runtime/build.sh assemble`): our glibc + our Mesa + Debian 13's X11/glvnd/Vulkan-loader
   libraries resolved with ldd + pocketfoundry-wm + xkb data. 76 MB of libraries, 4 MB of data, **12.7 MB as tar.xz**.
-  Tested from Termux (`phase2/experiments/runtime-test.sh`, prefix paths overridden by env): **the game runs on it at 60/60,
+  Tested from Termux (`phase2/experiments/runtime-test.sh`, in git up to tag v0.3; prefix paths overridden by env): **the game runs on it at 60/60,
   initialised in 18.4 s, and pocketfoundry-wm makes it fullscreen.** No audio libraries yet: the game retries SDL audio every 0.5 s
   and warns each time (`libasound.so.2` missing). Use `SDL_AUDIO_DRIVER=dummy` until our SDL3 brings audio.
 

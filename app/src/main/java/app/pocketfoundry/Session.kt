@@ -46,8 +46,6 @@ object Session {
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
 
-    val gameRunning get() = game?.isAlive == true
-
     /** [listener] runs on the main thread after every state change. */
     fun addListener(listener: () -> Unit) = listeners.add(listener)
     fun removeListener(listener: () -> Unit) = listeners.remove(listener)

@@ -17,7 +17,4 @@ local.properties
 /runtime/out/
 /runtime/cache/
 /runtime/out-*.log
-/app/build/
-/build/
-/build-app.log
 .cxx/

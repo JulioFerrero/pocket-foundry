@@ -26,7 +26,6 @@ class Paths(context: Context) {
     /** Factorio's write-data: saves, mods, config, its own log. */
     val gameData = File(files, "factorio")
     val config = File(gameData, "config/config.ini")
-    val gameLog = File(gameData, "factorio-current.log")
 
     val home = File(files, "home")
     val logs = File(files, "logs")
