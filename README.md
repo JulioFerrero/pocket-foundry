@@ -120,13 +120,10 @@ tools/setup.sh                               # Termux:X11 with Pocket Foundry's 
 runtime/build.sh glibc mesa sdl wm assemble  # the Linux runtime, built in Docker
 tools/build.sh                               # the debug APK
 tools/build.sh :app:assembleRelease          # the release APK
-tools/release.sh 0.3                         # version 0.3, built, tagged and published in Releases
 ```
 
 Builds are signed with Pocket Foundry's key when `../pocketfoundry-keys/keystore.properties` exists (or `$POCKETFOUNDRY_SIGNING` points
-at one), otherwise with the usual debug key. `tools/release.sh` refuses to publish unless the tree matches GitHub,
-the runtime was built from the committed `runtime/` (each piece records the sources it came from), the APK is signed
-with that key and nothing of Factorio's is inside. `tools/stage/` regenerates the launcher's scenes and `tools/icon_png.py`
+at one), otherwise with the usual debug key. `tools/stage/` regenerates the launcher's scenes and `tools/icon_png.py`
 the icon. `NOTES.md` has every finding and decision along the way.
 
 ## Licence
