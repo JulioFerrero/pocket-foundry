@@ -60,10 +60,11 @@ Your finger is the cursor: touch the game where you want something to happen.
 | D-pad | Right rotates, down picks up items, up shows details on the map. |
 | The two by the toolbar | Map and game menu. |
 
-The toolbar at the top moves, resizes (pinch a button) and fades the buttons, or hides them all.
+The toolbar at the top moves, resizes (pinch a button) and fades the buttons, hides them all, or opens the phone's
+keyboard, for naming a save.
 
 **A controller**, USB or Bluetooth (Xbox, PlayStation, Switch Pro, 8BitDo, phone clamps), plays the game directly:
-the on-screen buttons step aside as soon as you use it and come back when it's unplugged, and touch still moves the
+the on-screen buttons step aside as soon as you use it, all but the toolbar's keyboard, and come back when it's unplugged, and touch still moves the
 cursor. Its home button opens Pocket Foundry's menu, and the game's rumble comes through the controller. A controller
 connected when the game starts puts Factorio in its gamepad mode whatever Settings say. The launcher takes it too: the
 D-pad or stick moves between buttons, lit as in the game, A picks and B goes back. The game names the buttons the

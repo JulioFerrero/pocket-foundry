@@ -836,3 +836,9 @@ draw on the Canvas.
 - Measured on the emulator, Home: v0.3 had the app at 287 MB RSS plus a 350 MB renderer; now the app is 201 MB
   (71 MB PSS), no renderer. Compared frame by frame against screenshots of the WebView version: Home, Settings's
   dimming and its crossfade, Welcome's build-up, Importing at 0, 35, 70 and 100%.
+
+### The phone's keyboard in gamepad mode (2026-10-28)
+Factorio's text fields (a save's name, a train stop's) need typing, and in gamepad mode the toolbar had no way to the
+phone's keyboard: only Touch controls had it, inside the strip of keys. The pad's toolbar now has a keyboard button
+that opens it straight away, and it stays when a real controller makes the drawn pad step aside. A tool's touch margin
+yields to a control under the finger, so the map button beside the toolbar still takes taps at its edge.

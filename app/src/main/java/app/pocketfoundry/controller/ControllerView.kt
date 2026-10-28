@@ -70,7 +70,8 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         var on = false
     }
 
-    private enum class Tool { ADJUST, KEYS, HIDE, SHOW, SMALLER, BIGGER, OPACITY, RESET, DONE }
+    /** KEYS opens touch controls' strip of keys; KEYBOARD, on the pad, opens the phone's keyboard straight away. */
+    private enum class Tool { ADJUST, KEYS, KEYBOARD, HIDE, SHOW, SMALLER, BIGGER, OPACITY, RESET, DONE }
 
     /**
      * Touch controls: the keys the game asks for beyond the six buttons, in a row under the toolbar
@@ -144,8 +145,8 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     private var hidden = false
 
     /**
-     * A real controller is being played ([Gamepads]): the drawn pad steps aside, toolbar and all, until it's
-     * unplugged; the layout editor still shows it. Touch controls stay, as their game ignores the pad.
+     * A real controller is being played ([Gamepads]): the drawn pad steps aside until it's unplugged, leaving
+     * only the toolbar's keyboard; the layout editor still shows it. Touch controls stay, as their game ignores the pad.
      */
     var padInHand = false
         set(value) {
@@ -221,8 +222,8 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     // Touch, from TouchRouter (view coordinates).
 
     fun pointerDown(id: Int, x: Float, y: Float): Boolean {
-        if (stepAside) return false
         toolAt(x, y)?.let { toolPointers[id] = it; invalidate(); return true }
+        if (stepAside) return false
         if (stripOpen && !editing) stripAt(x, y)?.let { pressStrip(id, it); return true }
         if (hidden) return false
 
@@ -458,6 +459,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
                 if (stripOpen) strip.forEach { if (it.down) { keys(it.key, false); it.down = false } }
                 stripOpen = !stripOpen
             }
+            Tool.KEYBOARD -> onKeyboard()
             Tool.HIDE -> { releaseAll(); stripOpen = false; hidden = true; save() }
             Tool.SHOW -> { hidden = false; save() }
             Tool.SMALLER -> selected?.let { it.scale = (it.scale - 0.1f).coerceIn(MIN_SCALE, MAX_SCALE) }
@@ -495,9 +497,12 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
 
     private fun tools(): List<Tool> = when {
         editing -> listOf(Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.RESET, Tool.DONE)
+        // A real keyboard needs nothing on screen; a real controller only the phone's keyboard, for typing names.
+        keyboardInHand -> emptyList()
+        padInHand -> listOf(Tool.KEYBOARD)
         hidden -> listOf(Tool.SHOW)
         touch -> listOf(Tool.ADJUST, Tool.KEYS, Tool.HIDE)
-        else -> listOf(Tool.ADJUST, Tool.HIDE)
+        else -> listOf(Tool.ADJUST, Tool.KEYBOARD, Tool.HIDE)
     }
 
     private fun toolSize() = height * 0.085f
@@ -509,11 +514,17 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         return out
     }
 
+    /** The tool under the finger, with a margin round each that yields to a control there (the map button sits close). */
     private fun toolAt(x: Float, y: Float): Tool? {
+        tool(x, y, 0f)?.let { return it }
+        return tool(x, y, toolSize() * 0.15f)?.takeIf { stepAside || hidden || controlAt(x, y) == null }
+    }
+
+    private fun tool(x: Float, y: Float, margin: Float): Tool? {
         val list = tools()
         list.forEachIndexed { i, tool ->
             toolRect(i, list.size, rect)
-            rect.inset(-toolSize() * 0.15f, -toolSize() * 0.15f)
+            rect.inset(-margin, -margin)
             if (rect.contains(x, y)) return tool
         }
         return null
@@ -555,7 +566,10 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     // Drawing.
 
     override fun onDraw(canvas: Canvas) {
-        if (stepAside) return
+        if (stepAside) {
+            if (tools().isNotEmpty()) drawToolbar(canvas)
+            return
+        }
         if (editing) canvas.drawColor(0x55000000)
         if (!hidden) controls.forEach { draw(canvas, it) }
         drawToolbar(canvas)
@@ -856,7 +870,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
                     canvas.drawCircle(x + knob * s, ly, s * 0.2f, icon)
                 }
             }
-            Tool.KEYS -> {
+            Tool.KEYS, Tool.KEYBOARD -> {
                 // A keyboard: three rows of keys and a space bar.
                 rect.set(x - s * 1.15f, y - s * 0.8f, x + s * 1.15f, y + s * 0.8f)
                 canvas.drawRoundRect(rect, s * 0.2f, s * 0.2f, icon)
