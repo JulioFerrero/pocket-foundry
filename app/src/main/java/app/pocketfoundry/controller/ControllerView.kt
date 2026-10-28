@@ -31,8 +31,9 @@ import kotlin.math.hypot
  *   is used in Factorio, while touching the game moves its cursor: no right stick.
  * It never takes touches through the view system: [TouchRouter] hands it the fingers that land on it.
  *
- * Positions are fractions of the screen, sizes fractions of its height, so a layout
- * keeps its shape across resolutions. The toolbar at the top edits or hides it.
+ * It's laid out for a phone held sideways ([frame]): positions are fractions of that frame and sizes
+ * fractions of its height, so a layout keeps its shape at any resolution, and on a squarer screen
+ * (a foldable open, a tablet) it keeps a phone's. The toolbar at the top edits or hides it.
  */
 @SuppressLint("ViewConstructor")
 class ControllerView(context: Context, private val touch: Boolean) : View(context) {
@@ -46,7 +47,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         val label: String,
         val defaultX: Float,
         val defaultY: Float,
-        /** Diameter (or pill height) as a fraction of the screen height. */
+        /** Diameter (or pill height) as a fraction of the frame's height. */
         val size: Float,
         val button: PadButton? = null,
         val axis: PadAxis? = null,
@@ -58,6 +59,8 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         var x = defaultX
         var y = defaultY
         var scale = 1f
+        /** Map and menu: up by the toolbar, so placed from the top middle rather than a bottom corner. */
+        val byToolbar = defaultY < 0.2f
         val pointers = LinkedHashSet<Int>()
         // Sticks: where the finger came down, and where it is now.
         var originX = 0f
@@ -444,8 +447,8 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
             }
         } else {
             val (lx, ly) = dragLast.getValue(id)
-            control.x = (control.x + (x - lx) / width).coerceIn(0f, 1f)
-            control.y = (control.y + (y - ly) / height).coerceIn(0f, 1f)
+            control.x = (onScreen(cx(control) + x - lx, halfWidth(control), width) - frameLeft(control)) / frameWidth()
+            control.y = (onScreen(cy(control) + y - ly, radius(control), height) - frameTop(control)) / frame()
             dragLast[id] = x to y
         }
         invalidate()
@@ -478,11 +481,28 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         invalidate()
     }
 
-    // Geometry.
+    // Geometry. The layout is drawn in a frame shaped like the phone it was made on: the screen's height, or
+    // less where the screen is squarer than that phone or taller than a phone. Then it sits at the bottom, its
+    // left hand's controls in the left corner and its right hand's in the right, map and menu by the toolbar.
 
-    private fun cx(c: Control) = c.x * width
-    private fun cy(c: Control) = c.y * height
-    private fun radius(c: Control) = c.size * c.scale * height / 2
+    /** The frame's height: the unit all sizes are fractions of. */
+    private fun frame() = minOf(height.toFloat(), width / FRAME_ASPECT, FRAME_MAX_DP * resources.displayMetrics.density)
+    private fun frameWidth() = frame() * FRAME_ASPECT
+
+    /** Where a control's fractions are measured from. */
+    private fun frameLeft(c: Control) = when {
+        c.byToolbar -> (width - frameWidth()) / 2
+        c.defaultX < 0.5f -> 0f
+        else -> width - frameWidth()
+    }
+    private fun frameTop(c: Control) = if (c.byToolbar) 0f else height - frame()
+
+    // Kept whole on screen, also when a layout made on another screen (a foldable, open or shut) reaches past this one.
+    private fun cx(c: Control) = onScreen(frameLeft(c) + c.x * frameWidth(), halfWidth(c), width)
+    private fun cy(c: Control) = onScreen(frameTop(c) + c.y * frame(), radius(c), height)
+    private fun radius(c: Control) = c.size * c.scale * frame() / 2
+    private fun halfWidth(c: Control) = if (c.pill) 2 * radius(c) else radius(c)
+    private fun onScreen(at: Float, half: Float, size: Int) = at.coerceIn(minOf(half, size / 2f), maxOf(size - half, size / 2f))
 
     private fun controlAt(x: Float, y: Float): Control? = controls.lastOrNull { c ->
         val r = radius(c)
@@ -505,12 +525,12 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         else -> listOf(Tool.ADJUST, Tool.KEYBOARD, Tool.HIDE)
     }
 
-    private fun toolSize() = height * 0.085f
+    private fun toolSize() = frame() * 0.085f
 
     private fun toolRect(index: Int, count: Int, out: RectF): RectF {
         val s = toolSize()
         val left = width / 2f - count * s / 2f + index * s
-        out.set(left, height * 0.025f, left + s, height * 0.025f + s)
+        out.set(left, frame() * 0.025f, left + s, frame() * 0.025f + s)
         return out
     }
 
@@ -549,7 +569,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         val gap = h * 0.12f
         var left = width / 2f - (widths.sum() + gap * (strip.size - 1)) / 2f
         for (i in 0 until index) left += widths[i] + gap
-        val top = height * 0.025f + h * 1.35f
+        val top = frame() * 0.025f + h * 1.35f
         out.set(left, top, left + widths[index], top + h)
         return out
     }
@@ -596,7 +616,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         }
     }
 
-    private fun edge() = height * 0.003f
+    private fun edge() = frame() * 0.003f
 
     /** One of the game's slots over [top]..[bottom], outlined by [shape]: a light top edge, orange while held. */
     private fun slot(pressed: Boolean, top: Float, bottom: Float, shape: (Paint) -> Unit) {
@@ -715,7 +735,7 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         }
         if (editing && c === selected) {
             stroke.color = Tone.ORANGE.face
-            stroke.strokeWidth = height * 0.004f
+            stroke.strokeWidth = frame() * 0.004f
             if (c.pill) {
                 rect.set(x - 2.2f * r, y - 1.2f * r, x + 2.2f * r, y + 1.2f * r)
                 canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
@@ -970,5 +990,9 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
         private val OPACITIES = floatArrayOf(0.35f, 0.55f, 0.8f, 1f)
         private const val MIN_SCALE = 0.6f
         private const val MAX_SCALE = 1.8f
+        /** The phone the layout was made on, held sideways: 845 × 384 dp. Most phones are 2 to 2.4. */
+        private const val FRAME_ASPECT = 2.2f
+        /** The tallest the frame gets: a phone's height sideways, so a tablet's controls are a phone's size. */
+        private const val FRAME_MAX_DP = 480f
     }
 }

@@ -842,3 +842,16 @@ Factorio's text fields (a save's name, a train stop's) need typing, and in gamep
 phone's keyboard: only Touch controls had it, inside the strip of keys. The pad's toolbar now has a keyboard button
 that opens it straight away, and it stays when a real controller makes the drawn pad step aside. A tool's touch margin
 yields to a control under the finger, so the map button beside the toolbar still takes taps at its edge.
+
+### On-screen controls on foldables and tablets (2026-10-28)
+A player on a Galaxy Z Fold 8 Ultra found the controls too big and overlapping with the phone open (2504 × 2256):
+positions were fractions of the screen's width and sizes of its height, a shape that only holds on screens like the
+2.2:1 phone the layout was made on. Now it's drawn in a frame of that shape: the screen's height, or less where the
+screen is squarer (its width / 2.2) or taller than a phone held sideways (480 dp). On a squarer screen the frame sits
+at the bottom, the left hand's controls measured from the left corner, the right hand's from the right, map and menu
+from the top middle, by the toolbar. On a 2.2:1 phone nothing moves (checked pixel for pixel on the emulator), and a
+tablet gets a phone's controls in its corners. Controls stay whole on screen, so one moved on the open Fold still
+shows when it's shut. The emulator plays the open Fold with `wm size 2256x2504`, `wm density 420` and
+`wm set-ignore-orientation-request false`; left on (the AVD's default), a large screen letterboxes an app with a
+fixed orientation (ours targets SDK 34) at 4:3 instead of rotating. Not yet known: whether Factorio follows when the
+Fold is opened mid-game (the emulator can't run it).
