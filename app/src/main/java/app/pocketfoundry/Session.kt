@@ -9,6 +9,7 @@ import android.system.Os
 import android.system.OsConstants
 import android.util.Log
 import app.pocketfoundry.controller.Gamepads
+import app.pocketfoundry.controller.Keyboards
 import java.io.File
 import java.io.IOException
 import java.util.Locale
@@ -31,7 +32,7 @@ object Session {
 
     @Volatile var state = State.STOPPED
         private set
-    /** The controls the running game was started with (Settings.controls, or gamepad with a controller plugged in): its input mode can't change until it restarts. */
+    /** The controls the running game was started with (Settings.controls, or what's plugged in): its input mode can't change until it restarts. */
     @Volatile var controls = Settings.CONTROLS[0]
         private set
     /** How the last session ended: null after a normal quit, else Factorio's exit status. */
@@ -68,8 +69,13 @@ object Session {
             // An autosave cut short when the game was killed; Factorio offers it as
             // "Continue" and then can't open it.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
-            // A controller plugged in plays: Factorio in its controller mode, whatever the on-screen choice.
-            controls = if (Gamepads.connected(context)) Settings.CONTROLS[0] else Settings.controls(context)
+            // What's plugged in plays, whatever the on-screen choice: a controller puts Factorio in its
+            // controller mode, a keyboard in its keyboard-and-mouse mode. A controller wins if there are both.
+            controls = when {
+                Gamepads.connected(context) -> Settings.CONTROLS[0]
+                Keyboards.connected(context) -> Settings.CONTROLS[1]
+                else -> Settings.controls(context)
+            }
             writeConfig(paths, Settings.spriteQuality(context), controls)
             // Debug builds: `test.program=<tool>` in files/debug.env runs a runtime tool in the game's place,
             // e.g. pocketfoundry-inputtest to see what the controls send without the game (or a GPU).
@@ -195,11 +201,12 @@ object Session {
 
     /**
      * Factorio's UI scale counts display points, and SDL says how many pixels make one: as many more as
-     * the resolution has over Default's, so the game's UI is the same size on the screen at every one
-     * (Native: twice the pixels, twice the scale), and the player's own scale in the game still applies.
+     * the resolution has over the natural one, so the game's UI is the same size on the screen at every
+     * resolution and on every phone (Native here: twice the pixels, twice the scale), and the player's
+     * own scale in the game still applies. SDL takes 1 to 10: a screen below the natural density keeps 1.
      */
     private fun uiScale(context: Context): Map<String, String> {
-        val points = Settings.DEFAULT_RESOLUTION_SCALE.toFloat() / Settings.resolutionScale(context)
+        val points = Settings.naturalResolutionScale(context) / Settings.resolutionScale(context)
         return mapOf("SDL_VIDEO_X11_SCALING_FACTOR" to "%.4f".format(Locale.ROOT, points.coerceAtLeast(1f)))
     }
 

@@ -4,7 +4,10 @@ import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.HapticFeedbackConstants
+import android.view.KeyEvent
+import android.view.View
 import android.view.ViewGroup
 import com.termux.x11.MainActivity
 import app.pocketfoundry.LauncherActivity
@@ -22,6 +25,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
     private val views = WeakHashMap<Activity, ControllerView>()
     private val gestures = WeakHashMap<Activity, PointerGestures>()
     private val pads = WeakHashMap<Activity, Gamepads>()
+    private val keyboards = WeakHashMap<Activity, InUse>()
     private val borders = WeakHashMap<Activity, GameBorder>()
     private var resumed: Activity? = null
 
@@ -52,10 +56,14 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         }
         mouse?.let { gestures[activity] = it }
         val launcher = { activity.startActivity(Intent(activity, LauncherActivity::class.java)) }
-        // A real controller plays through the same virtual pad, and the drawn one steps aside while it does.
-        val controller = Gamepads.attach(activity, launcher) { view.padInHand = it }
+        // A real controller plays through the same virtual pad; a real keyboard types into the game as it
+        // is. The drawn controls step aside for them: the pad while a controller is played, the stick and
+        // keys while a keyboard is connected.
+        val controller = Gamepads(activity, launcher) { view.padInHand = it }
         pads[activity] = controller
-        activity.window.callback = TouchRouter(activity.window.callback, view, mouse, controller, launcher)
+        keyboards[activity] = InUse(activity, Keyboards::isKeyboard, fromConnecting = true) { view.keyboardInHand = it }
+        takeKeysFirst(activity, controller::key)
+        activity.window.callback = TouchRouter(activity.window.callback, view, mouse, controller::key, controller::motion, launcher)
         views[activity] = view
         borders[activity] = GameBorder(activity)
     }
@@ -73,6 +81,19 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         borders[activity]?.apply()
         if (Settings.takeLayoutEditorRequest(activity)) views[activity]?.startEditing()
     }
+
+    /**
+     * Termux:X11 hands every key to the X server before the window sees it (LorieView's pre-IME dispatch,
+     * through the activity's key listener): [look] sees each first, and keeps those it returns true for.
+     * If that listener can't be reached (renamed), [TouchRouter] still offers it the keys that get past.
+     */
+    private fun takeKeysFirst(activity: MainActivity, look: (KeyEvent) -> Boolean) = runCatching {
+        val field = MainActivity::class.java.getDeclaredField("mLorieKeyListener").apply { isAccessible = true }
+        val keys = field.get(activity) as View.OnKeyListener
+        val ours = View.OnKeyListener { view, code, event -> look(event) || keys.onKey(view, code, event) }
+        field.set(activity, ours)
+        activity.lorieView.setOnKeyListener(ours)
+    }.onFailure { Log.w("PocketFoundry", "Controller buttons may reach Termux:X11 as keys", it) }
 
     /** The panel at 60 Hz while playing: the game draws at most 60 frames a second, and 30 divides it evenly. */
     private fun applyRefreshRate(activity: Activity) {
@@ -103,5 +124,6 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
         views.remove(activity)
         gestures.remove(activity)
         pads.remove(activity)?.close()
+        keyboards.remove(activity)?.close()
     }
 }

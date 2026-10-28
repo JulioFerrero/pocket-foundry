@@ -144,17 +144,33 @@ class ControllerView(context: Context, private val touch: Boolean) : View(contex
     private var hidden = false
 
     /**
-     * A real controller is being played ([Gamepads]): the drawn one steps aside, toolbar and all, until it's
+     * A real controller is being played ([Gamepads]): the drawn pad steps aside, toolbar and all, until it's
      * unplugged; the layout editor still shows it. Touch controls stay, as their game ignores the pad.
      */
     var padInHand = false
         set(value) {
             if (touch || field == value) return
             field = value
-            if (value && !editing) releaseAll()
-            invalidate()
+            handsChanged()
         }
-    private val stepAside get() = padInHand && !editing
+
+    /** A real keyboard is connected ([Keyboards]): touch controls' stick and keys step aside the same way. */
+    var keyboardInHand = false
+        set(value) {
+            if (!touch || field == value) return
+            field = value
+            handsChanged()
+        }
+
+    private val stepAside get() = (padInHand || keyboardInHand) && !editing
+
+    private fun handsChanged() {
+        if (stepAside) {
+            releaseAll()
+            controls.forEach { if (it.kind == Kind.TOGGLE) it.on = false }   // the pickaxe off: touches click again
+        }
+        invalidate()
+    }
     private var opacity = DEFAULT_OPACITY
 
     // Toolbar taps act when the finger lifts on the same tool.

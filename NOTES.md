@@ -777,3 +777,28 @@ display points come from SDL's display content scale, which on X11 is `SDL_VIDEO
 1 at Default, 2 at Native, so Native draws the same UI with twice the pixels, and a scale chosen in the game still
 applies on top. Checked on the phone at Native. The log's display line (`{1, [0,0], …}`) starts with SDL's display
 id, not the scale.
+
+### Keyboards, and the same size on every phone (2026-10-28)
+**Keyboards.** A keyboard with letters, connected and external (`isExternal`, `KEYBOARD_TYPE_ALPHABETIC`; the
+emulator's own `qwerty2` is alphabetic but internal), puts Factorio in keyboard-and-mouse mode at start (a controller
+wins if both are there), and the touch set's stick and keys step aside while one is connected (`InUse`, now shared
+with controllers). Not from the first key as with a controller: Termux:X11's `hardwareKbdScancodesWorkaround`
+(default on) makes `LorieView.dispatchKeyEventPreIme` return early, so a hardware key goes to the phone's keyboard app,
+which types it into the game through the InputConnection; no key event passes anywhere the app could watch. A mouse
+already reached the game through Termux:X11. The key interception moved to `OnScreenController.takeKeysFirst`.
+
+**The same size on every phone.** Default used to be scale 200, half the panel: 720 lines on this 1440-line phone,
+but 540 on a 1080-line one, where the UI and the map would look a third bigger. Now Default gives every phone the
+pixels per dp of the tuned one (720 lines over 384 dp, density 600): game pixels per dp = density / 160 × 100 / scale,
+equal at scale = density / 3. This phone stays at 200; a 420 dpi phone gets 140 (1697 × 771 on the emulator's 2376 ×
+1080), a 480 dpi one 160. Below 115 it's just Native. The list is Native, 125 and 150 where they're at least 15 below
+Default, and Default. The UI scale is density / 3 / scale, so the UI keeps that size at the sharper ones too. Termux:X11
+takes any integer scale (only its own slider rounds to tens). A saved scale the phone doesn't offer (an old default,
+prefs from another phone) snaps to the nearest at launch.
+
+**Testing with real devices on the emulator:** Android's `hid` tool (`adb shell hid -`, JSON on stdin) registers a UHID
+device with any HID descriptor; with `"bus": "usb"` Android treats it as external. A boot keyboard descriptor and a
+16-button, two-axis gamepad descriptor gave a USB keyboard and gamepad: keys reached the game, the touch set stepped
+aside and came back on unplugging, the launcher's quit dialog was driven with the stick and A, and the pad stepped
+aside on A. The input test sometimes plugs its pad in late or not at all on the emulator (it started once before the X
+screen had its size, and once crashed after Zink failed); Factorio itself reports its controller 1.3 s in on the phone.

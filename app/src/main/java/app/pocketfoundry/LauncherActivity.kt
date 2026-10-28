@@ -100,7 +100,7 @@ class LauncherActivity : Activity() {
     /** What a controller was on before the dialog opened, to go back to. */
     private var beforeDialog: View? = null
     private lateinit var importFirst: FButton
-    private var shownScreen: View? = null
+    private var shownScreen: Pair<View?, Boolean>? = null
     private var importingNow = false
     private var settingsOpen = false
     private var busy: String? = null
@@ -294,7 +294,7 @@ class LauncherActivity : Activity() {
 
         val display = stack(this, Factorio.INSET_LIGHT, sunken = true, padding = 10, gap = 6)
         display.addView(heading(this, "Display", 17f))
-        resolution = Dropdown(this, resolutionNames()) { Settings.setResolutionScale(this, Settings.RESOLUTION_SCALES[it]) }
+        resolution = Dropdown(this, resolutionNames()) { Settings.setResolutionScale(this, Settings.resolutionScales(this)[it]) }
         display.addView(row("Resolution", resolution.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         border = Dropdown(this, listOf("Off", "Thin", "Wide")) { Settings.setBorder(this, Settings.BORDERS[it]) }
         display.addView(row("Border", border.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
@@ -354,8 +354,9 @@ class LauncherActivity : Activity() {
         val mode = display.mode
         val long = maxOf(mode.physicalWidth, mode.physicalHeight)
         val short = minOf(mode.physicalWidth, mode.physicalHeight)
-        return Settings.RESOLUTION_SCALES.map { scale ->
-            val note = when (scale) { 100 -> "Native"; 200 -> "Default"; else -> null }
+        val default = Settings.defaultResolutionScale(this)
+        return Settings.resolutionScales(this).map { scale ->
+            val note = when (scale) { 100 -> "Native"; default -> "Default"; else -> null }
             SpannableStringBuilder("${long * 100 / scale} × ${short * 100 / scale}").apply {
                 if (note != null) {
                     val start = length
@@ -388,8 +389,9 @@ class LauncherActivity : Activity() {
         home.visibility = if (!importingNow && version != null && !settingsOpen) View.VISIBLE else View.GONE
         settings.visibility = if (!importingNow && version != null && settingsOpen) View.VISIBLE else View.GONE
         val screen = listOf(welcome, importing, home, settings).firstOrNull { it.visibility == View.VISIBLE }
-        if (screen !== shownScreen) {
-            shownScreen = screen
+        // Home and Paused count as two: their first choices differ (Continue, Resume).
+        if (screen to inGame != shownScreen) {
+            shownScreen = screen to inGame
             // A controller lands on the new screen's first choice; touch shows no focus, so nothing changes.
             if (dialog == null) (if (screen === welcome) importFirst else screen)?.requestFocus()
         }
@@ -448,7 +450,8 @@ class LauncherActivity : Activity() {
         }
 
         val scale = Settings.resolutionScale(this)
-        resolution.selected = Settings.RESOLUTION_SCALES.indices.minBy { abs(Settings.RESOLUTION_SCALES[it] - scale) }
+        val scales = Settings.resolutionScales(this)
+        resolution.selected = scales.indices.minBy { abs(scales[it] - scale) }
         val fps = Settings.frameRate(this)
         fps30.tone = if (fps == 30) Tone.ORANGE else Tone.GREY
         fps60.tone = if (fps == 60) Tone.ORANGE else Tone.GREY
@@ -821,15 +824,19 @@ class LauncherActivity : Activity() {
 
         /**
          * Termux:X11's display settings, set once so the user can still change
-         * them: landscape, fullscreen, half the panel resolution (the game runs
-         * as well there and the GPU has headroom), taps click where you touch.
+         * them: landscape, fullscreen, the default resolution (Settings), taps
+         * click where you touch. A saved resolution this phone doesn't offer (an
+         * older default, prefs from another phone) moves to the nearest one.
          */
         fun applyDisplayDefaults(context: Context) {
             val prefs = context.getSharedPreferences("${context.packageName}_preferences", MODE_PRIVATE)
+            val scales = Settings.resolutionScales(context)
+            val saved = Settings.resolutionScale(context)
+            if (saved !in scales) Settings.setResolutionScale(context, scales.minBy { abs(it - saved) })
             if (prefs.getBoolean("pocketFoundryDefaults", false)) return
             prefs.edit()
                 .putString("displayResolutionMode", "scaled")
-                .putInt("displayScale", Settings.DEFAULT_RESOLUTION_SCALE)
+                .putInt("displayScale", Settings.defaultResolutionScale(context))
                 .putString("forceOrientation", "landscape")
                 .putBoolean("fullscreen", true)
                 .putBoolean("hideCutout", true)

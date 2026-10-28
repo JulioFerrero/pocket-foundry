@@ -1,6 +1,7 @@
 package app.pocketfoundry
 
 import android.content.Context
+import kotlin.math.roundToInt
 
 /** The player's choices on the Settings screen, each read where it applies. */
 object Settings {
@@ -33,11 +34,19 @@ object Settings {
 
     /**
      * The resolution Factorio draws at, as Termux:X11's scale: the panel's size × 100 / scale.
-     * 200, half the panel each way, is the default.
+     * At [naturalResolutionScale] the game has as many pixels per dp as 720 lines over a 384 dp high
+     * screen, the phone Pocket Foundry was tuned on (density 600: scale 200, half its panel), so the
+     * game, its map and its UI look the same size on any phone. That's the default; the others are
+     * sharper, down to Native (100), with the UI kept the same size (Session).
      */
-    val RESOLUTION_SCALES = listOf(100, 125, 150, 200)
-    const val DEFAULT_RESOLUTION_SCALE = 200
-    fun resolutionScale(context: Context) = x11(context).getInt("displayScale", DEFAULT_RESOLUTION_SCALE)
+    fun naturalResolutionScale(context: Context) = context.resources.displayMetrics.densityDpi / 3f
+    /** The natural scale, or Native when that's close anyway (a low-density screen). */
+    fun defaultResolutionScale(context: Context) = naturalResolutionScale(context).roundToInt().let { if (it < 115) 100 else it }
+    fun resolutionScales(context: Context): List<Int> {
+        val default = defaultResolutionScale(context)
+        return listOf(100, 125, 150).filter { it <= default - 15 } + default
+    }
+    fun resolutionScale(context: Context) = x11(context).getInt("displayScale", defaultResolutionScale(context))
     fun setResolutionScale(context: Context, scale: Int) =
         x11(context).edit().putString("displayResolutionMode", "scaled").putInt("displayScale", scale).apply()
 

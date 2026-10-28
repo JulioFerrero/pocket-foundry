@@ -3,18 +3,13 @@ package app.pocketfoundry.controller
 import android.content.Context
 import android.hardware.input.InputManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.os.Vibrator
-import android.util.Log
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
 import app.pocketfoundry.InputBridge
 import app.pocketfoundry.PadAxis
 import app.pocketfoundry.PadButton
-import com.termux.x11.MainActivity
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -26,19 +21,16 @@ import kotlin.math.roundToInt
  *
  * The controller's own home button (Xbox, PS) isn't the game's: it opens the launcher, [onHome], as Back does.
  *
- * [onInUse] says when one is played (true) and when the last is unplugged (false), for the on-screen
- * pad to step aside: on first use rather than on connecting, as a phone may list a controller nobody holds.
+ * [onInUse] says when one is played (a button, or a stick past halfway) and when the last is unplugged,
+ * for the on-screen pad to step aside ([InUse]).
  */
-class Gamepads private constructor(context: Context, private val onHome: () -> Unit,
-                                   private val onInUse: (Boolean) -> Unit) : InputManager.InputDeviceListener {
-    private val input = context.getSystemService(InputManager::class.java)
+class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boolean) -> Unit) {
     private val held = HashSet<PadButton>()
     private val sent = IntArray(PadAxis.entries.size)
     private var hat = 0   // the D-pad when it's a hat: UP, DOWN, LEFT, RIGHT bits
-    private var inUse = false
-
-    init {
-        input.registerInputDeviceListener(this, Handler(Looper.getMainLooper()))
+    private val inUse = InUse(context, ::isGamepad) { on ->
+        if (!on) release()
+        onInUse(on)
     }
 
     /** A controller's button, sent to the game: true when it was one. */
@@ -101,15 +93,11 @@ class Gamepads private constructor(context: Context, private val onHome: () -> U
     }
 
     fun close() {
-        input.unregisterInputDeviceListener(this)
+        inUse.close()
         release()
     }
 
-    private fun used() {
-        if (inUse) return
-        inUse = true
-        onInUse(true)
-    }
+    private fun used() = inUse.used()
 
     private fun setAxis(axis: PadAxis, value: Int) {
         if (sent[axis.ordinal] == value) return
@@ -126,17 +114,7 @@ class Gamepads private constructor(context: Context, private val onHome: () -> U
         if (bits != 0) used()
     }
 
-    override fun onInputDeviceAdded(deviceId: Int) {}
-    override fun onInputDeviceChanged(deviceId: Int) {}
-    override fun onInputDeviceRemoved(deviceId: Int) {
-        if (!inUse || connected(input)) return
-        release()
-        inUse = false
-        onInUse(false)
-    }
-
     companion object {
-        private const val TAG = "PocketFoundry"
         private const val UP = 1
         private const val DOWN = 2
         private const val LEFT = 4
@@ -174,8 +152,7 @@ class Gamepads private constructor(context: Context, private val onHome: () -> U
         fun isGamepad(device: InputDevice?) =
             device != null && !device.isVirtual && device.supportsSource(InputDevice.SOURCE_GAMEPAD)
 
-        private fun connected(input: InputManager) = input.inputDeviceIds.any { isGamepad(input.getInputDevice(it)) }
-        fun connected(context: Context) = connected(context.getSystemService(InputManager::class.java))
+        fun connected(context: Context) = InUse.connected(context, ::isGamepad)
 
         /** The motor of the first controller that has one, for the game's rumble. */
         fun vibrator(context: Context): Vibrator? {
@@ -185,23 +162,6 @@ class Gamepads private constructor(context: Context, private val onHome: () -> U
                 .filter(::isGamepad)
                 .map { if (Build.VERSION.SDK_INT >= 31) it.vibratorManager.defaultVibrator else @Suppress("DEPRECATION") it.vibrator }
                 .firstOrNull { it.hasVibrator() }
-        }
-
-        /**
-         * Termux:X11 hands every key to the X server before the window sees it (LorieView's pre-IME dispatch,
-         * through the activity's key listener): a controller's buttons go to the virtual pad first. If that
-         * listener can't be reached (renamed), [TouchRouter] still offers them the keys that get past it.
-         */
-        fun attach(activity: MainActivity, onHome: () -> Unit, onInUse: (Boolean) -> Unit): Gamepads {
-            val pads = Gamepads(activity, onHome, onInUse)
-            runCatching {
-                val field = MainActivity::class.java.getDeclaredField("mLorieKeyListener").apply { isAccessible = true }
-                val keys = field.get(activity) as View.OnKeyListener
-                val ours = View.OnKeyListener { view, code, event -> pads.key(event) || keys.onKey(view, code, event) }
-                field.set(activity, ours)
-                activity.lorieView.setOnKeyListener(ours)
-            }.onFailure { Log.w(TAG, "Controller buttons may reach Termux:X11 as keys", it) }
-            return pads
         }
     }
 }

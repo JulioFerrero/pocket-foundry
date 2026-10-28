@@ -10,9 +10,10 @@ the phone's GPU, played with an on-screen controller or a real one. No streaming
 
 ## Playing
 
-1. Buy Factorio and download the **Linux (arm64) .tar.xz** from [factorio.com/download](https://factorio.com/download).
-2. Open Pocket Foundry, tap **Import Factorio** and pick the file.
-3. **Continue** your newest save or open the **Main menu**. Back (or a controller's home button) opens the pause
+1. Install the APK from [Releases](https://github.com/JulioFerrero/pocket-foundry/releases).
+2. Buy Factorio and download the **Linux (arm64) .tar.xz** from [factorio.com/download](https://factorio.com/download).
+3. Open Pocket Foundry, tap **Import Factorio** and pick the file.
+4. **Continue** your newest save or open the **Main menu**. Back (or a controller's home button) opens the pause
    menu, and the game freezes while it's off screen.
 
 Needs Android 10 or later on an Adreno GPU. Tested on a vivo X200 Ultra (Adreno 830, Android 16): 60 FPS and 60 UPS on an early-game save.
@@ -52,6 +53,10 @@ connected when the game starts puts Factorio in its gamepad mode whatever Settin
 D-pad or stick moves between buttons, lit as in the game, A picks and B goes back. The game names the buttons the
 Xbox way; Factorio's own settings can show PlayStation or Switch symbols instead.
 
+**A keyboard**, USB or Bluetooth, does the same for Factorio's keyboard-and-mouse mode: connected when the game
+starts, it puts the game in that mode, and the on-screen stick and keys step aside while it's connected. A mouse
+points and clicks as on a computer; touch still works as the mouse too.
+
 **Settings → Controls → Touch** is the other way to play: Factorio in its keyboard-and-mouse mode. Tap clicks, drag
 holds the button (lines of belts, items across the inventory), long press mines, pinch zooms. A stick walks, buttons
 carry the inventory, rotate, pipette, mining, map and menu keys, and the toolbar's keyboard opens Tab, Shift, Ctrl,
@@ -61,7 +66,8 @@ Alt, F, Z, T, Space and the phone's own keyboard.
 
 - **Controls that match the game's hints** ([above](#controls)): your finger as the cursor, gestures for the common
   presses and Xbox buttons in the game's own look, sized by how much Factorio uses them.
-- **Settings:** the resolution the game draws at (the game's UI keeps its size at each), a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
+- **Settings:** the resolution the game draws at (Default comes from the screen's density, so the game looks the same
+  size on any phone; the sharper ones keep the UI that size), a 30 or 60 FPS cap (the game keeps 60 updates a second), a frame
   round the game that keeps the screen's rounded corners off its menus, sprite quality (Medium takes ~700 MB off a
   phone's shared memory, for very big saves), gamepad or touch controls, pausing in the background and vibration.
 - **Saves:** export them all to `Download/Pocket Foundry`, where uninstalling leaves them, and import saves from anywhere.

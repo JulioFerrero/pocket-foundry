@@ -12,14 +12,15 @@ import android.view.Window
  * hand from tapping the game. With touch controls, those fingers go to [gestures]
  * instead, which turn them into the game's mouse.
  *
- * It also takes the Back gesture, which Termux:X11 would otherwise swallow: [onBack], and a real
- * controller's sticks and buttons, for the virtual pad: [pads].
+ * It also takes the Back gesture, which Termux:X11 would otherwise swallow: [onBack], and offers keys and
+ * joystick motion to [keyFirst] and [motionFirst] (real controllers) before the game.
  */
 class TouchRouter(
     private val target: Window.Callback,
     private val controller: ControllerView,
     private val gestures: PointerGestures?,
-    private val pads: Gamepads,
+    private val keyFirst: (KeyEvent) -> Boolean,
+    private val motionFirst: (MotionEvent) -> Boolean,
     private val onBack: () -> Unit,
 ) : Window.Callback by target {
 
@@ -29,10 +30,10 @@ class TouchRouter(
     private val location = IntArray(2)
 
     override fun dispatchGenericMotionEvent(event: MotionEvent) =
-        pads.motion(event) || target.dispatchGenericMotionEvent(event)
+        motionFirst(event) || target.dispatchGenericMotionEvent(event)
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (pads.key(event)) return true
+        if (keyFirst(event)) return true
         // A mouse's back button stays a right click in the game.
         if (event.keyCode == KeyEvent.KEYCODE_BACK && !event.isFromSource(InputDevice.SOURCE_MOUSE)) {
             if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) onBack()
