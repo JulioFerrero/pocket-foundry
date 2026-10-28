@@ -227,6 +227,9 @@ object Session {
             put("SDL_AUDIO_DRIVER", "pocketfoundry")
             put("POCKETFOUNDRY_AUDIO", paths.audioSocket.path)
             put("POCKETFOUNDRY_INPUT", paths.inputSocket.path)
+            // Only the app's virtual pad (which SDL never filters): where a system lets apps read /dev/input,
+            // SDL would also open the real controller there, and every press would count twice. No device has this id.
+            put("SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT", "0x0000/0x0000")
             put("POCKETFOUNDRY_FRAME_RATE", paths.frameRate.path)
             putAll(extra)
         }

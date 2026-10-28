@@ -920,3 +920,19 @@ PowerVR DXT-48-1536) and a Redmi 4X (Adreno 505, kernel 3.18, 2.8 GB) all failed
 stops at "Failed to create OpenGL context" instead. So `Gpu.supported` wants "Adreno (TM) " and three digits of at
 least 600 (an Adreno named otherwise, the laptops' X1-85, passes), the watcher also takes that second line, and the
 warning reads "Needs an Adreno 6xx or newer: this phone's … isn't supported yet."
+
+### Handhelds: built-in controls and doubled presses (2026-10-28)
+A Retroid Pocket Flip 2 (Snapdragon 865) player saw buttons of its built-in pad register twice (remapping took A,
+then another A). Our SDL is built with Linux's evdev joystick driver, which scans `/dev/input` every few seconds. On
+a normal phone SELinux denies that (the audit log shows `getattr` on `/dev/input` denied every 3 s), but a system
+that lets apps read input nodes gives Factorio the real pad directly as well as our virtual pad: two gamepads, every
+press twice. Reproduced on the emulator (root, `setenforce 0`, `chmod 666` on the node of a UHID gamepad from
+`hid`): the input test printed "pad added" twice and "pad a down" twice per press; locked again, once.
+The fix: `SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=0x0000/0x0000` in the runtime's environment. Only real-device
+drivers (evdev, HIDAPI) consult that list, never the virtual joystick driver, so every real controller is dropped
+and our pad stays. Same emulator setup with it: one pad, one press; with it emptied through debug.env, two again.
+Also: a gamepad that isn't external (`InputDevice.isExternal`, false for a handheld's own controls unless it sits
+on USB or Bluetooth without an idc saying `device.internal = 1`) hides the on-screen pad from the start instead of
+on its first press. Tested with an idc in `/data/system/devices/idc/` marking the UHID pad internal: no on-screen
+controls, only the toolbar's keyboard. Logs now lists the controllers Android sees, "(built in)" where it applies,
+so a report shows whether a handheld's pad is recognised as built in.

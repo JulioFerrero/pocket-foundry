@@ -69,7 +69,7 @@ The toolbar at the top moves, resizes (pinch a button), adds and removes the but
 clicks), fades or hides them all, and opens the phone's keyboard, for naming a save.
 
 **A controller**, USB or Bluetooth (Xbox, PlayStation, Switch Pro, 8BitDo, phone clamps), plays the game directly:
-the on-screen buttons step aside as soon as you use it, all but the toolbar's keyboard, and come back when it's unplugged, and touch still moves the
+the on-screen buttons step aside as soon as you use it (a handheld's own controls, from the start), all but the toolbar's keyboard, and come back when it's unplugged, and touch still moves the
 cursor. Its home button opens Pocket Foundry's menu, and the game's rumble comes through the controller. The launcher takes it too: the
 D-pad or stick moves between buttons, lit as in the game, A picks and B goes back. The game names the buttons the
 Xbox way; Factorio's own settings can show PlayStation or Switch symbols instead.

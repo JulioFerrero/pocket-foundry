@@ -23,6 +23,11 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
         onInUse(on)
     }
 
+    init {
+        // A handheld's own controls are in hand from the start.
+        if (InUse.connected(context) { isGamepad(it) && !it!!.isExternal }) used()
+    }
+
     fun key(event: KeyEvent): Boolean {
         val device = event.device?.takeIf(::isGamepad) ?: return false
         val down = event.action == KeyEvent.ACTION_DOWN
