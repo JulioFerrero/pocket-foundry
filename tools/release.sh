@@ -73,12 +73,11 @@ git tag -a "$tag" -m "Pocket Foundry $version"
 git push -q origin main "$tag"
 
 notes=$out/notes.md
+# One line per paragraph: GitHub keeps a release's line breaks.
 {
     echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, native on the phone's GPU."
     echo
-    echo "**Install:** open \`$name\` on the phone (Android 10 or later, Adreno GPU), then import the Linux (arm64)"
-    echo ".tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio:"
-    echo "you bring your own copy. A new version installs over the last and keeps the game and saves."
+    echo "**Install:** open \`$name\` on the phone (Android 10 or later, Adreno GPU), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
     echo
     if [ -n "$previous" ]; then
         echo "**Since $previous:**"
@@ -87,9 +86,7 @@ notes=$out/notes.md
         echo "**First release.** What's in it: see the [README](https://github.com/JulioFerrero/pocket-foundry#readme)."
     fi
     echo
-    echo "**Source:** this release is built from [$tag](https://github.com/JulioFerrero/pocket-foundry/tree/$tag), GPL-3.0."
-    echo "The runtime inside (glibc, Mesa, SDL, Termux:X11's X server) comes from the sources and build scripts in"
-    echo "\`runtime/\` and \`third_party/\` at that tag. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
+    echo "**Source:** this release is built from [$tag](https://github.com/JulioFerrero/pocket-foundry/tree/$tag), GPL-3.0. The runtime inside (glibc, Mesa, SDL, Termux:X11's X server) comes from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
 } > "$notes"
 
 gh release create "$tag" $draft --title "Pocket Foundry $version" --notes-file "$notes" "$out/$name" "$out/$name.sha256"
