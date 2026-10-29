@@ -34,7 +34,6 @@ Needs Android 10 or later.
 - [Playing](docs/playing.md): controls, controllers, settings and saves
 - [Phones and drivers](docs/phones.md)
 - [Building and how it works](docs/building.md)
-- `NOTES.md`: every finding and decision so far
 
 Something wrong, or it works on your phone? [Open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with
 what the Logs screen shows (its Copy button takes it all).

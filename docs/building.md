@@ -25,14 +25,14 @@ tools/build.sh :app:assembleRelease          # the release APK
 
 Builds are signed with Pocket Foundry's key when `../pocketfoundry-keys/keystore.properties` exists (or
 `$POCKETFOUNDRY_SIGNING` points at one), otherwise with the usual debug key. `tools/stage/` regenerates the
-launcher's scenes and `tools/icon_png.py` the icon. `NOTES.md` has every finding and decision along the way.
+launcher's scenes and `tools/icon_png.py` the icon.
 
 ## Helping
 
 Open fronts, beyond testing on your phone:
 
 - **Mali, PowerVR and Xclipse GPUs.** The likeliest path for all three is a wrapper over the phone's own Vulkan
-  driver, which DroidDeck is building for the same kind of Linux-on-Android setup. `NOTES.md` has the details.
+  driver, which DroidDeck is building for the same kind of Linux-on-Android setup.
 - **Other Adreno generations:** which Turnip works on each.
 - **Other screens:** foldables, 4:3, tablets, and the on-screen controls on them.
 - **Other Android skins:** how each treats a game running in the background.
