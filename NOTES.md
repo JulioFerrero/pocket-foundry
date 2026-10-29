@@ -991,6 +991,15 @@ PANVK_DEBUG=startup` in Options the game log showed "panvk_debug: startup", "Cre
 taking PanVK's entry points, then "Failed to detect any valid GPUs" (no /dev/mali0). An lfdevs Turnip still imports
 as "Turnip 27.0.0-devel".
 
+### A fingerprint sensor taken for a handheld's pad (2026-10-29)
+A Redmi Note 10 Pro (Adreno 618, crDroid on Android 15) had no on-screen controls. Its Logs header listed
+`Controllers: uinput-fortsense (built in)`: the fingerprint sensor's input device reports gamepad buttons, so it
+passed as a handheld's own controls and hid the pad from the start. A Xiaomi 13T lists `uinput-xiaomi` the same way.
+A built-in device now counts as a controller only with sticks (joystick X and Y axes); external ones are unchanged,
+since some pads have only a D-pad. Emulator, with fake devices from the `uinput` shell command (bus 0, so built in):
+"uinput-fortsense" with BTN_A/BTN_B hid the pad before the change and shows it after; a built-in pad with BTN_A, B,
+X, Y and ABS_X/ABS_Y still hides it.
+
 ## Planned (not built yet)
 
 - **Controller button remapping.** Factorio rebinds its own actions (Settings → Controls), so this covers only what

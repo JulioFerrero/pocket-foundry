@@ -140,9 +140,15 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
 
         private fun hasAxis(device: InputDevice, axes: IntArray) = axes.any { device.getMotionRange(it) != null }
 
-        /** Gamepad buttons, not just joystick axes: a phone may have those built in. */
+        /** Gamepad buttons, not just joystick axes: a phone may have those built in. Built in, sticks too: some
+         *  fingerprint sensors report gamepad buttons (uinput-fortsense, uinput-xiaomi). */
         fun isGamepad(device: InputDevice?) =
-            device != null && !device.isVirtual && device.supportsSource(InputDevice.SOURCE_GAMEPAD)
+            device != null && !device.isVirtual && device.supportsSource(InputDevice.SOURCE_GAMEPAD) &&
+                (device.isExternal || hasSticks(device))
+
+        private fun hasSticks(device: InputDevice) =
+            device.getMotionRange(MotionEvent.AXIS_X, InputDevice.SOURCE_JOYSTICK) != null &&
+                device.getMotionRange(MotionEvent.AXIS_Y, InputDevice.SOURCE_JOYSTICK) != null
 
         fun connected(context: Context) = InUse.connected(context, ::isGamepad)
 
