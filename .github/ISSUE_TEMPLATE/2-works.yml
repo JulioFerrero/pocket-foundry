@@ -1,0 +1,37 @@
+name: It works on my phone
+description: A phone that plays, for the list of phones that work.
+title: "[Works] "
+labels: [works]
+body:
+  - type: input
+    id: phone
+    attributes:
+      label: Phone
+      placeholder: POCO F5 Pro
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU
+      placeholder: Adreno 730
+    validations:
+      required: true
+  - type: input
+    id: driver
+    attributes:
+      label: Driver
+      description: Settings → Driver.
+      placeholder: Zink + Turnip (bundled)
+    validations:
+      required: true
+  - type: input
+    id: fps
+    attributes:
+      label: Frame rate
+      placeholder: 60 FPS
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Settings you changed, what didn't work so well.

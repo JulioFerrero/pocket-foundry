@@ -1,0 +1,24 @@
+name: Something doesn't work
+description: A black screen, a crash, controls that misbehave, or anything else that goes wrong.
+labels: [bug]
+body:
+  - type: input
+    id: phone
+    attributes:
+      label: Phone
+      placeholder: Galaxy S24 Ultra
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you saw. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: In Pocket Foundry, Logs → Copy, then paste here. Its first lines name the phone, GPU, driver and version.
+      render: text

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Phones and drivers
+    url: https://github.com/JulioFerrero/pocket-foundry/blob/main/docs/phones.md
+    about: Which GPUs work, and the driver to import for Xclipse and Mali. Worth a look before reporting a black screen.
+  - name: Mali GPUs
+    url: https://github.com/JulioFerrero/pocket-foundry/issues/21
+    about: What works on Mali so far (MediaTek, Google Tensor, older Exynos).

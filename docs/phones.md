@@ -24,8 +24,11 @@ Import `libvulkan_panfrost-glibc-aarch64.so` from
 [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3), a
 community driver for Mali v9 to v13 (G57, G68, G77, G78 and newer). Set **Sprite quality** to Medium.
 
-- Mali-G615 crashes while the game loads its sprites ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)).
+- Newer Malis (G610 and up: G615, G710, G715, G720, G925) crash while the game loads its sprites, a driver bug
+  ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)).
 - Older Malis (G52, G76) aren't covered yet.
+
+Status and reports: [Mali GPUs](https://github.com/JulioFerrero/pocket-foundry/issues/21).
 
 ## PowerVR and Adreno 5xx
 
