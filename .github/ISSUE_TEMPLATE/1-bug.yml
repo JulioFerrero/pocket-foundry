@@ -20,5 +20,5 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: In Pocket Foundry, Logs → Copy, then paste here. Its first lines name the phone, GPU, driver and version.
+      description: In Pocket Foundry, Logs -> Copy, then paste here. Its first lines name the phone, GPU, driver and version.
       render: text

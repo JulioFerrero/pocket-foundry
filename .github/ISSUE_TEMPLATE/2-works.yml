@@ -21,7 +21,7 @@ body:
     id: driver
     attributes:
       label: Driver
-      description: Settings → Driver.
+      description: Settings -> Driver.
       placeholder: Zink + Turnip (bundled)
     validations:
       required: true

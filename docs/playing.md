@@ -58,7 +58,7 @@ still works as the mouse too.
 
 ## Saves
 
-Settings → Saves exports them all to `Download/Pocket Foundry`, which uninstalling leaves alone, and imports saves
+Settings -> Saves exports them all to `Download/Pocket Foundry`, which uninstalling leaves alone, and imports saves
 from anywhere.
 
 | | |
