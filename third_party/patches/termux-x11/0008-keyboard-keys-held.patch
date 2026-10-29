@@ -1,0 +1,18 @@
+diff --git a/lorie/src/main/java/com/termux/x11/input/InputEventSender.java b/lorie/src/main/java/com/termux/x11/input/InputEventSender.java
+index 22135e6..9e6843f 100644
+--- a/lorie/src/main/java/com/termux/x11/input/InputEventSender.java
++++ b/lorie/src/main/java/com/termux/x11/input/InputEventSender.java
+@@ -248,7 +248,12 @@ public final class InputEventSender {
+         char unicode = keyCode != KEYCODE_ENTER ? (char) e.getUnicodeChar() : 0;
+         int scancode = (preferScancodes || !no_modifiers) ? e.getScanCode(): 0;
+ 
+-        if (!preferScancodes) {
++        // Pocket Foundry: a physical keyboard's letters, digits and space go as keys, so a game sees them held (WASD).
++        // As text they arrive pressed and released at once, and their release is dropped.
++        boolean held = e.getDeviceId() >= 0 && e.getScanCode() != 0 && (keyCode == KEYCODE_SPACE
++                || keyCode >= KEYCODE_0 && keyCode <= KEYCODE_9 || keyCode >= KEYCODE_A && keyCode <= KEYCODE_Z);
++
++        if (!preferScancodes && !held) {
+             if (pressed && unicode != 0 && no_modifiers) {
+                 mPressedTextKeys.add(keyCode);
+                 if ((e.getMetaState() & META_ALT_RIGHT_ON) != 0)

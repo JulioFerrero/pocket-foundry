@@ -827,6 +827,10 @@ class LauncherActivity : Activity() {
             val scales = Settings.resolutionScales(context)
             val saved = Settings.resolutionScale(context)
             if (saved !in scales) Settings.setResolutionScale(context, scales.minBy { abs(it - saved) })
+            // Without it the phone's keyboard app takes a hardware keyboard's keys and types them as text, so the game
+            // never sees one held (WASD). Its own keyboard still types, as keys.
+            if (!prefs.getBoolean("pocketFoundryCharInput", false))
+                prefs.edit().putBoolean("enforceCharBasedInput", true).putBoolean("pocketFoundryCharInput", true).apply()
             if (prefs.getBoolean("pocketFoundryDefaults", false)) return
             prefs.edit()
                 .putString("displayResolutionMode", "scaled")
