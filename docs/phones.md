@@ -40,6 +40,7 @@ what freedreno needs.
 | OnePlus 15 | Adreno 840 | Bundled | |
 | Galaxy S24 Ultra | Adreno 750 | Bundled | |
 | Xiaomi 13 | Adreno 740 | Bundled | |
+| POCO F5 Pro | Adreno 730 | Bundled | 60 FPS ([#20](https://github.com/JulioFerrero/pocket-foundry/issues/20)) |
 | Galaxy Z Fold 8 Ultra | Adreno | Bundled | Folded and unfolded |
 | Retroid Pocket Flip 2 | Adreno 650 | Bundled | With its own controls |
 | Nothing Phone (1) | Adreno 642L | Freedreno | Turnip garbles the main menu's text |
