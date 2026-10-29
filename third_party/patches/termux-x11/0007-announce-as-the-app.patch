@@ -1,0 +1,102 @@
+diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+--- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
++++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+@@ -94,57 +94,55 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+     // The first few announcements and their failures also go to stderr (see the native log macro).
+     private static int announcements = 0;
+ 
++    // Pocket Foundry: as the app itself first. Some ROMs (a Samsung on Android 13) quietly drop what is sent through
++    // the borrowed system context; the server runs under the app's uid, so the app's own PendingIntent is valid.
+     static void sendBroadcast(Intent intent) {
+         boolean report = announcements++ < 3;
+-        if (report)
+-            System.err.println("CmdEntryPoint: announcing the X server to the app" + (ctx == null ? " (no context)" : ""));
++        try {
++            String packageName = sendAsApp(intent);
++            if (report)
++                System.err.println("CmdEntryPoint: announced the X server to the app, as " + packageName);
++            return;
++        } catch (Throwable e) {
++            if (report)
++                System.err.println("CmdEntryPoint: announcing as the app failed, using the system context: " + e);
++            Log.e("Broadcast", "Failed to broadcast as the app, falling back to the system context:", e);
++        }
+         try {
+             ctx.sendBroadcast(intent);
++            if (report)
++                System.err.println("CmdEntryPoint: announced the X server to the app, through the system context");
+         } catch (Exception e) {
+             if (report)
+-                System.err.println("CmdEntryPoint: broadcast through Context failed, using the activity manager: " + e);
+-            if (e instanceof NullPointerException && ctx == null)
+-                Log.i("Broadcast", "Context is null, falling back to manual broadcasting");
+-            else
+-                Log.e("Broadcast", "Falling back to manual broadcasting, failed to broadcast intent through Context:", e);
+-
+-            String packageName;
+-            try {
+-                packageName = android.app.ActivityThread.getPackageManager().getPackagesForUid(getuid())[0];
+-            } catch (RemoteException ex) {
+-                throw new RuntimeException(ex);
+-            }
+-            IActivityManager am;
+-            try {
+-                //noinspection JavaReflectionMemberAccess
+-                am = (IActivityManager) android.app.ActivityManager.class
+-                        .getMethod("getService")
+-                        .invoke(null);
+-            } catch (Exception e2) {
+-                try {
+-                    am = (IActivityManager) Class.forName("android.app.ActivityManagerNative")
+-                            .getMethod("getDefault")
+-                            .invoke(null);
+-                } catch (Exception e3) {
+-                    throw new RuntimeException(e3);
+-                }
+-            }
++                System.err.println("CmdEntryPoint: announcing through the system context failed too: " + e);
++            Log.e("Broadcast", "Failed to broadcast intent through Context:", e);
++        }
++    }
+ 
+-            assert am != null;
+-            IIntentSender sender = am.getIntentSender(1, packageName, null, null, 0, new Intent[] { intent },
+-                    null, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT, null, 0);
+-            try {
+-                //noinspection JavaReflectionMemberAccess
+-                IIntentSender.class
+-                        .getMethod("send", int.class, Intent.class, String.class, IBinder.class, IIntentReceiver.class, String.class, Bundle.class)
+-                        .invoke(sender, 0, intent, null, null, new IIntentReceiver.Stub() {
+-                            @Override public void performReceive(Intent i, int r, String d, Bundle e, boolean o, boolean s, int a) {}
+-                        }, null, null);
+-            } catch (Exception ex) {
+-                System.err.println("CmdEntryPoint: announcing through the activity manager failed: " + ex);
+-                throw new RuntimeException(ex);
+-            }
++    private static String sendAsApp(Intent intent) throws Exception {
++        String packageName = android.app.ActivityThread.getPackageManager().getPackagesForUid(getuid())[0];
++        IActivityManager am;
++        try {
++            //noinspection JavaReflectionMemberAccess
++            am = (IActivityManager) android.app.ActivityManager.class
++                    .getMethod("getService")
++                    .invoke(null);
++        } catch (Exception e2) {
++            am = (IActivityManager) Class.forName("android.app.ActivityManagerNative")
++                    .getMethod("getDefault")
++                    .invoke(null);
+         }
++
++        assert am != null;
++        IIntentSender sender = am.getIntentSender(1, packageName, null, null, 0, new Intent[] { intent },
++                null, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT, null, getuid() / 100000);
++        //noinspection JavaReflectionMemberAccess
++        IIntentSender.class
++                .getMethod("send", int.class, Intent.class, String.class, IBinder.class, IIntentReceiver.class, String.class, Bundle.class)
++                .invoke(sender, 0, intent, null, null, new IIntentReceiver.Stub() {
++                    @Override public void performReceive(Intent i, int r, String d, Bundle e, boolean o, boolean s, int a) {}
++                }, null, null);
++        return packageName;
+     }
+ 
+     // In some cases Android Activity part can not connect opened port.

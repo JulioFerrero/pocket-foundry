@@ -951,6 +951,20 @@ device logs?" dialog (emulator, API 36). So instead:
 Emulator: a normal start connected in 0.5 s. With `LorieApp$Receiver` disabled (`pm disable`, root), "Not connected",
 screen.log "the announcement never arrived", x11.log three announcements and three knocks.
 
+The reporter's 0.5.1 logs: screen.log "still not connected after 20 s; the announcement never arrived", x11.log
+three announcements without an error and the screen's knocks, as on the emulator with the receiver disabled. The
+broadcast leaves without an exception and never arrives. The server sends it through a system Context it builds
+from an uninitialised ActivityThread (no app thread, package "android") under the app's uid, which this ROM seems
+to drop. Patch 0007 sends it as the app first: a PendingIntent for the app's own package (`IActivityManager.
+getIntentSender`, Termux:X11's old fallback), the system Context only if that throws; x11.log names the route.
+Emulator (API 36): connected, "announced the X server to the app, as app.pocketfoundry".
+Samsung Remote Test Lab (a rented SM-G780G, Android 13 / One UI 5.1, Snapdragon 865: the reporter's model and
+Android), no Factorio on it: two placeholders (an empty `bin/arm64/factorio`, `info.json` with version 0.0.0) and
+`test.program=pocketfoundry-inputtest`. 0.6 (old route) connected in 0.6 s; with 0007 too ("as app.pocketfoundry").
+So #12 isn't the model or its Android: something on that one phone (a battery or app restriction, a profile…).
+Samsung's bridge (`rdb`, an unsigned Intel Node.js binary from the RTL page, run with adb on its PATH) dropped the
+adb link on shell redirects, pipes and chmod; plain commands, `run-as … cp` and `adb install` went through.
+
 ### Any Mesa Vulkan driver imports, PanVK for Mali (2026-10-29)
 A Mali-G615 tester got Zink on PanVK-kbase's glibc build to the loading screen by repackaging it as a Turnip
 (renamed to `libvulkan_freedreno.so`, two NEEDED entries stripped, their symbols made weak); it then died at ~50% of
