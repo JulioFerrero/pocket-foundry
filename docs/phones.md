@@ -8,8 +8,8 @@ only drives Adreno GPUs. For other GPUs you can import a community driver in **S
 Works out of the box. Tested on a vivo X200 Ultra (Adreno 830, Android 16): 60 FPS and 60 UPS on an early-game save.
 
 A newer Turnip can be imported, such as the `turnip_*_arm64.tar.gz` builds from
-[lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases). freedreno
-(OpenGL straight on the GPU) is in the same list.
+[lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases). Freedreno
+(OpenGL straight on the GPU) is in the same list. If text looks garbled, try Freedreno.
 
 ## Xclipse (Samsung Exynos)
 
@@ -37,6 +37,12 @@ what freedreno needs.
 | Phone | GPU | Driver | |
 |---|---|---|---|
 | vivo X200 Ultra | Adreno 830 | Bundled | 60 FPS |
+| OnePlus 15 | Adreno 840 | Bundled | |
+| Galaxy S24 Ultra | Adreno 750 | Bundled | |
+| Xiaomi 13 | Adreno 740 | Bundled | |
+| Galaxy Z Fold 8 Ultra | Adreno | Bundled | Folded and unfolded |
+| Retroid Pocket Flip 2 | Adreno 650 | Bundled | With its own controls |
+| Nothing Phone (1) | Adreno 642L | Freedreno | Turnip garbles the main menu's text |
 | Galaxy S25 FE | Xclipse 940 | RADV-Xclipse-upstream | 60 FPS ([#18](https://github.com/JulioFerrero/pocket-foundry/issues/18)) |
 | Pixel 6 | Mali-G78 | PanVK-kbase RC3 | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
 
