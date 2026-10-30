@@ -98,10 +98,12 @@ object Session {
     fun quit() {
         val process = game ?: return
         if (state == State.QUITTING || !process.isAlive) return
-        Os.kill(gamePid, OsConstants.SIGCONT)
-        Os.kill(gamePid, OsConstants.SIGTERM)
+        val pid = gamePid
+        Os.kill(pid, OsConstants.SIGCONT)
+        Os.kill(pid, OsConstants.SIGTERM)
         setState(State.QUITTING)
-        main.postDelayed({ if (process.isAlive) process.destroyForcibly() }, 30_000)
+        // A game hung in the GPU driver ignores SIGTERM. Not destroyForcibly(): on Android it sends SIGTERM again.
+        main.postDelayed({ if (process.isAlive) Os.kill(pid, OsConstants.SIGKILL) }, 10_000)
     }
 
     @Synchronized
