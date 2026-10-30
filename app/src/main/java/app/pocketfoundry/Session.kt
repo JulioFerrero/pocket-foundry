@@ -36,6 +36,7 @@ object Session {
     private var wm: Process? = null
     private var game: Process? = null
     private var gamePid = 0
+    @Volatile private var restartCount = 0
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
     private val main = Handler(Looper.getMainLooper())
 
@@ -73,7 +74,8 @@ object Session {
             lastFailure = null
             noWindow = false
             setState(State.RUNNING)
-            thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(started, started.waitFor()) }
+            thread(name = "pocketfoundry-game-exit", isDaemon = true) {
+                onGameExit(context, paths, started, started.waitFor(), gameArgs)}
             watchForNoWindow(started, gamePid, File(paths.logs, "game.log"))
             context.startForegroundService(Intent(context, GameService::class.java))
         }
@@ -105,10 +107,53 @@ object Session {
     }
 
     @Synchronized
-    private fun onGameExit(process: Process, status: Int) {
+    private fun onGameExit(context: Context, paths: Paths, process: Process, status: Int, gameArgs: List<String>) {
         if (process !== game) return
         ScreenLog.add("game exited ($status)")
         val quitting = state == State.QUITTING
+
+        val isRestart = !quitting && restartCount < 3 && runCatching {
+            val logFile = File(paths.logs, "game.log")
+            if (!logFile.exists()) return@runCatching false
+
+            logFile.useLines { lines ->
+                val window = ArrayDeque<String>(30)
+                for (line in lines) {
+                    if (window.size >= 30) window.removeFirst()
+                    window.addLast(line)
+                }
+                window.any { it.contains("Restarting Factorio") }
+            }
+        }.getOrDefault(false)
+
+        if (isRestart) {
+            restartCount++
+            ScreenLog.add("Factorio is restarting (attempt $restartCount)...")
+            game = null
+            gamePid = 0
+
+            val appContext = context.applicationContext
+            thread(name = "pocketfoundry-game-restart") {
+                Thread.sleep(500)
+                synchronized(this@Session) {
+                    if (state == State.RUNNING || state == State.PAUSED) {
+                        try {
+                            start(appContext, gameArgs)
+                        } catch (e: Throwable) {
+                            Log.e("PocketFoundry", "Failed to restart Factorio", e)
+                            lastFailure = status
+                            wm?.destroy()
+                            xServer?.destroy()
+                            wm = null; xServer = null
+                            setState(State.STOPPED)
+                        }
+                    }
+                }
+            }
+            return
+        }
+
+        restartCount = 0
         wm?.destroy()
         xServer?.destroy()
         game = null; wm = null; xServer = null; gamePid = 0
@@ -121,7 +166,10 @@ object Session {
         val deadline = System.currentTimeMillis() + 60_000
         while (process.isAlive && System.currentTimeMillis() < deadline) {
             val text = runCatching { log.readText() }.getOrDefault("")
-            if (WINDOW_OPENED in text) return@thread
+            if (WINDOW_OPENED in text) {
+                restartCount = 0
+                return@thread
+            }
             if (NO_WINDOW.any { it in text }) {
                 noWindow = true
                 Os.kill(pid, OsConstants.SIGKILL)
@@ -237,6 +285,7 @@ object Session {
             // SDL would also open the real controller there, and every press would count twice. No device has this id.
             put("SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT", "0x0000/0x0000")
             put("POCKETFOUNDRY_FRAME_RATE", paths.frameRate.path)
+            put("LD_LIBRARY_PATH", libraryPath)
             putAll(extra)
         }
         return pb.redirectErrorStream(true).redirectOutput(File(paths.logs, log)).start()
