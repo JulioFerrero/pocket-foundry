@@ -27,9 +27,9 @@ Set **Sprite quality** to Medium.
 |---|---|---|
 | G57, G68, G77, G78 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Plays |
 | G615 | [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) | Plays |
-| G610, G710 | [PanVK-Mali-G710-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g710/PanVK-Mali-G710-Linux.zip) | Not confirmed yet |
-| G52 | [PanVK-Mali-JM-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-jm/PanVK-Mali-JM-Linux.zip) | Not confirmed yet |
-| G715, G720, G925 | None yet: RC3 stops while the game loads its sprites | |
+| G610, G710 | [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) | Gets past the sprites on a G610, then stops; being worked on |
+| G715, G720, G925 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3), with `PANVK_DEBUG=noafbc,bc_compute` in **Settings -> Driver -> Options** | Reaches the main menu on a G720, slowly |
+| G52, G76 | None yet: the drivers lack features the game needs | |
 
 The `.zip` drivers are community builds from
 [The412Banner/droiddeck-nonadreno-drivers](https://github.com/The412Banner/droiddeck-nonadreno-drivers), not made

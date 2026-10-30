@@ -1,5 +1,11 @@
 # Pocket Foundry
 
+[![Release](https://img.shields.io/github/v/release/JulioFerrero/pocket-foundry)](https://github.com/JulioFerrero/pocket-foundry/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/JulioFerrero/pocket-foundry/total)](https://github.com/JulioFerrero/pocket-foundry/releases)
+[![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](#getting-started)
+[![License](https://img.shields.io/github/license/JulioFerrero/pocket-foundry)](LICENSE)
+[![StandWithUkraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://github.com/vshymanskyy/StandWithUkraine/blob/main/docs/README.md)
+
 **Play your own copy of Factorio on Android.** The official Linux ARM64 build runs on the phone itself: no
 emulation, no streaming, no game files in the app.
 

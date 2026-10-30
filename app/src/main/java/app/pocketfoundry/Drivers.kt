@@ -50,6 +50,8 @@ object Drivers {
 
     fun imported(context: Context) = chosen(context).let { it != ZINK && it != FREEDRENO }
 
+    fun panvk(context: Context) = chosen(context).startsWith("panvk-")
+
     /** Over Session's defaults, which are Zink on our Turnip. */
     fun environment(context: Context): Map<String, String> = when (val id = chosen(context)) {
         ZINK -> emptyMap()

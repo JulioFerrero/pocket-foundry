@@ -40,6 +40,13 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
 
     override fun onActivityPostCreated(activity: Activity, savedInstanceState: Bundle?) {
         if (activity !is MainActivity) return
+        // Back from Recents after the game ended in the background: the X server went with it.
+        if (Session.state == Session.State.STOPPED) {
+            ScreenLog.add("game screen opened after the game ended; back to the launcher")
+            activity.startActivity(Intent(activity, LauncherActivity::class.java))
+            activity.finish()
+            return
+        }
         // The input mode the game started with: it can't change until the game restarts.
         val keyboard = Session.keyboard
         val view = ControllerView(activity, keyboard)
