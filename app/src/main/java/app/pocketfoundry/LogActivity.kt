@@ -96,7 +96,9 @@ class LogActivity : Activity() {
 
     /** What a report needs besides the logs. */
     private val phone by lazy {
-        val driver = Drivers.all(this).firstOrNull { it.id == Drivers.chosen(this) }?.name
+        // An imported driver's file too: PanVK builds all report the same Mesa version.
+        val driver = Drivers.all(this).firstOrNull { it.id == Drivers.chosen(this) }
+            ?.let { if (Drivers.imported(this)) "${it.name} (${it.detail.substringAfter(" · ")})" else it.name }
         val input = getSystemService(InputManager::class.java)
         val pads = input.inputDeviceIds.asSequence().mapNotNull { input.getInputDevice(it) }.filter { Gamepads.isGamepad(it) }
             .joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }

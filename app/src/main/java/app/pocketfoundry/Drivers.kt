@@ -14,6 +14,7 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
 
 object Drivers {
     class Driver(val id: String, val name: String, val detail: String)
@@ -119,7 +120,9 @@ object Drivers {
 
             val kind = KINDS[KIND.find(named ?: library.name)?.groupValues?.get(1)] ?: "Vulkan"
             val version = mesaVersion(library) ?: "unknown"
-            val id = kind.lowercase() + "-" + version.lowercase().replace(Regex("[^a-z0-9.]+"), "-")
+            // Different builds often share a Mesa version (PanVK forks are all 26.3.0-devel): the library's hash keeps
+            // them apart, and the same file imported again still replaces itself.
+            val id = kind.lowercase() + "-" + version.lowercase().replace(Regex("[^a-z0-9.]+"), "-") + "-" + sha256(library).take(8)
             val target = File(dir(paths), id).apply { deleteRecursively(); mkdirs() }
             for (file in libraries) if (!file.renameTo(File(target, file.name))) throw IOException("Couldn't keep the driver")
             File(target, "icd.json").writeText(JSONObject().put("file_format_version", "1.0.1").put("ICD",
@@ -171,6 +174,19 @@ object Drivers {
                 carry = text.takeLast(64)
             }
         }
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val chunk = ByteArray(1 shl 20)
+            while (true) {
+                val n = input.read(chunk)
+                if (n < 0) break
+                digest.update(chunk, 0, n)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /** DT_NEEDED of a 64-bit little-endian arm64 ELF. */
