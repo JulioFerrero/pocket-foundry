@@ -56,4 +56,8 @@ object Settings {
         prefs(context).edit().putBoolean("editLayout", false).apply()
         return true
     }
+
+    fun checkForUpdates(context: Context) = prefs(context).getBoolean("checkForUpdates", true)
+    fun setCheckForUpdates(context: Context, enabled: Boolean) =
+        prefs(context).edit().putBoolean("checkForUpdates", enabled).apply()
 }

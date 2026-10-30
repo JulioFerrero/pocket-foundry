@@ -24,6 +24,7 @@ import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -111,6 +112,7 @@ class LauncherActivity : Activity() {
     private var pendingSave: File? = null
     private var previewOf: String? = null
     private val sessionChanged: () -> Unit = { refresh() }
+    private lateinit var checkForUpdatesCheckBox: CheckBox
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -158,6 +160,10 @@ class LauncherActivity : Activity() {
         immersive()
         Session.addListener(sessionChanged)
         refresh()
+
+        if (Session.state == Session.State.STOPPED) {
+            checkUpdates()
+        }
     }
 
     override fun onPause() {
@@ -305,6 +311,9 @@ class LauncherActivity : Activity() {
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         controller.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
+        checkForUpdatesCheckBox = checkBox(this, Settings.checkForUpdates(this)) { Settings.setCheckForUpdates(this, it) }
+            .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }
+        controller.addView(row("Check for updates", checkForUpdatesCheckBox))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
         }
@@ -318,14 +327,24 @@ class LauncherActivity : Activity() {
         panel.addView(columns, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
         importAgain = FButton(this, "Import game", size = 15f).apply { setOnClickListener { pickGame() } }
+
+        val github = FButton(this, "GitHub", size = 15f).apply {
+            setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_github, 0, 0, 0)
+            compoundDrawablePadding = dpi(6)
+            setOnClickListener {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/JulioFerrero/pocket-foundry")))
+            }
+        }
+
         panel.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(FButton(context, "Back", Tone.RED, Arrow.LEFT).apply { setOnClickListener { settingsOpen = false; refresh() } },
                     LinearLayout.LayoutParams(WRAP, dpi(44)))
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
             addView(label(context, "Pocket Foundry ${packageManager.getPackageInfo(packageName, 0).versionName} · GPL-3.0", 13f, Factorio.FAINT))
+            addView(github, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(12) })
             addView(FButton(context, "Driver", size = 15f).apply { setOnClickListener { showDrivers() } },
-                    LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(12) })
+                    LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
             addView(FButton(context, "Saves", size = 15f).apply { setOnClickListener { showSaves() } },
                     LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
             addView(importAgain, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
@@ -454,6 +473,10 @@ class LauncherActivity : Activity() {
         editLayout.visibility = if (live) View.VISIBLE else View.GONE
         layoutLater.visibility = if (live) View.GONE else View.VISIBLE
         importAgain.isEnabled = !inGame && idle
+        val updateEnabled = Settings.checkForUpdates(this)
+        if (checkForUpdatesCheckBox.isChecked != updateEnabled) {
+            checkForUpdatesCheckBox.isChecked = updateEnabled
+        }
     }
 
     private fun whenSaved(millis: Long): String {
@@ -504,6 +527,58 @@ class LauncherActivity : Activity() {
                     LinearLayout.LayoutParams(WRAP, dpi(44)))
         })
         showDialog(panel, 440)
+    }
+
+    private fun checkUpdates() {
+        Updater.check(this) { release ->
+            if (release != null) {
+                runOnUiThread {
+                    if (dialog == null && !importingNow && Session.state == Session.State.STOPPED && !isFinishing) {
+                        showUpdateDialog(release)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showUpdateDialog(release: Updater.ReleaseInfo) {
+        val panel = stack(this, Factorio.PANEL, sunken = false, padding = 8, gap = 10)
+        panel.addView(heading(this, "Update Available"))
+
+        val inset = stack(this, Factorio.INSET_LIGHT, sunken = true, padding = 12, gap = 8)
+        inset.addView(label(this, "A new version of Pocket Foundry is available: v${release.version}", 16f, weight = 600))
+        inset.addView(label(this, "Would you like to visit GitHub to download the latest release?", 14f, Factorio.MUTED))
+        panel.addView(inset)
+
+        panel.addView(LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+
+            val disableBtn = FButton(context, "Don't show again", size = 13f).apply {
+                setOnClickListener {
+                    Settings.setCheckForUpdates(context, false)
+                    refresh()
+                    closeDialog()
+                }
+            }
+            addView(disableBtn, LinearLayout.LayoutParams(WRAP, dpi(40)))
+
+            addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+
+            val laterBtn = FButton(context, "Later", Tone.GREY, size = 15f).apply {
+                setOnClickListener { closeDialog() }
+            }
+            addView(laterBtn, LinearLayout.LayoutParams(WRAP, dpi(40)))
+
+            val updateBtn = FButton(context, "Update", Tone.GREEN, Arrow.RIGHT, size = 15f).apply {
+                setOnClickListener {
+                    closeDialog()
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.htmlUrl)))
+                }
+            }
+            addView(updateBtn, LinearLayout.LayoutParams(WRAP, dpi(40)).apply { marginStart = dpi(6) })
+        })
+
+        showDialog(panel, 460)
     }
 
     private fun showDialog(panel: View, widthDp: Int) {
