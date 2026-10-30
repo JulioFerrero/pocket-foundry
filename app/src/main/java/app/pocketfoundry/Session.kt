@@ -61,7 +61,7 @@ object Session {
             // Autosaves cut short by a kill: Factorio offers them as "Continue" and can't open them.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
             keyboard = Keyboards.connected(context) && !Gamepads.connected(context)
-            writeConfig(paths, Settings.spriteQuality(context), keyboard)
+            writeConfig(paths, Settings.spriteQuality(context), keyboard, Drivers.panvk(context))
             val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
             val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
                           else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
@@ -249,7 +249,7 @@ object Session {
     }
 
     /** Factorio derives its paths from its executable, here the loader, so the config names them. */
-    private fun writeConfig(paths: Paths, spriteQuality: String, keyboard: Boolean) {
+    private fun writeConfig(paths: Paths, spriteQuality: String, keyboard: Boolean, panvk: Boolean) {
         var config = if (paths.config.exists()) paths.config.readText() else ""
         // Without its version header Factorio calls the file invalid and offers a reset.
         if (!config.startsWith("; version=")) config = "; version=13\n"
@@ -263,6 +263,10 @@ object Session {
             config = setIni(config, "interface", "custom-proportional-ui-scale", "1.25")
         }
         config = setIni(config, "graphics", "graphics-quality", spriteQuality)
+        // PanVK's BC emulation skips the copies Factorio's GPU texture compressor makes: its self-test fails there,
+        // and a G610 faulted right after. The CPU compresses instead.
+        for (key in listOf("gpu-accelerated-compression", "gpu-accelerated-mipmap-compression"))
+            config = setIni(config, "graphics", key, (!panvk).toString())
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
     }
