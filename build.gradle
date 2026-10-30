@@ -15,3 +15,18 @@ allprojects {
         mavenCentral()
     }
 }
+
+//Use "-PSKIP_CXX=true" to skip C++ build. You need to have the binaries from tools/fetch_prebuilts.ds 
+subprojects {
+    afterEvaluate {
+        def skipCxx = project.hasProperty("SKIP_CXX") && project.property("SKIP_CXX") == "true"
+        
+        if (skipCxx) {
+            tasks.matching { 
+                it.name.contains("externalNativeBuild") || it.name.contains("CMake") 
+            }.configureEach {
+                enabled = false
+            }
+        }
+    }
+}

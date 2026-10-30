@@ -18,3 +18,7 @@ local.properties
 /runtime/cache/
 /runtime/out-*.log
 .cxx/
+
+# Prebuilt runtime and native libraries for fast development without NDK/Docker
+!app/src/main/assets/runtime.tar.xz
+!app/src/main/jniLibs/
