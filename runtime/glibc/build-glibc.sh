@@ -20,6 +20,10 @@ for p in "$PATCHES"/*.patch; do
         -e "s#@TERMUX_PREFIX_CLASSICAL@#$PREFIX#g" \
         -e "s#@TERMUX_PREFIX@#$PREFIX#g" "$p" | patch --silent -p1
 done
+# Then Pocket Foundry's own.
+for p in "$(dirname "$PATCHES")"/patches/*.patch; do
+    patch --silent -p1 < "$p"
+done
 
 # termux_step_pre_configure, aarch64 only
 rm sysdeps/unix/sysv/linux/*/clone3.S

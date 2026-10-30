@@ -239,6 +239,10 @@ object Session {
             // SDL would also open the real controller there, and every press would count twice. No device has this id.
             put("SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT", "0x0000/0x0000")
             put("POCKETFOUNDRY_FRAME_RATE", paths.frameRate.path)
+            // A program restarting itself (Factorio after a mod change) runs the loader again with only its own
+            // arguments: our loader then runs this program, with this library path (runtime/glibc/patches).
+            put("POCKETFOUNDRY_PROGRAM", command.first())
+            put("GLIBC_LD_LIBRARY_PATH", libraryPath)
             putAll(extra)
         }
         return pb.redirectErrorStream(true).redirectOutput(File(paths.logs, log)).start()

@@ -1,0 +1,61 @@
+--- a/elf/rtld.c
++++ b/elf/rtld.c
+@@ -1338,6 +1338,17 @@
+ #endif
+ }
+ 
++/* Pocket Foundry: the program the app started through the loader, when it set one.  */
++static const char *
++pocketfoundry_program (void)
++{
++  static const char name[] = "POCKETFOUNDRY_PROGRAM=";
++  for (char **ep = _environ; ep != NULL && *ep != NULL; ++ep)
++    if (strncmp (*ep, name, sizeof name - 1) == 0 && (*ep)[sizeof name - 1] != '\0')
++      return *ep + sizeof name - 1;
++  return NULL;
++}
++
+ static void
+ dl_main (const ElfW(Phdr) *phdr,
+ 	 ElfW(Word) phnum,
+@@ -1387,6 +1398,7 @@
+ 
+       char *argv0 = NULL;
+       char **orig_argv = _dl_argv;
++      bool restarted = false;
+ 
+       /* Note the place where the dynamic linker actually came from.  */
+       _dl_rtld_map.l_name = rtld_progname;
+@@ -1500,6 +1512,18 @@
+ 		++_dl_argv;
+ 		break;
+ 	      }
++	    else if (pocketfoundry_program () != NULL)
++	      {
++		/* Pocket Foundry: a program that restarts itself through
++		   /proc/self/exe (Factorio, after a change to its mods) runs
++		   the loader again with only its own arguments, so the first
++		   one looks like an unknown option.  Run the program the app
++		   named, with those arguments as they are; the library path
++		   comes from GLIBC_LD_LIBRARY_PATH.  */
++		_dl_argv[0] = (char *) pocketfoundry_program ();
++		restarted = true;
++		break;
++	      }
+ 	    else
+ 	      /* Unrecognized option.  */
+ 	      _dl_usage (ld_so_name, _dl_argv[1]);
+@@ -1527,8 +1551,11 @@
+ 	    _dl_usage (ld_so_name, NULL);
+ 	}
+ 
+-      --_dl_argc;
+-      ++_dl_argv;
++      if (!restarted)
++	{
++	  --_dl_argc;
++	  ++_dl_argv;
++	}
+ 
+       /* The initialization of dl_stack_prot_flags done below assumes the
+ 	 executable's PT_GNU_STACK may have been honored by the kernel, and
