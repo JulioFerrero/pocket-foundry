@@ -20,5 +20,5 @@ local.properties
 .cxx/
 
 # Prebuilt runtime and native libraries for fast development without NDK/Docker
-!app/src/main/assets/runtime.tar.xz
-!app/src/main/jniLibs/
+app/src/main/jniLibs/
+runtime.version
