@@ -33,14 +33,16 @@ Set **Sprite quality** to Medium.
 | Mali | Driver | |
 |---|---|---|
 | G57, G68, G77, G78 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Plays |
-| G615 | [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) | Plays |
-| G610, G710 | [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) | Gets past the sprites on a G610, then stops; being worked on |
+| G615 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase v26.3.1](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v26.3.1), with `DRIRC_CONFIGURATION=pan_enable_vertex_pipeline_stores_atomics=false` in **Settings -> Driver -> Options** (without it the game freezes once a save loads) | Plays |
+| G610, G710 | The G615's, worth a try | Not reported yet. The older [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) gets past the sprites on a G610, then stops |
 | G715, G720, G925 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3), with `PANVK_DEBUG=noafbc,bc_compute` in **Settings -> Driver -> Options** | Reaches the main menu on a G720, slowly |
 | G52, G76 | None yet: the drivers lack features the game needs. Use the [CPU](#any-other-phone-the-cpu) | |
 
-The `.zip` drivers are community builds from
-[The412Banner/droiddeck-nonadreno-drivers](https://github.com/The412Banner/droiddeck-nonadreno-drivers), not made
-by Pocket Foundry. Status and reports: [Mali GPUs](https://github.com/JulioFerrero/pocket-foundry/issues/21).
+These are community builds from
+[zenithblue-oss/panvk-kbase-android](https://github.com/zenithblue-oss/panvk-kbase-android) and
+[The412Banner/droiddeck-nonadreno-drivers](https://github.com/The412Banner/droiddeck-nonadreno-drivers), not made by
+Pocket Foundry. Each release has a build for Android and one for Linux: Pocket Foundry needs the glibc (Linux) one.
+Status and reports: [Mali GPUs](https://github.com/JulioFerrero/pocket-foundry/issues/21).
 
 ## PowerVR and Adreno 5xx
 
@@ -77,7 +79,7 @@ From players' reports; Pocket Foundry itself only tests the vivo.
 | Galaxy S25 FE | Xclipse 940 | [RADV-Xclipse-upstream](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/tag/radv-xclipse-upstream) | 60 FPS ([#18](https://github.com/JulioFerrero/pocket-foundry/issues/18)) |
 | Pixel 6 | Mali-G78 | [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
 | Poco M6 Pro 4G | Mali-G57 | [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | 25–30 FPS, 60 UPS ([#25](https://github.com/JulioFerrero/pocket-foundry/issues/25)) |
-| Poco X6 Pro | Mali-G615 | [PanVK-Mali-G615](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) | Past the loading screen ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)) |
+| Poco X6 Pro | Mali-G615 | [PanVK-kbase v26.3.1](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v26.3.1) with the G615's Options | Plays ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)) |
 
 Yours works, or doesn't? [Open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with the Logs
 screen's Copy.
