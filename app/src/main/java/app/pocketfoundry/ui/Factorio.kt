@@ -38,7 +38,7 @@ import android.widget.PopupWindow
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
-import app.pocketfoundry.Paths
+import app.pocketfoundry.core.engine.Paths
 import app.pocketfoundry.R
 import java.io.File
 import java.io.FileNotFoundException
