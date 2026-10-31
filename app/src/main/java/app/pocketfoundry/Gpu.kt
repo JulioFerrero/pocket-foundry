@@ -18,7 +18,7 @@ object Gpu {
      */
     val supported: Boolean get() {
         val name = name ?: return true
-        if (!name.contains("Adreno")) return false
+        if (!name.contains("Adreno") && !name.contains("Mali")) return false
         val number = ADRENO.find(name)?.groupValues?.get(1)?.toInt() ?: return true
         return number >= 600
     }
