@@ -18,3 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake libxcursor-dev libxi-dev libxss-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# llvmpipe, the CPU renderer: Mesa links LLVM statically (llvm-config asks for Polly too).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        llvm-19-dev libpolly-19-dev \
+    && rm -rf /var/lib/apt/lists/*
