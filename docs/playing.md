@@ -57,6 +57,7 @@ still works as the mouse too.
   roughly halves what the phone draws. Full puts them back.
 - **Driver:** see [Phones and drivers](phones.md).
 - **FPS counter** in the game's top-left corner.
+- **Check for updates:** see below.
 - Pausing in the background, and vibration.
 
 ## Updates
@@ -64,7 +65,7 @@ still works as the mouse too.
 When it opens, Pocket Foundry asks GitHub whether a newer version is out. If one is, it shows what changed since
 yours and offers **Update**, which downloads it, checks it against the release's checksum and hands it to Android's
 installer. The first time, Android asks you to allow Pocket Foundry to install apps. **Settings** keeps the offer
-next to the version.
+next to the version, and **Check for updates** there turns the check off.
 
 ## Saves
 

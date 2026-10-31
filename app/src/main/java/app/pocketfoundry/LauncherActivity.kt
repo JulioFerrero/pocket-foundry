@@ -108,6 +108,7 @@ class LauncherActivity : Activity() {
     private var updateButton: FButton? = null
     private var updateStatus: TextView? = null
     private var downloaded: File? = null
+    private var checkingUpdates = false
     private lateinit var homeGroove: View
 
     private var dialog: View? = null
@@ -127,14 +128,7 @@ class LauncherActivity : Activity() {
         super.onCreate(savedInstanceState)
         paths = Paths(this)
         applyDisplayDefaults(this)
-        if (Updates.enabled(this) && !Updates.checked) thread(name = "pocketfoundry-update-check") {
-            val release = runCatching { Updates.check(this) }.onFailure { Log.i("PocketFoundry", "No update check: ${it.message}") }
-            runOnUiThread {
-                refresh()
-                release.getOrNull()?.takeIf { it.version != Settings.updateShown(this) && Session.state == Session.State.STOPPED &&
-                                              dialog == null && !importingNow }?.let { showUpdate(it) }
-            }
-        }
+        checkForUpdates()
         window.setDecorFitsSystemWindows(false)
 
         val overlay = FrameLayout(this)
@@ -333,6 +327,11 @@ class LauncherActivity : Activity() {
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         gameRows.addView(row("FPS counter", checkBox(this, Settings.fpsCounter(this)) { Settings.setFpsCounter(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
+        gameRows.addView(row("Check for updates", checkBox(this, Settings.checkForUpdates(this)) {
+            Settings.setCheckForUpdates(this, it)
+            checkForUpdates()
+            refresh()
+        }.apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
         }
@@ -377,6 +376,21 @@ class LauncherActivity : Activity() {
             addView(rows)
         }, LinearLayout.LayoutParams(MATCH, 0, 1f))
         return rows
+    }
+
+    /** Once per start, unless it's off in Settings; turning it on there checks then. */
+    private fun checkForUpdates() {
+        if (!Updates.enabled(this) || Updates.checked || checkingUpdates || !Settings.checkForUpdates(this)) return
+        checkingUpdates = true
+        thread(name = "pocketfoundry-update-check") {
+            val release = runCatching { Updates.check(this) }.onFailure { Log.i("PocketFoundry", "No update check: ${it.message}") }
+            runOnUiThread {
+                checkingUpdates = false
+                refresh()
+                release.getOrNull()?.takeIf { it.version != Settings.updateShown(this) && Session.state == Session.State.STOPPED &&
+                                              dialog == null && !importingNow }?.let { showUpdate(it) }
+            }
+        }
     }
 
     /** What's new in every release since this one, newest first, with Update. On start once per release, and from Settings. */
@@ -590,7 +604,7 @@ class LauncherActivity : Activity() {
         editLayout.visibility = if (live) View.VISIBLE else View.GONE
         layoutLater.visibility = if (live) View.GONE else View.VISIBLE
         importAgain.isEnabled = !inGame && idle
-        val release = Updates.available
+        val release = Updates.available?.takeIf { Settings.checkForUpdates(this) }
         update.visibility = if (release != null || updating != null) View.VISIBLE else View.GONE
         update.text = updating ?: "Update to ${release?.version}"
         update.isEnabled = updating == null && !inGame && idle

@@ -19,6 +19,11 @@ object Settings {
     fun updateShown(context: Context) = prefs(context).getString("updateShown", "")!!
     fun setUpdateShown(context: Context, version: String) = prefs(context).edit().putString("updateShown", version).apply()
 
+    /** Whether Pocket Foundry asks GitHub for a newer version when it opens. */
+    fun checkForUpdates(context: Context) = prefs(context).getBoolean("checkForUpdates", true)
+    fun setCheckForUpdates(context: Context, enabled: Boolean) =
+        prefs(context).edit().putBoolean("checkForUpdates", enabled).apply()
+
     fun fpsCounter(context: Context) = prefs(context).getBoolean("fpsCounter", false)
     fun setFpsCounter(context: Context, on: Boolean) = prefs(context).edit().putBoolean("fpsCounter", on).apply()
 
