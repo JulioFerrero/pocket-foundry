@@ -21,7 +21,8 @@ import java.io.IOException
  * so does player-data.json, which holds the factorio.com login. Document ids are paths under the folder, "/" itself.
  */
 class GameFilesProvider : DocumentsProvider() {
-    private val base by lazy { Paths(context!!).gameData.canonicalFile }
+    /** Made here if the game hasn't started yet: Files can't open a root that isn't a folder. */
+    private val base by lazy { Paths(context!!).gameData.apply { mkdirs() }.canonicalFile }
 
     override fun onCreate() = true
 
