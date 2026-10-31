@@ -68,6 +68,19 @@ yours and offers **Update**, which downloads it, checks it against the release's
 installer. The first time, Android asks you to allow Pocket Foundry to install apps. **Settings** keeps the offer
 next to the version, and **Check for updates** there turns the check off.
 
+## Game files
+
+Factorio's own folder, with its mods, saves, config, scenarios and blueprints, shows up as **Pocket Foundry** in the
+phone's Files app and in any app's file picker; **Settings -> Files** opens it. From there a mod's zip can be added
+or deleted, `mod-list.json` or `config/config.ini` edited in a text editor, and a save shared. Changes to mods apply
+the next time the game starts, and Pocket Foundry sets the few `config.ini` keys its own settings cover each time. The
+game itself isn't in there, and neither is the factorio.com login. Factorio saves the blueprint library
+(`blueprint-storage-2.dat`) when the game quits.
+
+**Blueprint strings:** copy one on the phone, open Factorio's **Import string** and paste it from the phone keyboard's
+clipboard (the keyboard button on the toolbar). Factorio offers Import string and the blueprint library once a map is
+far enough along.
+
 ## Saves
 
 Settings -> Saves exports them all to `Download/Pocket Foundry`, which uninstalling leaves alone, and imports saves

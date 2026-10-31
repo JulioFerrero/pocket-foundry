@@ -12,6 +12,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.text.Editable
 import android.text.InputType
 import android.text.SpannableStringBuilder
@@ -371,9 +372,22 @@ class LauncherActivity : Activity() {
                     LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(12) })
             addView(FButton(context, "Saves", size = 15f).apply { setOnClickListener { showSaves() } },
                     LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
+            addView(FButton(context, "Files", size = 15f).apply { setOnClickListener { openGameFiles() } },
+                    LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
             addView(importAgain, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
         })
         return panel
+    }
+
+    /** Factorio's folder in the phone's Files app ([GameFilesProvider]), or in the file picker if that won't open. */
+    private fun openGameFiles() {
+        val root = DocumentsContract.buildRootUri(GameFilesProvider.AUTHORITY, GameFilesProvider.ROOT)
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(root, DocumentsContract.Root.MIME_TYPE_ITEM)) }
+            .recoverCatching {
+                startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE)
+                    .putExtra(DocumentsContract.EXTRA_INITIAL_URI, root))
+            }
+            .onFailure { Log.w("PocketFoundry", "No Files app for the game's folder", it) }
     }
 
     /** A column's rows under its heading, scrolling on a screen too short for them all. */

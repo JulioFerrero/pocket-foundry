@@ -59,5 +59,17 @@
         </service>
 
         <service android:name="com.termux.x11.utils.KeyInterceptor" tools:node="remove" />
+
+        <!-- Factorio's folder (mods, saves, config) in the phone's Files app and file pickers. -->
+        <provider
+            android:name=".GameFilesProvider"
+            android:authorities="app.pocketfoundry.files"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
     </application>
 </manifest>
