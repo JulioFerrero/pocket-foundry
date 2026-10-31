@@ -4,7 +4,9 @@ import android.content.Intent
 import com.termux.x11.CmdEntryPoint
 import com.termux.x11.LorieApp
 import com.termux.x11.MainActivity
-import app.pocketfoundry.controller.OnScreenController
+import app.pocketfoundry.ui.overlay.OnScreenController
+import app.pocketfoundry.core.engine.ScreenLog
+import app.pocketfoundry.core.input.DebugPad
 
 /** Termux:X11's activity and receivers expect their Application class. */
 class PocketFoundryApp : LorieApp() {

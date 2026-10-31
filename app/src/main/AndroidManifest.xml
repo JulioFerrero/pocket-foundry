@@ -21,7 +21,7 @@
         tools:replace="android:name">
 
         <activity
-            android:name=".LauncherActivity"
+            android:name=".ui.screens.launcher.LauncherActivity"
             android:theme="@style/Theme.PocketFoundry.Launcher"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
@@ -33,7 +33,7 @@
         </activity>
 
         <activity
-            android:name=".LogActivity"
+            android:name=".ui.screens.log.LogActivity"
             android:label="Logs"
             android:theme="@style/Theme.PocketFoundry.Launcher"
             android:screenOrientation="sensorLandscape"
@@ -50,7 +50,7 @@
         </activity>
 
         <service
-            android:name=".GameService"
+            android:name=".core.engine.GameService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
