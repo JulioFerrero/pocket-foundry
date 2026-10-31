@@ -1,7 +1,14 @@
 # Phones and drivers
 
-Pocket Foundry draws the game with Mesa's Zink, which runs OpenGL on a Vulkan driver. The bundled driver, Turnip,
-only drives Adreno GPUs. For other GPUs you can import a community driver in **Settings -> Driver -> Import**.
+Pocket Foundry draws the game with Mesa's Zink, which runs OpenGL on a Vulkan driver.
+
+- **Adreno 6xx and newer:** the bundled driver, Turnip. It's the one Pocket Foundry tests.
+- **Other GPUs:** a community driver, imported in **Settings -> Driver -> Import**. Others make and test them; what's
+  here comes from players' reports, and a driver's bugs belong to its developers.
+- **No driver:** the [CPU](#any-other-phone-the-cpu). It needs no driver, but it's slow.
+
+**Loads, but slow?** Check **Settings -> Driver**: CPU there means the phone has no GPU driver yet. That's expected,
+not a bug.
 
 ## Adreno 6xx and newer (Snapdragon)
 
@@ -29,7 +36,7 @@ Set **Sprite quality** to Medium.
 | G615 | [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) | Plays |
 | G610, G710 | [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) | Gets past the sprites on a G610, then stops; being worked on |
 | G715, G720, G925 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3), with `PANVK_DEBUG=noafbc,bc_compute` in **Settings -> Driver -> Options** | Reaches the main menu on a G720, slowly |
-| G52, G76 | None yet: the drivers lack features the game needs | |
+| G52, G76 | None yet: the drivers lack features the game needs. Use the [CPU](#any-other-phone-the-cpu) | |
 
 The `.zip` drivers are community builds from
 [The412Banner/droiddeck-nonadreno-drivers](https://github.com/The412Banner/droiddeck-nonadreno-drivers), not made
@@ -38,9 +45,22 @@ by Pocket Foundry. Status and reports: [Mali GPUs](https://github.com/JulioFerre
 ## PowerVR and Adreno 5xx
 
 PowerVR (Pixel 10) has no driver that works here yet. Adreno 5xx and older can't run Turnip, and their kernels lack
-what freedreno needs.
+what freedreno needs. Both can use the [CPU](#any-other-phone-the-cpu).
 
-## Known to work
+## Any other phone: the CPU
+
+**CPU** in **Settings -> Driver** draws the game on the phone's processor with Mesa's llvmpipe, no GPU driver
+needed. Phones without a GPU driver start with it. It's experimental: slow, and it uses a lot of battery. How fast it
+runs depends on the processor, not on Pocket Foundry.
+
+Choosing it also sets Medium sprites, **Graphics: Light** (Factorio's smoke, clouds, decoratives, shadows and terrain
+effects off) and the lowest resolution, which keeps the same view, only softer. A vivo X200 Ultra runs it at 60 FPS;
+phones with slower processors will run lower. How it runs on yours:
+[open an issue](https://github.com/JulioFerrero/pocket-foundry/issues).
+
+## Reported working
+
+From players' reports; Pocket Foundry itself only tests the vivo.
 
 | Phone | GPU | Driver | |
 |---|---|---|---|

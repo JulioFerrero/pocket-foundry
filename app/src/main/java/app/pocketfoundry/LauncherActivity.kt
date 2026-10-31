@@ -94,6 +94,8 @@ class LauncherActivity : Activity() {
     private lateinit var fps30: FButton
     private lateinit var fps60: FButton
     private lateinit var sprites: Dropdown
+    private lateinit var graphicsFull: FButton
+    private lateinit var graphicsLight: FButton
     private lateinit var settingsNote: TextView
     private lateinit var editLayout: FButton
     private lateinit var importAgain: FButton
@@ -195,7 +197,7 @@ class LauncherActivity : Activity() {
                 setOnClickListener { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://factorio.com/download"))) }
             })
         })
-        if (!Gpu.supported) inset.addView(label(this, "Needs an Adreno 6xx or newer: this phone's ${Gpu.name} isn't supported yet.", 14f, Factorio.ERROR))
+        if (!Gpu.supported) inset.addView(label(this, "No GPU driver for this phone's ${Gpu.name} yet: the game runs on the CPU, slowly.", 14f, Factorio.MUTED))
         welcomeError = label(this, "", 14f, Factorio.ERROR)
         inset.addView(welcomeError)
         panel.addView(inset)
@@ -278,7 +280,7 @@ class LauncherActivity : Activity() {
 
     private fun buildSettings(): View {
         val panel = stack(this, Factorio.PANEL, sunken = false, padding = 8, gap = 10)
-        settingsNote = label(this, "Resolution and sprites change when Factorio next starts.", 13f, Factorio.MUTED)
+        settingsNote = label(this, "Resolution, sprites, graphics and the FPS counter change when Factorio next starts.", 13f, Factorio.MUTED)
         panel.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(heading(context, "Settings"), LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -297,6 +299,9 @@ class LauncherActivity : Activity() {
         display.addView(row("Frame rate", choice(fps30, fps60)))
         sprites = Dropdown(this, listOf("High", "Medium")) { Settings.setSpriteQuality(this, SPRITE_QUALITIES[it]) }
         display.addView(row("Sprite quality", sprites.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
+        graphicsFull = FButton(this, "Full", size = 15f).apply { setOnClickListener { Settings.setLightGraphics(context, false); refresh() } }
+        graphicsLight = FButton(this, "Light", size = 15f).apply { setOnClickListener { Settings.setLightGraphics(context, true); refresh() } }
+        display.addView(row("Graphics", choice(graphicsFull, graphicsLight)))
         columns.addView(display, LinearLayout.LayoutParams(0, MATCH, 1f))
 
         val controller = stack(this, Factorio.INSET_LIGHT, sunken = true, padding = 10, gap = 6)
@@ -304,6 +309,8 @@ class LauncherActivity : Activity() {
         controller.addView(row("Pause in background", checkBox(this, Settings.pauseInBackground(this)) { Settings.setPauseInBackground(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         controller.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
+            .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
+        controller.addView(row("FPS counter", checkBox(this, Settings.fpsCounter(this)) { Settings.setFpsCounter(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
@@ -345,7 +352,7 @@ class LauncherActivity : Activity() {
         val short = minOf(mode.physicalWidth, mode.physicalHeight)
         val default = Settings.defaultResolutionScale(this)
         return Settings.resolutionScales(this).map { scale ->
-            val note = when (scale) { 100 -> "Native"; default -> "Default"; else -> null }
+            val note = when (scale) { 100 -> "Native"; default -> "Default"; default * 2 -> "CPU"; else -> null }
             SpannableStringBuilder("${long * 100 / scale} × ${short * 100 / scale}").apply {
                 if (note != null) {
                     val start = length
@@ -418,7 +425,7 @@ class LauncherActivity : Activity() {
 
         val failure = error ?: Session.lastFailure?.let { status ->
             when {
-                !Gpu.supported && !Drivers.imported(this) -> "This phone's GPU isn't supported yet."
+                !Gpu.supported && !Drivers.imported(this) && !Drivers.cpu(this) -> "No driver for this phone's GPU yet: choose CPU in Driver."
                 Session.noWindow -> "The graphics driver didn't start. See Logs."
                 else -> "Factorio stopped unexpectedly ($status). See Logs."
             }
@@ -449,6 +456,9 @@ class LauncherActivity : Activity() {
         fps30.tone = if (fps == 30) Tone.ORANGE else Tone.GREY
         fps60.tone = if (fps == 60) Tone.ORANGE else Tone.GREY
         sprites.selected = SPRITE_QUALITIES.indexOf(Settings.spriteQuality(this)).coerceAtLeast(0)
+        val light = Settings.lightGraphics(this)
+        graphicsFull.tone = if (light) Tone.GREY else Tone.ORANGE
+        graphicsLight.tone = if (light) Tone.ORANGE else Tone.GREY
         settingsNote.visibility = if (inGame) View.VISIBLE else View.GONE
         border.selected = Settings.BORDERS.indexOf(Settings.border(this)).coerceAtLeast(0)
         editLayout.visibility = if (live) View.VISIBLE else View.GONE
@@ -577,9 +587,10 @@ class LauncherActivity : Activity() {
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
             val remove = FButton(context, "Remove").apply {
                 setOnClickListener {
-                    Drivers.remove(context, Settings.driver(context))
-                    Settings.setDriver(context, Drivers.ZINK)
-                    listDrivers()
+                    changeDriver {
+                        Drivers.remove(context, Settings.driver(context))
+                        Settings.clearDriver(context)
+                    }
                 }
             }
             val import = FButton(context, "Import").apply { setOnClickListener { pickDriver() } }
@@ -610,11 +621,20 @@ class LauncherActivity : Activity() {
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 maxLines = 1
                 ellipsize = android.text.TextUtils.TruncateAt.END
-                setOnClickListener { Settings.setDriver(context, driver.id); listDrivers() }
+                setOnClickListener { changeDriver { Settings.setDriver(context, driver.id) } }
             }, LinearLayout.LayoutParams(MATCH, dpi(42)))
         }
         (list.parent as View).layoutParams.height = if (drivers.size > 3) dpi(3 * 46 + 12) else WRAP
-        driverButtons.firstOrNull()?.isEnabled = chosen != Drivers.ZINK && chosen != Drivers.FREEDRENO
+        driverButtons.firstOrNull()?.isEnabled = Drivers.imported(this)
+    }
+
+    /** A driver change, with the sprites, graphics and resolution for it when it moves to or from the CPU. */
+    private fun changeDriver(change: () -> Unit) {
+        val cpu = Drivers.cpu(this)
+        change()
+        if (Drivers.cpu(this) != cpu) Settings.applyDriverDefaults(this)
+        listDrivers()
+        refresh()
     }
 
     private fun pickDriver() {
@@ -632,7 +652,7 @@ class LauncherActivity : Activity() {
             val result = runCatching { Drivers.import(this, uri) }
             runOnUiThread {
                 driverButtons.forEach { it.isEnabled = true }
-                result.onSuccess { Settings.setDriver(this, it.id) }
+                result.onSuccess { changeDriver { Settings.setDriver(this, it.id) } }
                 driverStatus?.visibility = View.VISIBLE
                 driverStatus?.text = result.fold({ "Added ${it.name}." }, { it.message ?: "That didn't work. See Logs." })
                 driverStatus?.setTextColor(if (result.isSuccess) Factorio.MUTED else Factorio.ERROR)
@@ -834,7 +854,7 @@ class LauncherActivity : Activity() {
             if (prefs.getBoolean("pocketFoundryDefaults", false)) return
             prefs.edit()
                 .putString("displayResolutionMode", "scaled")
-                .putInt("displayScale", Settings.defaultResolutionScale(context))
+                .putInt("displayScale", Settings.startingResolutionScale(context))
                 .putString("forceOrientation", "landscape")
                 .putBoolean("fullscreen", true)
                 .putBoolean("hideCutout", true)

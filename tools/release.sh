@@ -73,7 +73,7 @@ notes=$out/notes.md
 {
     echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, run without emulation on the phone's GPU."
     echo
-    echo "**Install:** open \`$name\` on the phone (Android 10 or later; Adreno 6xx or newer, or another GPU with an imported driver), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
+    echo "**Install:** open \`$name\` on the phone (Android 10 or later; Adreno 6xx or newer, another GPU with an imported driver, or any phone on the CPU, slowly), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
     echo
     if [ -n "$previous" ]; then
         echo "**Since $previous:**"

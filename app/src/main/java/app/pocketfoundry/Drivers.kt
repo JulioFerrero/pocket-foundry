@@ -21,6 +21,7 @@ object Drivers {
 
     const val ZINK = "zink"
     const val FREEDRENO = "freedreno"
+    const val CPU = "cpu"
 
     private fun dir(paths: Paths) = File(paths.files, "drivers")
 
@@ -31,6 +32,7 @@ object Drivers {
         val bundled = listOf(
             Driver(ZINK, "Zink + Turnip", "Bundled · $mesa"),
             Driver(FREEDRENO, "Freedreno", "Bundled · OpenGL, slower"),
+            Driver(CPU, "CPU", "Experimental · slow, uses a lot of battery"),
         )
         val imported = dir(paths).listFiles { f -> File(f, "driver.json").exists() }.orEmpty()
             .sortedByDescending { it.lastModified() }
@@ -48,7 +50,9 @@ object Drivers {
         return if (all(context).any { it.id == id }) id else ZINK
     }
 
-    fun imported(context: Context) = chosen(context).let { it != ZINK && it != FREEDRENO }
+    fun imported(context: Context) = chosen(context).let { it != ZINK && it != FREEDRENO && it != CPU }
+
+    fun cpu(context: Context) = chosen(context) == CPU
 
     fun panvk(context: Context) = chosen(context).startsWith("panvk-")
 
@@ -56,6 +60,10 @@ object Drivers {
     fun environment(context: Context): Map<String, String> = when (val id = chosen(context)) {
         ZINK -> emptyMap()
         FREEDRENO -> mapOf("MESA_LOADER_DRIVER_OVERRIDE" to "kgsl")
+        // llvmpipe, Mesa on the CPU. Software GLX picks Zink while the override names it, so it names llvmpipe.
+        // 256-bit code (two NEON registers at a time) and bilinear filtering were the fastest that still looked right.
+        CPU -> mapOf("LIBGL_ALWAYS_SOFTWARE" to "1", "MESA_LOADER_DRIVER_OVERRIDE" to "llvmpipe",
+                     "GALLIUM_DRIVER" to "llvmpipe", "LP_NATIVE_VECTOR_WIDTH" to "256", "LP_PERF" to "no_mip_linear")
         // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
         else -> mapOf("VK_DRIVER_FILES" to File(dir(Paths(context)), "$id/icd.json").path,
                       "MESA_VK_WSI_DEBUG" to "sw")
@@ -71,7 +79,7 @@ object Drivers {
     private val OPTION = Regex("""([A-Za-z_][A-Za-z0-9_]*)=(\S*)""")
 
     fun remove(context: Context, id: String) {
-        if (id == ZINK || id == FREEDRENO) return
+        if (id == ZINK || id == FREEDRENO || id == CPU) return
         File(dir(Paths(context)), id).deleteRecursively()
     }
 

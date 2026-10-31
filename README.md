@@ -25,15 +25,20 @@ Needs Android 10 or later.
 
 ## Phones
 
-| GPU | Found in | |
-|---|---|---|
-| Adreno 6xx and newer | Snapdragon | Works |
-| Xclipse | Exynos (Galaxy S24, S25) | Works with an imported driver |
-| Mali | MediaTek, Google Tensor, older Exynos | Some, with an imported driver |
-| PowerVR | Pixel 10 | Not yet |
-| Adreno 5xx and older | Older Snapdragon | No |
+Pocket Foundry ships one GPU driver, Turnip, and tests it on Adreno 6xx and newer. Other GPUs can use a community
+driver, made and tested by others, or run the game on the phone's CPU.
 
-[Phones and drivers](docs/phones.md) has the drivers to import and the phones known to work.
+| GPU | Found in | Runs with |
+|---|---|---|
+| Adreno 6xx and newer | Snapdragon | The bundled driver, tested |
+| Xclipse | Exynos (Galaxy S24, S25) | A community driver |
+| Mali | MediaTek, Google Tensor, older Exynos | A community driver on some, the CPU on the rest |
+| PowerVR | Pixel 10 | The CPU |
+| Adreno 5xx and older | Older Snapdragon | The CPU |
+
+**Loads, but slow?** It's probably on the CPU, because the phone has no GPU driver yet. **Settings -> Driver** shows
+which one is in use. [Phones and drivers](docs/phones.md) has the community drivers and the phones people report
+working.
 
 ## More
 

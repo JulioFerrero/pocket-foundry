@@ -61,12 +61,17 @@ object Session {
             // Autosaves cut short by a kill: Factorio offers them as "Continue" and can't open them.
             File(paths.gameData, "saves").listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
             keyboard = Keyboards.connected(context) && !Gamepads.connected(context)
-            writeConfig(paths, Settings.spriteQuality(context), keyboard, Drivers.panvk(context))
+            // Light graphics turns the effects off; turning it off puts them back once, then they're the game's own again.
+            val light = Settings.lightGraphics(context)
+            val effects = if (light || Settings.lightApplied(context)) !light else null
+            writeConfig(paths, Settings.spriteQuality(context), keyboard, Drivers.panvk(context), effects)
+            Settings.setLightApplied(context, light)
             val stand = debugEnvironment(context, "test")["program"]?.takeIf { it.matches(Regex("[a-z0-9-]+")) }
             val command = if (stand != null) listOf(File(paths.prefix, "bin/$stand").path)
                           else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
             val started = glibc(paths, command, "game.log", Drivers.environment(context) + uiScale(context) +
-                                Drivers.options(context) + debugEnvironment(context, "game"), Drivers.libraries(context))
+                                fpsCounter(context) + Drivers.options(context) + debugEnvironment(context, "game"),
+                                Drivers.libraries(context))
             game = started
             gamePid = childPid(command.first())
             ScreenLog.add("game started")
@@ -204,12 +209,16 @@ object Session {
 
     /**
      * Pixels per display point, which Factorio's UI scale counts: scaled with the resolution so the UI
-     * keeps its size on screen. SDL takes 1 to 10.
+     * keeps its size on screen, and the view its width below the default. Our SDL takes 0.25 to 10 (runtime/sdl).
      */
     private fun uiScale(context: Context): Map<String, String> {
         val points = Settings.naturalResolutionScale(context) / Settings.resolutionScale(context)
-        return mapOf("SDL_VIDEO_X11_SCALING_FACTOR" to "%.4f".format(Locale.ROOT, points.coerceAtLeast(1f)))
+        return mapOf("SDL_VIDEO_X11_SCALING_FACTOR" to "%.4f".format(Locale.ROOT, points.coerceAtLeast(0.25f)))
     }
+
+    /** Mesa's own counter, drawn into the game's frames, whichever driver draws them. */
+    private fun fpsCounter(context: Context) =
+        if (Settings.fpsCounter(context)) mapOf("GALLIUM_HUD" to "simple,fps") else emptyMap()
 
     private fun glibc(paths: Paths, command: List<String>, log: String, extra: Map<String, String> = emptyMap(),
                       libraries: File? = null): Process {
@@ -249,7 +258,7 @@ object Session {
     }
 
     /** Factorio derives its paths from its executable, here the loader, so the config names them. */
-    private fun writeConfig(paths: Paths, spriteQuality: String, keyboard: Boolean, panvk: Boolean) {
+    private fun writeConfig(paths: Paths, spriteQuality: String, keyboard: Boolean, panvk: Boolean, effects: Boolean?) {
         var config = if (paths.config.exists()) paths.config.readText() else ""
         // Without its version header Factorio calls the file invalid and offers a reset.
         if (!config.startsWith("; version=")) config = "; version=13\n"
@@ -267,9 +276,15 @@ object Session {
         // and a G610 faulted right after. The CPU compresses instead.
         for (key in listOf("gpu-accelerated-compression", "gpu-accelerated-mipmap-compression"))
             config = setIni(config, "graphics", key, (!panvk).toString())
+        // The settings that halved what the CPU driver draws in a game; all on by default.
+        if (effects != null) for (key in EFFECTS) config = setIni(config, "graphics", key, effects.toString())
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
     }
+
+    private val EFFECTS = listOf("show-smoke", "show-clouds", "show-fog", "show-space-dust", "show-decoratives",
+                                 "show-particles", "show-item-shadows", "show-inserter-shadows", "additional-terrain-effects",
+                                 "high-quality-terrain", "elevated-rail-shadows")
 
     private fun setIni(ini: String, section: String, key: String, value: String): String {
         val line = "$key=$value"

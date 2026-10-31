@@ -49,11 +49,14 @@ still works as the mouse too.
 ## Settings
 
 - **Resolution** the game draws at. Default comes from the screen's density, so the game looks the same size on any
-  phone.
+  phone. The two below it, the lowest marked CPU, keep the same view with fewer pixels.
 - **Frame rate** capped at 30 or 60 FPS; the game keeps 60 updates a second.
 - **A frame** round the game, which keeps the screen's rounded corners off its menus.
 - **Sprite quality:** Medium takes about 700 MB off the phone's shared memory, for very big saves or Mali GPUs.
+- **Graphics:** Light turns off Factorio's smoke, clouds, decoratives, particles, shadows and terrain effects, which
+  roughly halves what the phone draws. Full puts them back.
 - **Driver:** see [Phones and drivers](phones.md).
+- **FPS counter** in the game's top-left corner.
 - Pausing in the background, and vibration.
 
 ## Saves

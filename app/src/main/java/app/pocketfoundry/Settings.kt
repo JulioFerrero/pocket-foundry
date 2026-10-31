@@ -15,6 +15,9 @@ object Settings {
     fun vibration(context: Context) = prefs(context).getBoolean("vibration", true)
     fun setVibration(context: Context, on: Boolean) = prefs(context).edit().putBoolean("vibration", on).apply()
 
+    fun fpsCounter(context: Context) = prefs(context).getBoolean("fpsCounter", false)
+    fun setFpsCounter(context: Context, on: Boolean) = prefs(context).edit().putBoolean("fpsCounter", on).apply()
+
     /** 60 or 30 fps; our SDL (runtime/sdl) paces the frames, so a change applies at once. */
     fun frameRate(context: Context) = prefs(context).getInt("frameRate", 60)
     fun setFrameRate(context: Context, fps: Int) {
@@ -29,11 +32,13 @@ object Settings {
     /** Termux:X11's scale (game size = panel × 100 / scale) that gives 720 lines per 384 dp on any phone. */
     fun naturalResolutionScale(context: Context) = context.resources.displayMetrics.densityDpi / 3f
     fun defaultResolutionScale(context: Context) = naturalResolutionScale(context).roundToInt().let { if (it < 115) 100 else it }
+    /** Two below the default, for the CPU driver: our SDL scales the game down with them, so the view stays the same. */
     fun resolutionScales(context: Context): List<Int> {
         val default = defaultResolutionScale(context)
-        return listOf(100, 125, 150).filter { it <= default - 15 } + default
+        return listOf(100, 125, 150).filter { it <= default - 15 } + default + default * 3 / 2 + default * 2
     }
-    fun resolutionScale(context: Context) = x11(context).getInt("displayScale", defaultResolutionScale(context))
+    fun startingResolutionScale(context: Context) = defaultResolutionScale(context) * if (Drivers.cpu(context)) 2 else 1
+    fun resolutionScale(context: Context) = x11(context).getInt("displayScale", startingResolutionScale(context))
     fun setResolutionScale(context: Context, scale: Int) =
         x11(context).edit().putString("displayResolutionMode", "scaled").putInt("displayScale", scale).apply()
 
@@ -42,11 +47,29 @@ object Settings {
     fun setBorder(context: Context, dp: Int) = prefs(context).edit().putInt("border", dp).apply()
 
     /** Factorio's graphics-quality, missing from its menus: "medium" halves the sprites, ~600 MB less memory. */
-    fun spriteQuality(context: Context) = prefs(context).getString("spriteQuality", "high")!!
+    fun spriteQuality(context: Context) = prefs(context).getString("spriteQuality", null) ?: if (Drivers.cpu(context)) "medium" else "high"
     fun setSpriteQuality(context: Context, quality: String) = prefs(context).edit().putString("spriteQuality", quality).apply()
 
-    fun driver(context: Context) = prefs(context).getString("driver", Drivers.ZINK)!!
+    /** Factorio's extra effects off (smoke, clouds, decoratives, shadows, terrain effects…): fewer pixels to draw. */
+    fun lightGraphics(context: Context) = prefs(context).getBoolean("lightGraphics", Drivers.cpu(context))
+    fun setLightGraphics(context: Context, on: Boolean) = prefs(context).edit().putBoolean("lightGraphics", on).apply()
+    /** Whether the game's config has them off, so turning Light off can put them back once. */
+    fun lightApplied(context: Context) = prefs(context).getBoolean("lightApplied", false)
+    fun setLightApplied(context: Context, on: Boolean) = prefs(context).edit().putBoolean("lightApplied", on).apply()
+
+    /** Without a GPU driver for the phone, the CPU's. */
+    fun driver(context: Context) = prefs(context).getString("driver", null) ?: if (Gpu.supported) Drivers.ZINK else Drivers.CPU
     fun setDriver(context: Context, id: String) = prefs(context).edit().putString("driver", id).apply()
+    fun clearDriver(context: Context) = prefs(context).edit().remove("driver").apply()
+
+    /** Moving to or from the CPU driver: the sprites, effects and resolution that suit it, or the GPU's. */
+    fun applyDriverDefaults(context: Context) {
+        val cpu = Drivers.cpu(context)
+        setSpriteQuality(context, if (cpu) "medium" else "high")
+        setLightGraphics(context, cpu)
+        setResolutionScale(context, startingResolutionScale(context))
+    }
+
     fun driverOptions(context: Context) = prefs(context).getString("driverOptions", "")!!
     fun setDriverOptions(context: Context, options: String) = prefs(context).edit().putString("driverOptions", options).apply()
 
