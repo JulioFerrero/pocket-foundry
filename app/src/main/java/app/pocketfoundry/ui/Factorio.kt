@@ -18,10 +18,13 @@ import android.graphics.Typeface
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
+import android.os.SystemClock
 import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -30,6 +33,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import app.pocketfoundry.Paths
@@ -471,19 +475,43 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
     var selected = -1
         set(value) { field = value; text = options.getOrNull(value) ?: "" }
     private var popup: PopupWindow? = null
+    private var scroll: ScrollView? = null
     private val items = ArrayList<FButton>()
     private var highlight = -1
+    private var touchDown = -1L
+    private var closedAt = -1L
 
     init {
         bevel.caret = true
         gravity = Gravity.START or Gravity.CENTER_VERTICAL
         setPadding(context.dpi(14), 0, context.dpi(30), 0)
-        setOnClickListener { open() }
+        setOnClickListener {
+            // A tap on the button while the list is open closes it as the touch starts; the same tap mustn't reopen it.
+            val closedByThisTap = touchDown >= 0 && closedAt >= touchDown
+            touchDown = -1
+            if (!closedByThisTap) open()
+        }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> touchDown = event.downTime
+            MotionEvent.ACTION_CANCEL -> touchDown = -1
+        }
+        return super.onTouchEvent(event)
     }
 
     private fun open() {
-        val list = stack(context, Factorio.PANEL, sunken = false, padding = 2, gap = 2)
-        val popup = PopupWindow(list, width, ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        val frame = stack(context, Factorio.PANEL, sunken = false, padding = 2, gap = 2)
+        val list = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
+            dividerDrawable = frame.dividerDrawable
+        }
+        val scroll = ScrollView(context).apply { addView(list) }
+        frame.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        val popup = PopupWindow(frame, width, ViewGroup.LayoutParams.WRAP_CONTENT, false)
+        this.scroll = scroll
         items.clear()
         options.forEachIndexed { i, option ->
             items += FButton(context, option, if (i == selected) Tone.ORANGE else Tone.GREY, size = 15f).apply {
@@ -493,8 +521,19 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
             }
             list.addView(items.last(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dpi(40)))
         }
+        // A list longer than the room below the button scrolls.
+        val at = IntArray(2).also { getLocationInWindow(it) }
+        val room = rootView.height - at[1] - height - context.dpi(12)
+        frame.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED)
+        if (frame.measuredHeight > room) {
+            popup.height = room.coerceAtLeast(context.dpi(130))
+            scroll.keepScrollBar()
+            popup.width = width + scroll.paddingRight
+            scroll.post { items.getOrNull(selected)?.let { scroll.scrollTo(0, it.top - (scroll.height - it.height) / 2) } }
+        }
         // Not focusable: a focused popup brings back the system bars, so keys stay with this button.
         popup.isOutsideTouchable = true
+        popup.setOnDismissListener { closedAt = SystemClock.uptimeMillis() }
         popup.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         popup.showAsDropDown(this, 0, context.dpi(2))
         this.popup = popup
@@ -504,6 +543,7 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
     private fun highlight(index: Int) {
         highlight = index
         items.forEachIndexed { i, item -> item.isHovered = i == index }
+        items.getOrNull(index)?.takeIf { it.height > 0 }?.let { scroll?.requestChildRectangleOnScreen(it, Rect(0, it.top, it.width, it.bottom), false) }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -607,6 +647,18 @@ fun label(context: Context, text: CharSequence = "", size: Float = 15f, color: I
     }
 
 fun heading(context: Context, text: CharSequence, size: Float = 22f) = label(context, text, size, Factorio.HEADING, 600)
+
+/** A scroll bar that stays while there's more to scroll to, in a gap of its own beside the content. */
+fun ScrollView.keepScrollBar() {
+    isScrollbarFadingEnabled = false
+    scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
+    setPadding(paddingLeft, paddingTop, context.dpi(10), paddingBottom)
+    scrollBarSize = context.dpi(4)
+    verticalScrollbarThumbDrawable = GradientDrawable().apply {
+        setColor(Factorio.FAINT)
+        cornerRadius = context.dpi(2).toFloat()
+    }
+}
 
 fun stack(context: Context, fill: Int, sunken: Boolean, padding: Int, gap: Int) = LinearLayout(context).apply {
     orientation = LinearLayout.VERTICAL

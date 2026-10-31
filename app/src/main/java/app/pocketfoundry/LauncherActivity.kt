@@ -44,6 +44,7 @@ import app.pocketfoundry.ui.dpi
 import app.pocketfoundry.ui.groove
 import app.pocketfoundry.ui.heading
 import app.pocketfoundry.ui.immersive
+import app.pocketfoundry.ui.keepScrollBar
 import app.pocketfoundry.ui.label
 import app.pocketfoundry.ui.slider
 import app.pocketfoundry.ui.stack
@@ -290,33 +291,35 @@ class LauncherActivity : Activity() {
 
         val display = stack(this, Factorio.INSET_LIGHT, sunken = true, padding = 10, gap = 6)
         display.addView(heading(this, "Display", 17f))
+        val displayRows = rows(display)
         resolution = Dropdown(this, resolutionNames()) { Settings.setResolutionScale(this, Settings.resolutionScales(this)[it]) }
-        display.addView(row("Resolution", resolution.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
+        displayRows.addView(row("Resolution", resolution.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         border = Dropdown(this, listOf("Off", "Thin", "Wide")) { Settings.setBorder(this, Settings.BORDERS[it]) }
-        display.addView(row("Border", border.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
+        displayRows.addView(row("Border", border.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         fps30 = FButton(this, "30 FPS", size = 15f).apply { setOnClickListener { Settings.setFrameRate(context, 30); refresh() } }
         fps60 = FButton(this, "60 FPS", size = 15f).apply { setOnClickListener { Settings.setFrameRate(context, 60); refresh() } }
-        display.addView(row("Frame rate", choice(fps30, fps60)))
+        displayRows.addView(row("Frame rate", choice(fps30, fps60)))
         sprites = Dropdown(this, listOf("High", "Medium")) { Settings.setSpriteQuality(this, SPRITE_QUALITIES[it]) }
-        display.addView(row("Sprite quality", sprites.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
+        displayRows.addView(row("Sprite quality", sprites.apply { layoutParams = LinearLayout.LayoutParams(dpi(170), dpi(34)) }))
         graphicsFull = FButton(this, "Full", size = 15f).apply { setOnClickListener { Settings.setLightGraphics(context, false); refresh() } }
         graphicsLight = FButton(this, "Light", size = 15f).apply { setOnClickListener { Settings.setLightGraphics(context, true); refresh() } }
-        display.addView(row("Graphics", choice(graphicsFull, graphicsLight)))
+        displayRows.addView(row("Graphics", choice(graphicsFull, graphicsLight)))
         columns.addView(display, LinearLayout.LayoutParams(0, MATCH, 1f))
 
         val controller = stack(this, Factorio.INSET_LIGHT, sunken = true, padding = 10, gap = 6)
         controller.addView(heading(this, "Game", 17f))
-        controller.addView(row("Pause in background", checkBox(this, Settings.pauseInBackground(this)) { Settings.setPauseInBackground(this, it) }
+        val gameRows = rows(controller)
+        gameRows.addView(row("Pause in background", checkBox(this, Settings.pauseInBackground(this)) { Settings.setPauseInBackground(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
-        controller.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
+        gameRows.addView(row("Vibration", checkBox(this, Settings.vibration(this)) { Settings.setVibration(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
-        controller.addView(row("FPS counter", checkBox(this, Settings.fpsCounter(this)) { Settings.setFpsCounter(this, it) }
+        gameRows.addView(row("FPS counter", checkBox(this, Settings.fpsCounter(this)) { Settings.setFpsCounter(this, it) }
             .apply { layoutParams = LinearLayout.LayoutParams(WRAP, dpi(34)) }))
         editLayout = FButton(this, "Edit layout", size = 15f).apply {
             setOnClickListener { Settings.requestLayoutEditor(context); settingsOpen = false; showGame() }
         }
         layoutLater = label(this, "In a game", 15f, Factorio.FAINT)
-        controller.addView(row("Controls layout", FrameLayout(this).apply {
+        gameRows.addView(row("Controls layout", FrameLayout(this).apply {
             addView(editLayout, FrameLayout.LayoutParams(WRAP, dpi(40), Gravity.END))
             addView(layoutLater, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL))
             layoutParams = LinearLayout.LayoutParams(WRAP, dpi(40))
@@ -338,6 +341,22 @@ class LauncherActivity : Activity() {
             addView(importAgain, LinearLayout.LayoutParams(WRAP, dpi(44)).apply { marginStart = dpi(4) })
         })
         return panel
+    }
+
+    /** A column's rows under its heading, scrolling on a screen too short for them all. */
+    private fun rows(column: LinearLayout): LinearLayout {
+        val rows = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
+            dividerDrawable = column.dividerDrawable
+        }
+        column.addView(ScrollView(this).apply {
+            isVerticalFadingEdgeEnabled = true
+            setFadingEdgeLength(dpi(24))
+            keepScrollBar()
+            addView(rows)
+        }, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        return rows
     }
 
     private fun row(text: String, control: View) = LinearLayout(this).apply {
