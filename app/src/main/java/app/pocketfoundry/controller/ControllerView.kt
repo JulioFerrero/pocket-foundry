@@ -82,9 +82,9 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         Control("VIEW", Kind.BUTTON, "", 0.4715f, 0.18f, 0.085f, PadButton.BACK, name = "Map"),
         Control("MENU", Kind.BUTTON, "", 0.5285f, 0.18f, 0.085f, PadButton.START, name = "Menu"),
         Control("RS", Kind.STICK, "R", 0.64f, 0.74f, 0.24f, axis = PadAxis.RIGHT_X, axisY = PadAxis.RIGHT_Y,
-                name = "R stick", extra = true),
-        Control("L3", Kind.BUTTON, "L3", 0.215f, 0.56f, 0.085f, PadButton.LEFT_STICK, extra = true),
-        Control("R3", Kind.BUTTON, "R3", 0.785f, 0.56f, 0.085f, PadButton.RIGHT_STICK, extra = true),
+                name = "R stick"),
+        Control("L3", Kind.BUTTON, "L3", 0.215f, 0.56f, 0.085f, PadButton.LEFT_STICK),
+        Control("R3", Kind.BUTTON, "R3", 0.785f, 0.56f, 0.085f, PadButton.RIGHT_STICK),
     )
     private var controls = all.filter { it.shown }
     private var adding = false

@@ -16,6 +16,7 @@ Your finger is the cursor: touch the game where you want something to happen.
 | Button | In Factorio |
 |---|---|
 | Left stick | Walk. |
+| Right stick | Moves the cursor. |
 | Y (the largest) | Inventory and crafting. |
 | A | Build, open, craft, pick up. |
 | X | Mine, craft 5. |
@@ -26,8 +27,8 @@ Your finger is the cursor: touch the game where you want something to happen.
 | D-pad | Right rotates, down picks up items, up shows details on the map. |
 | The two under the toolbar | Map and game menu. |
 
-The toolbar at the top moves and resizes the buttons (pinch one), adds and removes them (a right stick and the
-sticks' clicks), fades or hides them all, and opens the phone's keyboard, for naming a save. Back, or a controller's
+The toolbar at the top moves and resizes the buttons (pinch one), removes them and adds them back, fades or hides
+them all, and opens the phone's keyboard, for naming a save. Back, or a controller's
 home button, opens the pause menu; the game freezes while it's off screen.
 
 ## Controllers
