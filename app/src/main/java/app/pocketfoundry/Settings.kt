@@ -15,6 +15,10 @@ object Settings {
     fun vibration(context: Context) = prefs(context).getBoolean("vibration", true)
     fun setVibration(context: Context, on: Boolean) = prefs(context).edit().putBoolean("vibration", on).apply()
 
+    /** The release whose What's new already showed on start: it shows once. */
+    fun updateShown(context: Context) = prefs(context).getString("updateShown", "")!!
+    fun setUpdateShown(context: Context, version: String) = prefs(context).edit().putString("updateShown", version).apply()
+
     fun fpsCounter(context: Context) = prefs(context).getBoolean("fpsCounter", false)
     fun setFpsCounter(context: Context, on: Boolean) = prefs(context).edit().putBoolean("fpsCounter", on).apply()
 

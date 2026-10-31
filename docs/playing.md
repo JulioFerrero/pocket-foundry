@@ -59,6 +59,13 @@ still works as the mouse too.
 - **FPS counter** in the game's top-left corner.
 - Pausing in the background, and vibration.
 
+## Updates
+
+When it opens, Pocket Foundry asks GitHub whether a newer version is out. If one is, it shows what changed since
+yours and offers **Update**, which downloads it, checks it against the release's checksum and hands it to Android's
+installer. The first time, Android asks you to allow Pocket Foundry to install apps. **Settings** keeps the offer
+next to the version.
+
 ## Saves
 
 Settings -> Saves exports them all to `Download/Pocket Foundry`, which uninstalling leaves alone, and imports saves
