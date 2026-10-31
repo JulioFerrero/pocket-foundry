@@ -137,10 +137,30 @@ class GuiSheet(dir: File) {
     val caret = BitmapFactory.decodeFile(File(dir, "icons/mip/dropdown.png").path)
         ?.let { Bitmap.createBitmap(it, 0, 0, minOf(32, it.width), minOf(32, it.height)) }
 
+    // slot_button, the inventory's and quickbar's dark square: idle, clicked, disabled (idle, as the game has none),
+    // hovered. One 80-pixel tile, halved so it scales whole and a wider button stretches only its middle column.
+    val slot = listOf(half(0, 736), half(160, 736), half(0, 736), half(80, 736))
+
+    private val controller = File(dir, "icons/controller")
+    private val glyphs = HashMap<String, Bitmap?>()
+
+    /** One of the game's controller glyphs, e.g. "joycon/color/A", at its largest mip; null if it's missing. */
+    fun glyph(path: String): Bitmap? = glyphs.getOrPut(path) {
+        BitmapFactory.decodeFile(File(controller, "$path.png").path)
+            ?.let { Bitmap.createBitmap(it, 0, 0, minOf(40, it.width), minOf(40, it.height)) }
+    }
+
     fun button(tone: Tone, state: Int) = buttons.getValue(tone)[state]
     fun arrowButton(tone: Tone, state: Int) = arrows.getValue(tone)[state]
 
     private fun piece(x: Int, y: Int, w: Int, h: Int): Bitmap = Bitmap.createBitmap(png, x, y, w, h)
+
+    /** An 80-pixel tile cut 40 | 1 | 39 both ways: drawn with a corner of half the shorter side. */
+    private fun half(x: Int, y: Int) = NineSlice(List(9) { i ->
+        val col = i % 3
+        val row = i / 3
+        piece(x + HALVES[col], y + HALVES[row], HALF_SIZES[col], HALF_SIZES[row])
+    })
 
     /** A 17-pixel tile cut 8 | 1 | 8 both ways. */
     private fun nine(x: Int, y: Int, centerX: Int = x + 8, centerY: Int = y + 8) = NineSlice(List(9) { i ->
@@ -164,6 +184,8 @@ class GuiSheet(dir: File) {
         /** The arrow end's width, per height of the face. */
         const val ARROW_TIP = 24f / 64
         private val CUTS = intArrayOf(0, 8, 9)
+        private val HALVES = intArrayOf(0, 40, 41)
+        private val HALF_SIZES = intArrayOf(40, 1, 39)
     }
 }
 

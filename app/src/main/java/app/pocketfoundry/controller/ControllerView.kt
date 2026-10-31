@@ -2,6 +2,7 @@ package app.pocketfoundry.controller
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
@@ -16,6 +17,8 @@ import app.pocketfoundry.PadAxis
 import app.pocketfoundry.PadButton
 import app.pocketfoundry.Settings
 import app.pocketfoundry.ui.Factorio
+import app.pocketfoundry.ui.GuiSheet
+import app.pocketfoundry.ui.GuiSprites
 import app.pocketfoundry.ui.Tone
 import org.json.JSONArray
 import org.json.JSONObject
@@ -65,6 +68,7 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
 
     private val all = listOf(
         // Sized by use in Factorio: gestures press A, X and B ([PointerGestures]), so Y, the inventory, is largest.
+        // The right side mirrors the left: x as 1 - x, at the same heights.
         Control("LS", Kind.STICK, "L", 0.10f, 0.70f, 0.28f, axis = PadAxis.LEFT_X, axisY = PadAxis.LEFT_Y, name = "L stick"),
         Control("DPAD", Kind.DPAD, "", 0.245f, 0.88f, 0.20f, name = "D-pad"),
         Control("Y", Kind.BUTTON, "Y", 0.885f, 0.635f, 0.125f, PadButton.NORTH),
@@ -73,14 +77,14 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         Control("B", Kind.BUTTON, "B", 0.943f, 0.765f, 0.115f, PadButton.EAST),
         Control("LB", Kind.BUTTON, "LB", 0.075f, 0.42f, 0.10f, PadButton.LEFT_SHOULDER, pill = true),
         Control("LT", Kind.TRIGGER, "LT", 0.17f, 0.42f, 0.085f, axis = PadAxis.LEFT_TRIGGER, pill = true),
-        Control("RB", Kind.BUTTON, "RB", 0.83f, 0.47f, 0.085f, PadButton.RIGHT_SHOULDER, pill = true),
-        Control("RT", Kind.TRIGGER, "RT", 0.925f, 0.47f, 0.10f, axis = PadAxis.RIGHT_TRIGGER, pill = true),
+        Control("RB", Kind.BUTTON, "RB", 0.83f, 0.42f, 0.085f, PadButton.RIGHT_SHOULDER, pill = true),
+        Control("RT", Kind.TRIGGER, "RT", 0.925f, 0.42f, 0.10f, axis = PadAxis.RIGHT_TRIGGER, pill = true),
         Control("VIEW", Kind.BUTTON, "", 0.4715f, 0.18f, 0.085f, PadButton.BACK, name = "Map"),
         Control("MENU", Kind.BUTTON, "", 0.5285f, 0.18f, 0.085f, PadButton.START, name = "Menu"),
         Control("RS", Kind.STICK, "R", 0.64f, 0.74f, 0.24f, axis = PadAxis.RIGHT_X, axisY = PadAxis.RIGHT_Y,
                 name = "R stick", extra = true),
         Control("L3", Kind.BUTTON, "L3", 0.215f, 0.56f, 0.085f, PadButton.LEFT_STICK, extra = true),
-        Control("R3", Kind.BUTTON, "R3", 0.77f, 0.58f, 0.085f, PadButton.RIGHT_STICK, extra = true),
+        Control("R3", Kind.BUTTON, "R3", 0.785f, 0.56f, 0.085f, PadButton.RIGHT_STICK, extra = true),
     )
     private var controls = all.filter { it.shown }
     private var adding = false
@@ -125,6 +129,7 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
+    private val sprite = Paint(Paint.FILTER_BITMAP_FLAG)
     private val path = Path()
     private val cross = Path()
     private val bar = Path()
@@ -478,19 +483,36 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
     private fun drawRow(canvas: Canvas, labels: List<String>) {
         val rects = rowRects(labels)
         if (rects.isEmpty()) return
+        val sheet = GuiSprites.get(context)
         val s = toolSize()
-        val pad = s * 0.1f
+        val pad = s * if (sheet != null) 0.18f else 0.1f
         rect.set(rects.minOf { it.left } - pad, rects.first().top - pad, rects.maxOf { it.right } + pad, rects.last().bottom + pad)
+        panel(canvas, sheet, pad)
+        rects.forEachIndexed { i, box ->
+            box.inset(s * 0.07f, s * 0.07f)
+            rect.set(box)
+            key(canvas, sheet, false, s)
+            letter(canvas, labels[i], box.centerX(), box.centerY(), s * 0.42f, if (sheet != null) LIGHT else GLYPH)
+        }
+    }
+
+    /** Behind the toolbar and the list of controls to add, in [rect]: the game's frame, as the launcher's panels. */
+    private fun panel(canvas: Canvas, sheet: GuiSheet?, pad: Float) {
+        if (sheet != null) {
+            sheet.frame.draw(canvas, rect, corner(), sprite)
+            return
+        }
         fill.color = Factorio.PANEL
         canvas.drawRoundRect(rect, pad * 0.6f, pad * 0.6f, fill)
         stroke.color = Factorio.FRAME
         stroke.strokeWidth = pad * 0.8f
         canvas.drawRoundRect(rect, pad * 0.6f, pad * 0.6f, stroke)
-        rects.forEachIndexed { i, key ->
-            key.inset(s * 0.07f, s * 0.07f)
-            slot(false, key.top, key.bottom) { canvas.drawRoundRect(key, s * 0.05f, s * 0.05f, it) }
-            letter(canvas, labels[i], key.centerX(), key.centerY(), s * 0.42f, GLYPH)
-        }
+    }
+
+    /** A toolbar or list button in [rect]. */
+    private fun key(canvas: Canvas, sheet: GuiSheet?, held: Boolean, s: Float) {
+        if (sheet != null) slot(canvas, sheet, held)
+        else slot(held, rect.top, rect.bottom) { canvas.drawRoundRect(rect, s * 0.05f, s * 0.05f, it) }
     }
 
     private fun edge() = frame() * 0.003f
@@ -534,7 +556,8 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         val x = cx(c)
         val y = cy(c)
         val pressed = c.pointers.isNotEmpty()
-        when (c.kind) {
+        val sheet = GuiSprites.get(context)
+        if (sheet != null) drawSprites(canvas, c, sheet, x, y, r, pressed) else when (c.kind) {
             Kind.STICK -> {
                 val active = pressed && !c.originX.isNaN()
                 well(canvas, if (active) c.originX else x, if (active) c.originY else y, r)
@@ -592,9 +615,111 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
             if (c.pill) {
                 rect.set(x - 2.2f * r, y - 1.2f * r, x + 2.2f * r, y + 1.2f * r)
                 canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
+            } else if (GuiSprites.get(context) != null) {
+                rect.set(x - 1.15f * r, y - 1.15f * r, x + 1.15f * r, y + 1.15f * r)
+                canvas.drawRect(rect, stroke)
             } else {
                 canvas.drawCircle(x, y, r * 1.12f, stroke)
             }
+        }
+    }
+
+    /** In the game's own GUI sprites: its dark slot buttons, orange while pressed, with its controller glyphs. */
+    private fun drawSprites(canvas: Canvas, c: Control, sheet: GuiSheet, x: Float, y: Float, r: Float, pressed: Boolean) {
+        val glyph = glyphOf(c, pressed)?.let { sheet.glyph(it) }
+        when (c.kind) {
+            Kind.STICK -> {
+                val active = pressed && !c.originX.isNaN()
+                roundWell(canvas, if (active) c.originX else x, if (active) c.originY else y, r)
+                val knob = r * 0.42f
+                rect.set(-knob, -knob, knob, knob)
+                rect.offset(if (active) c.knobX else x, if (active) c.knobY else y)
+                key(canvas, sheet, pressed, glyph, c.label, 0.62f, round = true)
+            }
+            Kind.DPAD -> {
+                // Four buttons round a sunken middle.
+                val arm = r * 0.36f
+                val gap = edge() * 2
+                rect.set(x - arm, y - arm, x + arm, y + arm)
+                sunken(canvas, sheet)
+                for ((bit, dir) in DIRECTIONS) {
+                    when (dir) {
+                        0 -> rect.set(x - arm, y - r, x + arm, y - arm - gap)
+                        1 -> rect.set(x - arm, y + arm + gap, x + arm, y + r)
+                        2 -> rect.set(x - r, y - arm, x - arm - gap, y + arm)
+                        else -> rect.set(x + arm + gap, y - arm, x + r, y + arm)
+                    }
+                    val on = c.dpad and bit != 0
+                    slot(canvas, sheet, on)
+                    arrow(canvas, dir, rect.centerX(), rect.centerY(), 0f, arm * 0.34f, glyph(on))
+                }
+            }
+            else -> {
+                rect.set(x - r, y - r, x + r, y + r)
+                if (c.pill) rect.inset(-r, 0f)
+                key(canvas, sheet, pressed, glyph, c.label, if (c.pill) 0.78f else 0.6f)
+            }
+        }
+    }
+
+    /** A slot button in [rect], or the circle in it, with its glyph (or [label]) in the middle, [glyphSize] of its height. */
+    private fun key(canvas: Canvas, sheet: GuiSheet, pressed: Boolean, glyph: Bitmap?, label: String, glyphSize: Float,
+                    round: Boolean = false) {
+        if (round) {
+            // The slot button's flat middle only: cut round, its lit and shaded edges become arcs.
+            fill.color = if (pressed) SLOT_PRESSED else SLOT
+            canvas.drawCircle(rect.centerX(), rect.centerY(), rect.width() / 2, fill)
+            stroke.color = EDGE
+            stroke.strokeWidth = edge()
+            canvas.drawCircle(rect.centerX(), rect.centerY(), rect.width() / 2 - edge() / 2, stroke)
+        } else {
+            slot(canvas, sheet, pressed)
+        }
+        val x = rect.centerX()
+        val y = rect.centerY()
+        val half = rect.height() * glyphSize / 2
+        if (glyph == null) return letter(canvas, label, x, y, half * 1.3f, glyph(pressed))
+        rect.set(x - half, y - half, x + half, y + half)
+        canvas.drawBitmap(glyph, null, rect, sprite)
+    }
+
+    private fun slot(canvas: Canvas, sheet: GuiSheet, pressed: Boolean) =
+        sheet.slot[if (pressed) GuiSheet.PRESSED else GuiSheet.IDLE].draw(canvas, rect, minOf(rect.width(), rect.height()) / 2, sprite)
+
+    /** A stick's round well: the game's dark inset, edged as the knob is. */
+    private fun roundWell(canvas: Canvas, x: Float, y: Float, r: Float) {
+        fill.color = Factorio.INSET_DARK
+        canvas.drawCircle(x, y, r, fill)
+        stroke.color = EDGE
+        stroke.strokeWidth = edge()
+        canvas.drawCircle(x, y, r - edge() / 2, stroke)
+    }
+
+    /** The game's sunken frame in [rect], dark right through. */
+    private fun sunken(canvas: Canvas, sheet: GuiSheet) {
+        fill.color = Factorio.INSET_DARK
+        canvas.drawRect(rect, fill)
+        sheet.deepFrame.draw(canvas, rect, corner(), sprite)
+    }
+
+    private fun corner() = GuiSheet.CORNER * resources.displayMetrics.density
+
+    /**
+     * The ones the game itself shows for an Xbox pad (utility-sprites.lua, controller_xbox_*): its light ones, the
+     * black ones on a pressed button's orange.
+     */
+    private fun glyphOf(c: Control, pressed: Boolean): String? {
+        val set = if (pressed) "black" else "color"
+        return when (c.id) {
+            "A", "B", "X", "Y" -> "joycon/$set/${c.id}"
+            "LB", "RB", "LT", "RT" -> "xbox/$set/${c.id}"
+            "LS" -> "joycon/$set/L-stick"
+            "RS" -> "joycon/$set/R-stick"
+            "L3" -> "joycon/$set/L-stick-press"
+            "R3" -> "joycon/$set/R-stick-press"
+            "VIEW" -> "xbox/$set/windows"
+            "MENU" -> "steam-deck/$set/menu"
+            else -> null
         }
     }
 
@@ -643,22 +768,19 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
     }
 
     private fun drawToolbar(canvas: Canvas) {
+        val sheet = GuiSprites.get(context)
         val list = tools()
         val s = toolSize()
         toolRect(0, list.size, rect)
-        val pad = s * 0.1f
+        val pad = s * if (sheet != null) 0.18f else 0.1f
         rect.set(rect.left - pad, rect.top - pad, rect.left + s * list.size + pad, rect.top + s + pad)
-        fill.color = Factorio.PANEL
-        canvas.drawRoundRect(rect, pad * 0.6f, pad * 0.6f, fill)
-        stroke.color = Factorio.FRAME
-        stroke.strokeWidth = pad * 0.8f
-        canvas.drawRoundRect(rect, pad * 0.6f, pad * 0.6f, stroke)
+        panel(canvas, sheet, pad)
         list.forEachIndexed { i, tool ->
             toolRect(i, list.size, rect)
             rect.inset(s * 0.07f, s * 0.07f)
             val held = tool in toolPointers.values || (tool == Tool.ADD && adding)
-            slot(held, rect.top, rect.bottom) { canvas.drawRoundRect(rect, s * 0.05f, s * 0.05f, it) }
-            icon.color = if (held) 0xFF1E1E1E.toInt() else 0xFFE8E6E3.toInt()
+            key(canvas, sheet, held, s)
+            icon.color = if (held) INK else LIGHT
             icon.strokeWidth = s * 0.065f
             drawTool(canvas, tool, rect.centerX(), rect.centerY(), s * 0.22f)
         }
@@ -782,6 +904,13 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
                                   LEFT to PadButton.DPAD_LEFT, RIGHT to PadButton.DPAD_RIGHT)
         /** The blue of the game's controller glyphs (data/core/graphics/icons/controller). */
         private const val GLYPH = 0xFF80CEF0.toInt()
+        /** Icons on a pressed button's orange, and the toolbar's on its dark buttons. */
+        private const val INK = 0xFF1E1E1E.toInt()
+        private const val LIGHT = 0xFFE8E6E3.toInt()
+        /** The game's slot button: its darkest edge, and its middle idle and clicked. */
+        private const val EDGE = 0xFF090909.toInt()
+        private const val SLOT = 0xFF2D2D2D.toInt()
+        private const val SLOT_PRESSED = 0xFFDC7B00.toInt()
         private val IDLE = intArrayOf(0xFF6B6A6B.toInt(), 0xFF6B6A6B.toInt(), 0xFF474647.toInt(), 0xFF2B2A2B.toInt())
         private val PRESSED = intArrayOf(0xFFF7CC8F.toInt(), 0xFFF7CC8F.toInt(), 0xFFE39C40.toInt(), 0xFFC4802C.toInt())
         private val BEVEL = floatArrayOf(0f, 0.06f, 0.09f, 1f)
