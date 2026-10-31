@@ -59,6 +59,7 @@ import app.pocketfoundry.ui.Factorio
 import app.pocketfoundry.ui.GuiSprites
 import app.pocketfoundry.ui.Tone
 import app.pocketfoundry.ui.checkBox
+import app.pocketfoundry.ui.displayCompat
 import app.pocketfoundry.ui.dpi
 import app.pocketfoundry.ui.groove
 import app.pocketfoundry.ui.heading
@@ -145,12 +146,17 @@ class LauncherActivity : Activity() {
         paths = Paths(this)
         applyDisplayDefaults(this)
         checkForUpdates()
-        window.setDecorFitsSystemWindows(false)
+        if (Build.VERSION.SDK_INT >= 30) window.setDecorFitsSystemWindows(false)
+        else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+        }
 
         val overlay = FrameLayout(this)
         overlay.setOnApplyWindowInsetsListener { view, insets ->
-            val cutout = insets.getInsets(WindowInsets.Type.displayCutout())
-            view.setPadding(cutout.left, cutout.top, cutout.right, cutout.bottom)
+            val cutout = insets.displayCutout
+            view.setPadding(cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)
             insets
         }
         welcome = buildWelcome()
@@ -516,7 +522,7 @@ class LauncherActivity : Activity() {
     }
 
     private fun resolutionNames(): List<CharSequence> {
-        val mode = display.mode
+        val mode = displayCompat()!!.mode
         val long = maxOf(mode.physicalWidth, mode.physicalHeight)
         val short = minOf(mode.physicalWidth, mode.physicalHeight)
         val default = Settings.defaultResolutionScale(this)
@@ -705,8 +711,9 @@ class LauncherActivity : Activity() {
             addView(panel.apply { isClickable = true; isFocusable = false }, centered(widthDp))
         }
         // Full screen, Android makes no room for the keyboard: the dialog moves up until the field being typed in clears it.
+        // Android 10 doesn't tell full-screen windows where the keyboard is, so there it stays put.
         scrim.setOnApplyWindowInsetsListener { _, insets ->
-            val keyboard = insets.getInsets(WindowInsets.Type.ime()).bottom
+            val keyboard = if (Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.ime()).bottom else 0
             val field = currentFocus.takeIf { keyboard > 0 && it is EditText }
             val bottom = field?.let { IntArray(2).also(it::getLocationInWindow)[1] - panel.translationY + it.height + dpi(8) }
             panel.translationY = if (bottom == null) 0f else minOf(0f, scrim.height - keyboard - bottom)

@@ -20,8 +20,10 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
+import android.os.Build
 import android.os.SystemClock
 import android.util.Log
+import android.view.Display
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -236,12 +238,25 @@ class ArrowButton(private val pointLeft: Bitmap, private val pointRight: Bitmap,
 
 fun Context.dp(value: Float) = value * resources.displayMetrics.density
 
+/** The bars hidden until a swipe; Android 10 has only the older flags for it. */
 fun Activity.immersive() {
+    if (Build.VERSION.SDK_INT < 30) {
+        @Suppress("DEPRECATION")
+        window.decorView.run {
+            systemUiVisibility = systemUiVisibility or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+        }
+        return
+    }
     window.insetsController?.apply {
         hide(WindowInsets.Type.systemBars())
         systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 }
+
+/** The screen the activity is on; Activity.display is Android 11's. */
+fun Activity.displayCompat(): Display? =
+    if (Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay
 
 fun Context.dpi(value: Int) = (value * resources.displayMetrics.density).roundToInt()
 

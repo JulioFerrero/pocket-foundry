@@ -18,6 +18,7 @@ import app.pocketfoundry.core.engine.ScreenLog
 import app.pocketfoundry.core.engine.Session
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.input.Gamepads
+import app.pocketfoundry.ui.displayCompat
 import kotlin.math.abs
 import java.util.WeakHashMap
 
@@ -121,7 +122,7 @@ object OnScreenController : Application.ActivityLifecycleCallbacks {
 
     /** 60 Hz: the game draws at most 60 frames a second, and 30 divides it evenly. */
     private fun applyRefreshRate(activity: Activity) {
-        val display = activity.display ?: return
+        val display = activity.displayCompat() ?: return
         val now = display.mode
         val want = 60f
         val mode = display.supportedModes
