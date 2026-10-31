@@ -1,4 +1,4 @@
-package app.pocketfoundry
+package app.pocketfoundry.core.storage
 
 import android.database.Cursor
 import android.database.MatrixCursor
@@ -9,6 +9,8 @@ import android.provider.DocumentsContract.Document
 import android.provider.DocumentsContract.Root
 import android.provider.DocumentsProvider
 import android.webkit.MimeTypeMap
+import app.pocketfoundry.R
+import app.pocketfoundry.core.engine.Paths
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException

@@ -62,7 +62,7 @@
 
         <!-- Factorio's folder (mods, saves, config) in the phone's Files app and file pickers. -->
         <provider
-            android:name=".GameFilesProvider"
+            android:name=".core.storage.GameFilesProvider"
             android:authorities="app.pocketfoundry.files"
             android:exported="true"
             android:grantUriPermissions="true"
