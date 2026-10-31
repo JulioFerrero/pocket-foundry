@@ -23,6 +23,7 @@
         <activity
             android:name=".LauncherActivity"
             android:theme="@style/Theme.PocketFoundry.Launcher"
+            android:windowSoftInputMode="adjustResize"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
             android:exported="true">

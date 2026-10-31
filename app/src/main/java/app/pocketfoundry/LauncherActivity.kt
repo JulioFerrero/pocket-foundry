@@ -689,6 +689,14 @@ class LauncherActivity : Activity() {
             isFocusable = false
             addView(panel.apply { isClickable = true; isFocusable = false }, centered(widthDp))
         }
+        // Full screen, Android makes no room for the keyboard: the dialog moves up until the field being typed in clears it.
+        scrim.setOnApplyWindowInsetsListener { _, insets ->
+            val keyboard = insets.getInsets(WindowInsets.Type.ime()).bottom
+            val field = currentFocus.takeIf { keyboard > 0 && it is EditText }
+            val bottom = field?.let { IntArray(2).also(it::getLocationInWindow)[1] - panel.translationY + it.height + dpi(8) }
+            panel.translationY = if (bottom == null) 0f else minOf(0f, scrim.height - keyboard - bottom)
+            insets
+        }
         beforeDialog = currentFocus
         findViewById<ViewGroup>(android.R.id.content).descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         (window.decorView as ViewGroup).addView(scrim, ViewGroup.LayoutParams(MATCH, MATCH))
@@ -729,8 +737,10 @@ class LauncherActivity : Activity() {
             background = null
             setPadding(dpi(8), dpi(6), dpi(8), dpi(6))
             isSingleLine = true
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
-            imeOptions = EditorInfo.IME_ACTION_DONE
+            // Not a password field: some phones type those on a secure keyboard that can't paste. No full-screen
+            // editor either: the dialog moves above the keyboard.
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
             addTextChangedListener(object : TextWatcher {
                 override fun afterTextChanged(s: Editable) = Settings.setDriverOptions(context, s.toString().trim())
                 override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
