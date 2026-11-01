@@ -1,8 +1,5 @@
 package app.pocketfoundry.launcher
 
-import android.content.Intent
-import android.content.res.ColorStateList
-import android.graphics.Paint
 import android.net.Uri
 import android.text.TextUtils
 import android.view.Gravity
@@ -23,6 +20,7 @@ import app.pocketfoundry.ui.add
 import app.pocketfoundry.ui.background
 import app.pocketfoundry.ui.button
 import app.pocketfoundry.ui.label
+import app.pocketfoundry.ui.link
 import app.pocketfoundry.ui.panel
 import app.pocketfoundry.ui.row
 import app.pocketfoundry.ui.shown
@@ -39,12 +37,7 @@ class WelcomeScreen(private val launcher: LauncherActivity) {
             // Two labels on one baseline.
             add(row(launcher, Gravity.TOP) {
                 add(label(launcher, "The Linux arm64 .tar.xz from ", 14f, Factorio.MUTED))
-                add(label(launcher, "factorio.com", 14f, Factorio.LINK).apply {
-                    paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
-                    setTextColor(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()),
-                                                intArrayOf(Tone.GREY.glow, Factorio.LINK)))
-                    setOnClickListener { launcher.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://factorio.com/download"))) }
-                })
+                add(link(launcher, "factorio.com", "https://factorio.com/download"))
             })
             if (!Gpu.supported) {
                 add(label(launcher, "No GPU driver for this phone's ${Gpu.name} yet: the game runs on the CPU, slowly.", 14f, Factorio.MUTED))

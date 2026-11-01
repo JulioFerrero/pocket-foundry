@@ -2,6 +2,7 @@ package app.pocketfoundry
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.LocalServerSocket
 import android.net.LocalSocket
@@ -26,13 +27,30 @@ val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
 val Context.isDebuggable get() = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
+const val GITHUB = "https://github.com/JulioFerrero/pocket-foundry"
+
+// SHA-256 of the certificate releases are signed with (tools/release.sh checks the same key). A fork changes it.
+private const val RELEASE_CERT = "0e301617d64bc294bcc2d1dbee71a8c83f8fcc7b7c3616edc26e9b2e89c7e35f"
+
+/** Signed with Pocket Foundry's release key. Debug builds count: they're signed with the developer's own key. */
+val Context.isGenuine: Boolean get() = isDebuggable || RELEASE_CERT in signerDigests()
+
+private fun Context.signerDigests(): List<String> {
+    @Suppress("DEPRECATION")
+    val info = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo ?: return emptyList()
+    val certs = if (info.hasMultipleSigners()) info.apkContentsSigners else info.signingCertificateHistory
+    return certs.map { MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).hex() }
+}
+
 fun Context.appVersion(): String = packageManager.getPackageInfo(packageName, 0).versionName ?: "0"
 
 fun File.sha256(): String {
     val digest = MessageDigest.getInstance("SHA-256")
     forEachBlock(1 shl 16) { chunk, n -> digest.update(chunk, 0, n) }
-    return digest.digest().joinToString("") { "%02x".format(it) }
+    return digest.digest().hex()
 }
+
+private fun ByteArray.hex() = joinToString("") { "%02x".format(it) }
 
 fun JSONArray.floats() = FloatArray(length()) { getDouble(it).toFloat() }
 fun JSONArray.strings() = List(length()) { getString(it) }

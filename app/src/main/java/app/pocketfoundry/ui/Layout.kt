@@ -2,6 +2,8 @@ package app.pocketfoundry.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.LinearGradient
@@ -14,6 +16,7 @@ import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
+import android.net.Uri
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
@@ -210,6 +213,13 @@ fun label(context: Context, text: CharSequence = "", size: Float = 15f, color: I
     }
 
 fun heading(context: Context, text: CharSequence, size: Float = 22f) = label(context, text, size, Factorio.HEADING, 600)
+
+/** Underlined text that opens [url] in the browser; lit like a button while focused. */
+fun link(context: Context, text: CharSequence, url: String, size: Float = 14f) = label(context, text, size, Factorio.LINK).apply {
+    paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
+    setTextColor(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()), intArrayOf(Tone.GREY.glow, Factorio.LINK)))
+    setOnClickListener { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+}
 
 /** [text], then [note] smaller and in [color]: a resolution's "Default", a driver's version. */
 fun withNote(text: CharSequence, note: CharSequence, color: Int = 0xFF3A3A3A.toInt(), sizeSp: Int = 13, gap: String = "  "): CharSequence =

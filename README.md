@@ -23,6 +23,11 @@ emulation, no streaming, no game files in the app.
 
 Needs Android 10 or later.
 
+**Only from here.** Copies on APK sites are modified by others: one adds its own code and ships Factorio itself. Their
+code runs with your saves and factorio.com login, and Pocket Foundry warns when it isn't the official build. The
+official APK is signed with this certificate (SHA-256):
+`0e301617d64bc294bcc2d1dbee71a8c83f8fcc7b7c3616edc26e9b2e89c7e35f`
+
 ## Phones
 
 Pocket Foundry ships one GPU driver, Turnip, and tests it on Adreno 6xx and newer. Other GPUs can use a community

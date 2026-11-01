@@ -20,10 +20,17 @@ import app.pocketfoundry.launcher.ImportScreen
 import app.pocketfoundry.launcher.SettingsScreen
 import app.pocketfoundry.launcher.WelcomeScreen
 import app.pocketfoundry.stage.Stage
+import app.pocketfoundry.ui.Arrow
 import app.pocketfoundry.ui.DialogHost
 import app.pocketfoundry.ui.Dropdown
+import app.pocketfoundry.ui.Factorio
+import app.pocketfoundry.ui.Frame
+import app.pocketfoundry.ui.Tone
 import app.pocketfoundry.ui.WRAP
 import app.pocketfoundry.ui.add
+import app.pocketfoundry.ui.button
+import app.pocketfoundry.ui.label
+import app.pocketfoundry.ui.stack
 import app.pocketfoundry.ui.background
 import app.pocketfoundry.ui.edgeToEdge
 import app.pocketfoundry.ui.immersive
@@ -77,6 +84,21 @@ class LauncherActivity : Activity() {
             add(stageHolder)
             add(overlay)
         })
+        if (!warned) warnIfModified()
+    }
+
+    // Someone else's build: whatever they added runs with the player's saves and factorio.com login. Once per app start.
+    private fun warnIfModified() {
+        warned = true
+        if (isGenuine) return
+        val github = button(this, "GitHub", Tone.GREEN, Arrow.RIGHT) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB))) }
+        host.show("Modified copy", 460, "Continue", github) {
+            add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
+                add(label(this@LauncherActivity, "This isn't the official Pocket Foundry", 16f, weight = 600))
+                add(label(this@LauncherActivity, "Someone changed it, and their code runs with your saves and factorio.com " +
+                          "login. The real one is free on GitHub.", 14f, Factorio.MUTED))
+            })
+        }
     }
 
     override fun onStart() {
@@ -259,5 +281,6 @@ class LauncherActivity : Activity() {
         const val PICK_FILES = 1
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3
+        var warned = false   // the modified-copy warning, once per app start
     }
 }

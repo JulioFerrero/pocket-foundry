@@ -4,6 +4,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ScrollView
+import app.pocketfoundry.GITHUB
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.ResolutionScale
 import app.pocketfoundry.Settings
@@ -31,6 +32,7 @@ import app.pocketfoundry.ui.dpi
 import app.pocketfoundry.ui.heading
 import app.pocketfoundry.ui.keepScrollBar
 import app.pocketfoundry.ui.label
+import app.pocketfoundry.ui.link
 import app.pocketfoundry.ui.panel
 import app.pocketfoundry.ui.row
 import app.pocketfoundry.ui.shown
@@ -60,7 +62,8 @@ class SettingsScreen(private val launcher: LauncherActivity) {
             add(game(), 0, MATCH, weight = 1f, start = 10)
         }, height = 0, weight = 1f)
         add(buttonBar(launcher, "Back", { launcher.showSettings(false) }).apply {
-            add(label(launcher, "Pocket Foundry ${launcher.appVersion()} · GPL-3.0", 13f, Factorio.FAINT))
+            add(label(launcher, "Pocket Foundry ${launcher.appVersion()} · GPL-3.0 · ", 13f, Factorio.FAINT))
+            add(link(launcher, "GitHub", GITHUB, 13f))
             add(updateButton, height = BUTTON_HEIGHT, start = 8)
             add(button(launcher, "Driver", size = 15f) { DriverDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)
             add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 4)
