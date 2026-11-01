@@ -24,8 +24,8 @@ tools/build.sh :app:assembleRelease          # the release APK
 ```
 
 Builds are signed with Pocket Foundry's key when `../pocketfoundry-keys/keystore.properties` exists (or
-`$POCKETFOUNDRY_SIGNING` points at one), otherwise with the usual debug key. `tools/stage/` regenerates the
-launcher's scenes and `tools/icon_png.py` the icon.
+`$POCKETFOUNDRY_SIGNING` points at one; relative paths start at the repo root), otherwise with the usual debug
+key. `tools/icon_png.py` regenerates the icon.
 
 ## Helping
 

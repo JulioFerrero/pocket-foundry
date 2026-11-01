@@ -1,60 +1,59 @@
 package app.pocketfoundry.controller
 
-import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
-import android.util.Log
 import android.view.ViewConfiguration
-import app.pocketfoundry.PadButton
-import com.termux.x11.LorieView
+import app.pocketfoundry.mainHandler
+import app.pocketfoundry.ui.dp
 import com.termux.x11.MainActivity
 import com.termux.x11.input.InputStub
-import com.termux.x11.input.RenderData
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.pow
+import kotlin.math.sign
 
 /**
- * Fingers on the game, in window coordinates. With [pad] (controller mode) Factorio's mouse clicks only
- * in menus, so gestures press the pad's buttons where the finger is.
+ * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press: right button held,
+ * X with [padMode]. Two fingers: tap right-clicks (B with [padMode]), pinch zooms, drag scrolls. With [padMode],
+ * double tap and hold holds A. [padMode] is controller mode, where Factorio's mouse clicks only in menus.
  */
-class PointerGestures private constructor(
-    private val lorie: LorieView,
-    private val renderData: RenderData,
-    private val onLongPress: () -> Unit,
-    private val pad: PadPresses?,
-) {
-    private val handler = Handler(Looper.getMainLooper())
+class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLongPress: () -> Unit) {
+    private val lorie = activity.lorieView
+    /** Termux:X11's own view-to-X-screen mapping, letterboxing included. */
+    private val renderData = activity.mInputHandler.mRenderData
+    private val pad = if (padMode) PadPresses() else null
     private val config = ViewConfiguration.get(lorie.context)
     private val slop = config.scaledTouchSlop.toFloat()
     private val doubleTapSlop = config.scaledDoubleTapSlop.toFloat()
     private val doubleTapMs = ViewConfiguration.getDoubleTapTimeout().toLong()
-    private val density = lorie.resources.displayMetrics.density
+    private val scrollStep = lorie.context.dp(SCROLL_STEP_DP)
     private val location = IntArray(2)
     private val mapped = FloatArray(2)
 
-    private val fingers = LinkedHashMap<Int, FloatArray>()   // id → x, y
+    /** The fingers down, oldest first: the two oldest pinch and scroll. [xs] and [ys] say where each is, by id. */
+    private val fingers = ArrayList<Int>(ControllerView.POINTER_IDS)
+    private val xs = FloatArray(ControllerView.POINTER_IDS)
+    private val ys = FloatArray(ControllerView.POINTER_IDS)
     private var downX = 0f
     private var downY = 0f
-    private var held = InputStub.BUTTON_UNDEFINED
+    private var heldMouse = InputStub.BUTTON_UNDEFINED
     private var heldPad: PadButton? = null
-    private val holding get() = held != InputStub.BUTTON_UNDEFINED || heldPad != null
+    private val holding get() = heldMouse != InputStub.BUTTON_UNDEFINED || heldPad != null
     private var lastTapAt = 0L
     private var lastTapX = 0f
     private var lastTapY = 0f
-    private var twoFinger = false
+    private var mode = Mode.ONE
     private var twoFingerStart = 0L
     private var spanRef = 0f
     private var midStartX = 0f
     private var midStartY = 0f
     private var scrollRef = 0f
-    private var mode = Mode.UNDECIDED
 
-    private enum class Mode { UNDECIDED, PINCH, SCROLL, NONE }
+    /** ONE until a second finger lands. Then UNDECIDED, PINCH or SCROLL, and LIFTED once one of the two lifts. */
+    private enum class Mode { ONE, UNDECIDED, PINCH, SCROLL, LIFTED }
 
     private val longPress = Runnable {
-        if (fingers.size != 1 || holding || twoFinger) return@Runnable
+        if (fingers.size != 1 || holding || mode != Mode.ONE) return@Runnable
         if (pad != null) {
             moveTo(downX, downY)
             holdPad(PadButton.WEST)
@@ -65,39 +64,18 @@ class PointerGestures private constructor(
     }
 
     fun down(id: Int, x: Float, y: Float) {
-        fingers[id] = floatArrayOf(x, y)
-        if (fingers.size == 1) {
-            twoFinger = false
-            mode = Mode.UNDECIDED
-            downX = x
-            downY = y
-            val now = SystemClock.uptimeMillis()
-            if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
-                lastTapAt = 0
-                moveTo(x, y)
-                holdPad(PadButton.SOUTH)
-            } else {
-                moveTo(x, y)   // the game shows what's under the finger meanwhile
-                handler.postDelayed(longPress, LONG_PRESS_MS)
-            }
-            return
-        }
-        if (holding || twoFinger || fingers.size != 2) return
-        handler.removeCallbacks(longPress)
-        twoFinger = true
-        twoFingerStart = SystemClock.uptimeMillis()
-        val (a, b) = fingers.values.toList()
-        spanRef = hypot(a[0] - b[0], a[1] - b[1])
-        midStartX = (a[0] + b[0]) / 2
-        midStartY = (a[1] + b[1]) / 2
-        scrollRef = midStartY
+        fingers += id
+        xs[id] = x
+        ys[id] = y
+        if (fingers.size == 1) firstFingerDown(x, y)
+        else if (fingers.size == 2 && !holding && mode == Mode.ONE) secondFingerDown()
     }
 
     fun move(id: Int, x: Float, y: Float) {
-        val finger = fingers[id] ?: return
-        finger[0] = x
-        finger[1] = y
-        if (twoFinger) {
+        if (id !in fingers) return
+        xs[id] = x
+        ys[id] = y
+        if (mode != Mode.ONE) {
             if (fingers.size >= 2) twoFingerMove()
             return
         }
@@ -105,55 +83,78 @@ class PointerGestures private constructor(
         if (holding) {
             moveTo(x, y)
         } else if (hypot(x - downX, y - downY) > slop) {
-            handler.removeCallbacks(longPress)
+            mainHandler.removeCallbacks(longPress)
             press(InputStub.BUTTON_LEFT, downX, downY)
             moveTo(x, y)
         }
     }
 
     fun up(id: Int, x: Float, y: Float) {
-        fingers[id]?.let { it[0] = x; it[1] = y }
-        if (twoFinger) {
-            if (mode == Mode.UNDECIDED && SystemClock.uptimeMillis() - twoFingerStart < TAP_MS) {
-                if (pad != null) {
-                    pad.tap(PadButton.EAST)
-                } else {
-                    val both = fingers.values.toList()
-                    val a = both.first()
-                    val b = both.getOrElse(1) { a }
-                    moveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-                    click(InputStub.BUTTON_RIGHT)
-                }
-            }
-            mode = Mode.NONE   // so the other finger's lift doesn't tap again
-        } else if (fingers.size == 1) {
-            handler.removeCallbacks(longPress)
-            if (holding) {
-                release()
-            } else {
-                moveTo(x, y)
-                click(InputStub.BUTTON_LEFT)
-                lastTapAt = SystemClock.uptimeMillis()
-                lastTapX = x
-                lastTapY = y
-            }
-        }
-        fingers.remove(id)
-        if (fingers.isEmpty()) twoFinger = false
+        xs[id] = x
+        ys[id] = y
+        if (mode != Mode.ONE) twoFingerUp() else if (fingers.size == 1) oneFingerUp(x, y)
+        fingers -= id
+        if (fingers.isEmpty()) mode = Mode.ONE
     }
 
     fun cancel() {
-        handler.removeCallbacks(longPress)
+        mainHandler.removeCallbacks(longPress)
         release()
         fingers.clear()
-        twoFinger = false
+        mode = Mode.ONE
+    }
+
+    private fun firstFingerDown(x: Float, y: Float) {
+        downX = x
+        downY = y
+        moveTo(x, y)   // the game shows what's under the finger
+        val now = SystemClock.uptimeMillis()
+        if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
+            lastTapAt = 0
+            holdPad(PadButton.SOUTH)
+        } else {
+            mainHandler.postDelayed(longPress, LONG_PRESS_MS)
+        }
+    }
+
+    private fun secondFingerDown() {
+        mainHandler.removeCallbacks(longPress)
+        mode = Mode.UNDECIDED
+        twoFingerStart = SystemClock.uptimeMillis()
+        spanRef = span()
+        midStartX = midX()
+        midStartY = midY()
+    }
+
+    private fun oneFingerUp(x: Float, y: Float) {
+        mainHandler.removeCallbacks(longPress)
+        if (holding) {
+            release()
+        } else {
+            moveTo(x, y)
+            click(InputStub.BUTTON_LEFT)
+            lastTapAt = SystemClock.uptimeMillis()
+            lastTapX = x
+            lastTapY = y
+        }
+    }
+
+    private fun twoFingerUp() {
+        if (mode == Mode.UNDECIDED && SystemClock.uptimeMillis() - twoFingerStart < TAP_MS) {
+            if (pad != null) {
+                pad.tap(PadButton.EAST)
+            } else {
+                moveTo(midX(), midY())
+                click(InputStub.BUTTON_RIGHT)
+            }
+        }
+        mode = Mode.LIFTED   // so the other finger's lift doesn't tap again
     }
 
     private fun twoFingerMove() {
-        val (a, b) = fingers.values.take(2)
-        val span = hypot(a[0] - b[0], a[1] - b[1])
-        val midX = (a[0] + b[0]) / 2
-        val midY = (a[1] + b[1]) / 2
+        val span = span()
+        val midX = midX()
+        val midY = midY()
         if (mode == Mode.UNDECIDED) {
             val threshold = 2 * slop
             mode = when {
@@ -169,21 +170,25 @@ class PointerGestures private constructor(
             Mode.PINCH -> {
                 val steps = (ln(span / spanRef) / ln(ZOOM_STEP)).toInt()
                 if (steps != 0) {
-                    pad?.zoom(steps) ?: wheel(-steps)   // spreading zooms in: wheel up
+                    if (pad != null) pad.zoom(steps) else wheel(-steps)   // spreading zooms in: wheel up
                     spanRef *= ZOOM_STEP.pow(steps)
                 }
             }
             Mode.SCROLL -> {
-                val step = SCROLL_STEP_DP * density
-                val steps = ((scrollRef - midY) / step).toInt()
+                val steps = ((scrollRef - midY) / scrollStep).toInt()
                 if (steps != 0) {
                     wheel(steps)   // fingers up scroll down, as on a phone
-                    scrollRef -= steps * step
+                    scrollRef -= steps * scrollStep
                 }
             }
             else -> {}
         }
     }
+
+    // Of the two oldest fingers.
+    private fun span() = hypot(xs[fingers[0]] - xs[fingers[1]], ys[fingers[0]] - ys[fingers[1]])
+    private fun midX() = (xs[fingers[0]] + xs[fingers[1]]) / 2
+    private fun midY() = (ys[fingers[0]] + ys[fingers[1]]) / 2
 
     private fun moveTo(x: Float, y: Float) {
         lorie.getLocationInWindow(location)
@@ -194,7 +199,7 @@ class PointerGestures private constructor(
     private fun press(button: Int, x: Float, y: Float) {
         moveTo(x, y)
         lorie.sendMouseEvent(0f, 0f, button, true, false)
-        held = button
+        heldMouse = button
     }
 
     private fun holdPad(button: PadButton) {
@@ -203,8 +208,8 @@ class PointerGestures private constructor(
     }
 
     private fun release() {
-        if (held != InputStub.BUTTON_UNDEFINED) lorie.sendMouseEvent(0f, 0f, held, false, false)
-        held = InputStub.BUTTON_UNDEFINED
+        if (heldMouse != InputStub.BUTTON_UNDEFINED) lorie.sendMouseEvent(0f, 0f, heldMouse, false, false)
+        heldMouse = InputStub.BUTTON_UNDEFINED
         heldPad?.let { pad?.release(it) }
         heldPad = null
     }
@@ -223,13 +228,60 @@ class PointerGestures private constructor(
         /** Span ratio per notch of zoom. */
         private const val ZOOM_STEP = 1.18f
         private const val SCROLL_STEP_DP = 36f
+    }
+}
 
-        /** Null if Termux:X11's private fields were renamed: touches then reach the game as Termux:X11 sends them. */
-        fun attach(activity: MainActivity, pad: PadPresses?, onLongPress: () -> Unit): PointerGestures? = runCatching {
-            // Termux:X11's own view-to-X-screen mapping, letterboxing included.
-            val handler = MainActivity::class.java.getDeclaredField("mInputHandler").apply { isAccessible = true }.get(activity)!!
-            val renderData = handler.javaClass.getDeclaredField("mRenderData").apply { isAccessible = true }.get(handler) as RenderData
-            PointerGestures(activity.lorieView, renderData, onLongPress, pad)
-        }.onFailure { Log.w("PocketFoundry", "Touch controls unavailable, touches go to Termux:X11", it) }.getOrNull()
+/**
+ * Pad presses for [PointerGestures], each held at least [MIN_HOLD_MS] so the game sees it. The game zooms only with
+ * RT held and D-pad up (in) or down (out), one press per notch.
+ */
+private class PadPresses {
+    private val pressedAt = LongArray(PadButton.entries.size)
+    /** Made once, so a release allocates nothing. */
+    private val releases = PadButton.entries.map { Runnable { InputBridge.button(it, false) } }
+    private var pending = 0
+    private var zooming = false
+
+    fun hold(button: PadButton) {
+        mainHandler.removeCallbacks(releases[button.ordinal])   // a release still waiting would end this hold
+        InputBridge.button(button, true)
+        pressedAt[button.ordinal] = SystemClock.uptimeMillis()
+    }
+
+    fun release(button: PadButton) {
+        val at = pressedAt[button.ordinal] + MIN_HOLD_MS
+        mainHandler.postAtTime(releases[button.ordinal], maxOf(at, SystemClock.uptimeMillis()))
+    }
+
+    fun tap(button: PadButton) {
+        hold(button)
+        release(button)
+    }
+
+    /** [notches] in (positive) or out (negative). */
+    fun zoom(notches: Int) {
+        pending += notches
+        if (!zooming) nextZoom()
+    }
+
+    private fun nextZoom() {
+        zooming = pending != 0
+        if (!zooming) return
+        val direction = if (pending > 0) PadButton.DPAD_UP else PadButton.DPAD_DOWN
+        pending -= pending.sign
+        InputBridge.axis(PadAxis.RIGHT_TRIGGER, InputBridge.AXIS_MAX)
+        InputBridge.button(direction, true)
+        mainHandler.postDelayed({
+            InputBridge.button(direction, false)
+            InputBridge.axis(PadAxis.RIGHT_TRIGGER, 0)
+            mainHandler.postDelayed(::nextZoom, ZOOM_GAP_MS)
+        }, MIN_HOLD_MS)
+    }
+
+    companion object {
+        /** Three game ticks, so the game sees the press. */
+        private const val MIN_HOLD_MS = 50L
+        /** Between notches: over two ticks, so the game sees D-pad and RT up before the next press. */
+        private const val ZOOM_GAP_MS = 40L
     }
 }

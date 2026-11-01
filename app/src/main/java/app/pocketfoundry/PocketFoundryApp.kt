@@ -4,13 +4,15 @@ import android.content.Intent
 import com.termux.x11.CmdEntryPoint
 import com.termux.x11.LorieApp
 import com.termux.x11.MainActivity
-import app.pocketfoundry.controller.OnScreenController
+import app.pocketfoundry.game.DebugPad
+import app.pocketfoundry.game.GameScreens
+import app.pocketfoundry.game.ScreenLog
 
 /** Termux:X11's activity and receivers expect their Application class. */
 class PocketFoundryApp : LorieApp() {
     override fun onCreate() {
         super.onCreate()
-        OnScreenController.install(this)
+        GameScreens.install(this)
         DebugPad.registerIfDebuggable(this)
     }
 

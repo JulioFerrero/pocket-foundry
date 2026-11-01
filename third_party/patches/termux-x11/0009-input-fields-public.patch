@@ -1,0 +1,36 @@
+diff --git a/lorie/src/main/java/com/termux/x11/MainActivity.java b/lorie/src/main/java/com/termux/x11/MainActivity.java
+index dc1a870..3577f0d 100644
+--- a/lorie/src/main/java/com/termux/x11/MainActivity.java
++++ b/lorie/src/main/java/com/termux/x11/MainActivity.java
+@@ -95,13 +95,15 @@ public class MainActivity extends AppCompatActivity {
+     public static Handler handler = new Handler();
+     private final Runnable connectRetry = this::tryConnect;
+     FrameLayout frm;
+-    TouchInputHandler mInputHandler;
++    // Pocket Foundry: public, so its touch controls map points with mInputHandler.mRenderData.
++    public TouchInputHandler mInputHandler;
+     protected ICmdEntryInterface service = null;
+     public TermuxX11ExtraKeys mExtraKeys;
+     private DisplayManager displayManager;
+     private boolean showIMEWhileExternalConnected = true;
+     private boolean externalKeyboardConnected = false;
+-    private View.OnKeyListener mLorieKeyListener;
++    // Pocket Foundry: public, so its gamepads see keys before X does.
++    public View.OnKeyListener mLorieKeyListener;
+     private boolean filterOutWinKey = false;
+     boolean useTermuxEKBarBehaviour = false;
+     private boolean isInPictureInPictureMode = false;
+diff --git a/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java b/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java
+index ec1323a..6de7ae8 100644
+--- a/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java
++++ b/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java
+@@ -86,7 +86,8 @@ public class TouchInputHandler {
+         int CLOCKWISE = 3;
+     }
+ 
+-    private final RenderData mRenderData;
++    // Pocket Foundry: public, for its touch controls.
++    public final RenderData mRenderData;
+     private final GestureDetector mScroller;
+     private final ScaleGestureDetector mZoomer;
+     private final TapGestureDetector mTapDetector;

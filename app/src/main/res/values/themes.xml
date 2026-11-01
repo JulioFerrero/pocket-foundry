@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The launcher: landscape and edge to edge like the game, on the blueprint's navy until the stage draws. -->
+    <!-- The launcher: full screen and edge to edge like the game, on the stage's navy until it draws. -->
     <style name="Theme.PocketFoundry.Launcher" parent="android:Theme.DeviceDefault.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@color/stage</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>

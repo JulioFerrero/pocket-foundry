@@ -20,9 +20,17 @@ class Paths(context: Context) {
 
     val gameData = File(files, "factorio")
     val config = File(gameData, "config/config.ini")
+    val saves = File(gameData, "saves")
 
+    val drivers = File(files, "drivers")
+    val debugEnv = File(files, "debug.env")
     val home = File(files, "home")
+
     val logs = File(files, "logs")
+    val gameLog = File(logs, "game.log")
+    val wmLog = File(logs, "wm.log")
+    val screenLog = File(logs, "screen.log")
+    val x11Log = File(logs, "x11.log")
 
     private val nativeLibs = File(context.applicationInfo.nativeLibraryDir)
     val loader = File(nativeLibs, "libld-linux.so")

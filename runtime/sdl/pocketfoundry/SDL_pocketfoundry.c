@@ -3,6 +3,10 @@
   The game's glibc process can't load Android's libraries, so sound and gamepad go over Unix sockets.
   Delaying buffer swaps is enough for the cap: Factorio keeps its 60 updates a second and draws fewer frames.
 
+  Audio socket: a 12-byte header ("PFA1", then rate and channels as little-endian int32), then F32LE frames.
+  Input socket: 4-byte messages: a type ('B' button, 'A' axis, 'R' rumble back to the app), an index, then a
+  little-endian int16 value.
+
   Copyright (C) 2026 Pocket Foundry contributors. Released under the zlib licence, like SDL.
 */
 #include "SDL_internal.h"
@@ -18,6 +22,10 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+#define AUDIO_MAGIC "PFA1"  // AudioBridge in the app checks it
+#define RECONNECT_MS 1000
+#define GAME_UPS 60         // Factorio's updates a second: a cap at or above it is no cap
 
 static int POCKETFOUNDRY_Connect(const char *path)
 {
@@ -112,7 +120,7 @@ static void POCKETFOUNDRYAUDIO_CloseDevice(SDL_AudioDevice *device)
 static bool POCKETFOUNDRYAUDIO_OpenDevice(SDL_AudioDevice *device)
 {
     const char *path = SDL_getenv("POCKETFOUNDRY_AUDIO");
-    Uint8 header[12] = { 'F', 'A', 'B', '1' };
+    Uint8 header[12];
     int sndbuf;
 
     device->hidden = (struct SDL_PrivateAudioData *)SDL_calloc(1, sizeof(*device->hidden));
@@ -134,6 +142,7 @@ static bool POCKETFOUNDRYAUDIO_OpenDevice(SDL_AudioDevice *device)
     sndbuf = device->buffer_size * 2;
     setsockopt(device->hidden->fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
 
+    SDL_memcpy(header, AUDIO_MAGIC, 4);
     SDL_memcpy(header + 4, &device->spec.freq, 4);
     SDL_memcpy(header + 8, &device->spec.channels, 4);
     if (!POCKETFOUNDRY_SendAll(device->hidden->fd, header, sizeof(header))) {
@@ -165,7 +174,10 @@ static bool POCKETFOUNDRYAUDIO_Init(SDL_AudioDriverImpl *impl)
 }
 
 AudioBootStrap POCKETFOUNDRYAUDIO_bootstrap = {
-    "pocketfoundry", "Pocket Foundry (Android app)", POCKETFOUNDRYAUDIO_Init, true, false
+    .name = "pocketfoundry",
+    .desc = "Pocket Foundry (Android app)",
+    .init = POCKETFOUNDRYAUDIO_Init,
+    .demand_only = true,  // the app sets SDL_AUDIO_DRIVER=pocketfoundry
 };
 
 static SDL_Thread *input_thread;
@@ -245,14 +257,12 @@ static int SDLCALL POCKETFOUNDRY_InputThread(void *data)
 
     while (!SDL_GetAtomicInt(&input_quitting)) {
         const int fd = POCKETFOUNDRY_Connect(path);
-        if (fd < 0) {
-            SDL_WaitSemaphoreTimeout(input_wakeup, 1000);
-            continue;
+        const bool ran = fd >= 0 && POCKETFOUNDRY_RunGamepad(fd);
+        if (fd >= 0) {
+            close(fd);
         }
-        const bool ran = POCKETFOUNDRY_RunGamepad(fd);
-        close(fd);
         if (!ran) {
-            SDL_WaitSemaphoreTimeout(input_wakeup, 1000);
+            SDL_WaitSemaphoreTimeout(input_wakeup, RECONNECT_MS);
         }
     }
     SDL_free(data);
@@ -310,7 +320,7 @@ static int POCKETFOUNDRY_ReadFrameRate(const char *path)
     }
     text[n] = '\0';
     fps = SDL_atoi(text);
-    return (fps > 0 && fps < 60) ? fps : 0;
+    return (fps > 0 && fps < GAME_UPS) ? fps : 0;
 }
 
 void SDL_POCKETFOUNDRY_PaceFrame(void)

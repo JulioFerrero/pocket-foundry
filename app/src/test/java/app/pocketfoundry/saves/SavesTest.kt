@@ -1,0 +1,39 @@
+package app.pocketfoundry.saves
+
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+class SavesTest {
+    @get:Rule val temp = TemporaryFolder()
+
+    private fun zip(vararg names: String): File = temp.newFile().apply {
+        ZipOutputStream(outputStream()).use { zip -> for (name in names) zip.putNextEntry(ZipEntry(name)) }
+    }
+
+    @Test fun `a zip with level dat0 is a save`() {
+        assertTrue(Saves.isSave(zip("level.dat0", "control.lua")))
+    }
+
+    @Test fun `level data in the save's folder counts`() {
+        assertTrue(Saves.isSave(zip("my-base/", "my-base/level-init.dat", "my-base/preview.jpg")))
+        assertTrue(Saves.isSave(zip("my-base/level.dat0")))
+    }
+
+    @Test fun `a zip without level data isn't a save`() {
+        assertFalse(Saves.isSave(zip("my-mod/info.json", "my-mod/control.lua")))
+        assertFalse(Saves.isSave(zip("my-base/old-level.dat0", "level.dat1")))
+        assertFalse(Saves.isSave(zip()))
+    }
+
+    @Test fun `a file that isn't a zip isn't a save`() {
+        assertFalse(Saves.isSave(temp.newFile().apply { writeText("level.dat0") }))
+        assertFalse(Saves.isSave(temp.newFile()))
+        assertFalse(Saves.isSave(File(temp.root, "missing.zip")))
+    }
+}

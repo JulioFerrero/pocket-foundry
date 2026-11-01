@@ -7,25 +7,26 @@ import android.os.Vibrator
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import app.pocketfoundry.InputBridge
-import app.pocketfoundry.PadAxis
-import app.pocketfoundry.PadButton
+import app.pocketfoundry.mainHandler
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Real controllers, all sharing the one virtual pad; no dead zone here, the game applies its own. */
-class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boolean) -> Unit) {
-    private val held = HashSet<PadButton>()
+/**
+ * Real controllers, all sharing the one virtual pad; no dead zone here, the game applies its own. A pad is in the
+ * player's hands ([onInUse]) from first use until the last one is unplugged.
+ */
+class Gamepads(private val context: Context, private val onHome: () -> Unit,
+               private val onInUse: (Boolean) -> Unit) : InputManager.InputDeviceListener {
+    private val input = context.getSystemService(InputManager::class.java)
+    private var inUse = false
+    private val held = BooleanArray(PadButton.entries.size)
     private val sent = IntArray(PadAxis.entries.size)
     private var hat = 0
-    private val inUse = InUse(context, ::isGamepad) { on ->
-        if (!on) release()
-        onInUse(on)
-    }
 
     init {
+        input.registerInputDeviceListener(this, mainHandler)
         // A handheld's own controls are in hand from the start.
-        if (InUse.connected(context) { isGamepad(it) && !it!!.isExternal }) used()
+        if (gamepads(context).any { !it.isExternal }) used()
     }
 
     fun key(event: KeyEvent): Boolean {
@@ -36,16 +37,17 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
             return true
         }
         TRIGGER_KEYS[event.keyCode]?.let { trigger ->
+            val analog = if (trigger == PadAxis.LEFT_TRIGGER) analogLeft(device) else analogRight(device)
             // Analog triggers also send an axis: the key only stands in when there is none.
-            if (event.repeatCount == 0 && !hasAxis(device, TRIGGER_AXES.getValue(trigger))) {
-                setAxis(trigger, if (down) 32767 else 0)
+            if (event.repeatCount == 0 && !analog) {
+                setAxis(trigger, if (down) InputBridge.AXIS_MAX else 0)
                 if (down) used()
             }
             return true
         }
         val button = BUTTONS[event.keyCode] ?: return false
         if (event.repeatCount > 0) return true
-        if (down) held += button else held -= button
+        held[button.ordinal] = down
         InputBridge.button(button, down)
         if (down) used()
         return true
@@ -54,42 +56,54 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
     fun motion(event: MotionEvent): Boolean {
         if (!event.isFromSource(InputDevice.SOURCE_JOYSTICK) || event.actionMasked != MotionEvent.ACTION_MOVE) return false
         val device = event.device?.takeIf(::isGamepad) ?: return false
-        val zr = device.getMotionRange(MotionEvent.AXIS_Z) != null
-        val values = floatArrayOf(
-            event.getAxisValue(MotionEvent.AXIS_X),
-            event.getAxisValue(MotionEvent.AXIS_Y),
-            event.getAxisValue(if (zr) MotionEvent.AXIS_Z else MotionEvent.AXIS_RX),
-            event.getAxisValue(if (zr) MotionEvent.AXIS_RZ else MotionEvent.AXIS_RY),
-            maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)),
-            maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS)),
-        )
-        PadAxis.entries.forEach { axis ->
-            val value = values[axis.ordinal]
-            // A trigger without an analog axis is driven by its key: a zero here would release it.
-            if (axis in TRIGGER_AXES && !hasAxis(device, TRIGGER_AXES.getValue(axis))) return@forEach
-            setAxis(axis, (value.coerceIn(-1f, 1f) * 32767).roundToInt())
-            if (abs(value) > 0.5f) used()
-        }
-        val x = event.getAxisValue(MotionEvent.AXIS_HAT_X)
-        val y = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
-        setHat((if (y < -0.5f) UP else 0) or (if (y > 0.5f) DOWN else 0) or
-               (if (x < -0.5f) LEFT else 0) or (if (x > 0.5f) RIGHT else 0))
+        val rightStickOnZ = device.getMotionRange(MotionEvent.AXIS_Z) != null
+        tilt(PadAxis.LEFT_X, event.getAxisValue(MotionEvent.AXIS_X))
+        tilt(PadAxis.LEFT_Y, event.getAxisValue(MotionEvent.AXIS_Y))
+        tilt(PadAxis.RIGHT_X, event.getAxisValue(if (rightStickOnZ) MotionEvent.AXIS_Z else MotionEvent.AXIS_RX))
+        tilt(PadAxis.RIGHT_Y, event.getAxisValue(if (rightStickOnZ) MotionEvent.AXIS_RZ else MotionEvent.AXIS_RY))
+        // A trigger without an analog axis is driven by its key: a zero here would release it.
+        if (analogLeft(device)) tilt(PadAxis.LEFT_TRIGGER, maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER),
+                                                                 event.getAxisValue(MotionEvent.AXIS_BRAKE)))
+        if (analogRight(device)) tilt(PadAxis.RIGHT_TRIGGER, maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER),
+                                                                   event.getAxisValue(MotionEvent.AXIS_GAS)))
+        setHat(DpadDir.state(event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y), 0.5f))
         return true
     }
 
     fun release() {
-        held.forEach { InputBridge.button(it, false) }
-        held.clear()
+        for (button in PadButton.entries) {
+            if (held[button.ordinal]) InputBridge.button(button, false)
+        }
+        held.fill(false)
         setHat(0)
         PadAxis.entries.forEach { setAxis(it, 0) }
     }
 
     fun close() {
-        inUse.close()
+        input.unregisterInputDeviceListener(this)
         release()
     }
 
-    private fun used() = inUse.used()
+    override fun onInputDeviceAdded(deviceId: Int) {}
+    override fun onInputDeviceChanged(deviceId: Int) {}
+    override fun onInputDeviceRemoved(deviceId: Int) {
+        if (!inUse || gamepadConnected(context)) return
+        inUse = false
+        release()
+        onInUse(false)
+    }
+
+    private fun used() {
+        if (inUse) return
+        inUse = true
+        onInUse(true)
+    }
+
+    /** A stick or trigger at [value], from -1 to 1. */
+    private fun tilt(axis: PadAxis, value: Float) {
+        setAxis(axis, (value.coerceIn(-1f, 1f) * InputBridge.AXIS_MAX).roundToInt())
+        if (abs(value) > 0.5f) used()
+    }
 
     private fun setAxis(axis: PadAxis, value: Int) {
         if (sent[axis.ordinal] == value) return
@@ -98,21 +112,11 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
     }
 
     private fun setHat(bits: Int) {
-        if (bits == hat) return
-        HAT_BUTTONS.forEach { (bit, button) ->
-            if (bits and bit != hat and bit) InputBridge.button(button, bits and bit != 0)
-        }
+        if (DpadDir.send(hat, bits)) used()
         hat = bits
-        if (bits != 0) used()
     }
 
     companion object {
-        private const val UP = 1
-        private const val DOWN = 2
-        private const val LEFT = 4
-        private const val RIGHT = 8
-        private val HAT_BUTTONS = listOf(UP to PadButton.DPAD_UP, DOWN to PadButton.DPAD_DOWN,
-                                         LEFT to PadButton.DPAD_LEFT, RIGHT to PadButton.DPAD_RIGHT)
         private val BUTTONS = mapOf(
             KeyEvent.KEYCODE_BUTTON_A to PadButton.SOUTH,
             KeyEvent.KEYCODE_BUTTON_B to PadButton.EAST,
@@ -132,33 +136,39 @@ class Gamepads(context: Context, private val onHome: () -> Unit, onInUse: (Boole
         )
         private val TRIGGER_KEYS = mapOf(KeyEvent.KEYCODE_BUTTON_L2 to PadAxis.LEFT_TRIGGER,
                                          KeyEvent.KEYCODE_BUTTON_R2 to PadAxis.RIGHT_TRIGGER)
-        /** A pad may report a trigger on either axis. */
-        private val TRIGGER_AXES = mapOf(
-            PadAxis.LEFT_TRIGGER to intArrayOf(MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE),
-            PadAxis.RIGHT_TRIGGER to intArrayOf(MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS),
-        )
-
-        private fun hasAxis(device: InputDevice, axes: IntArray) = axes.any { device.getMotionRange(it) != null }
-
-        /** Gamepad buttons, not just joystick axes: a phone may have those built in. Built in, sticks too: some
-         *  fingerprint sensors report gamepad buttons (uinput-fortsense, uinput-xiaomi). */
-        fun isGamepad(device: InputDevice?) =
-            device != null && !device.isVirtual && device.supportsSource(InputDevice.SOURCE_GAMEPAD) &&
-                (device.isExternal || hasSticks(device))
-
-        private fun hasSticks(device: InputDevice) =
-            device.getMotionRange(MotionEvent.AXIS_X, InputDevice.SOURCE_JOYSTICK) != null &&
-                device.getMotionRange(MotionEvent.AXIS_Y, InputDevice.SOURCE_JOYSTICK) != null
-
-        fun connected(context: Context) = InUse.connected(context, ::isGamepad)
-
-        fun vibrator(context: Context): Vibrator? {
-            val input = context.getSystemService(InputManager::class.java)
-            return input.inputDeviceIds.asSequence()
-                .mapNotNull { input.getInputDevice(it) }
-                .filter(::isGamepad)
-                .map { if (Build.VERSION.SDK_INT >= 31) it.vibratorManager.defaultVibrator else @Suppress("DEPRECATION") it.vibrator }
-                .firstOrNull { it.hasVibrator() }
-        }
+        // A pad may report a trigger on either of two axes.
+        private fun analogLeft(device: InputDevice) = hasEither(device, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)
+        private fun analogRight(device: InputDevice) = hasEither(device, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)
+        private fun hasEither(device: InputDevice, a: Int, b: Int) =
+            device.getMotionRange(a) != null || device.getMotionRange(b) != null
     }
+}
+
+/**
+ * Needs gamepad buttons, not just joystick axes (some phones have those built in). A built-in one also needs
+ * sticks: some fingerprint sensors claim gamepad buttons (uinput-fortsense, uinput-xiaomi).
+ */
+fun isGamepad(device: InputDevice) =
+    !device.isVirtual && device.supportsSource(InputDevice.SOURCE_GAMEPAD) && (device.isExternal || hasSticks(device))
+
+private fun hasSticks(device: InputDevice) =
+    device.getMotionRange(MotionEvent.AXIS_X, InputDevice.SOURCE_JOYSTICK) != null &&
+        device.getMotionRange(MotionEvent.AXIS_Y, InputDevice.SOURCE_JOYSTICK) != null
+
+fun gamepads(context: Context) = devices(context).filter(::isGamepad)
+
+fun gamepadConnected(context: Context) = gamepads(context).any()
+
+fun gamepadVibrator(context: Context): Vibrator? = gamepads(context)
+    .map { if (Build.VERSION.SDK_INT >= 31) it.vibratorManager.defaultVibrator else @Suppress("DEPRECATION") it.vibrator }
+    .firstOrNull { it.hasVibrator() }
+
+/** A keyboard connected at game start, with no gamepad, puts Factorio in keyboard-and-mouse mode (see Session). */
+fun keyboardConnected(context: Context) = devices(context).any {
+    !it.isVirtual && it.isExternal && it.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC
+}
+
+private fun devices(context: Context): Sequence<InputDevice> {
+    val input = context.getSystemService(InputManager::class.java)
+    return input.inputDeviceIds.asSequence().mapNotNull { input.getInputDevice(it) }
 }
