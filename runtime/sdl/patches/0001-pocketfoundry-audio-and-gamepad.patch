@@ -5,7 +5,7 @@ diff --color -ru a/CMakeLists.txt b/CMakeLists.txt
  dep_option(SDL_DBUS                "Enable D-Bus support" ON "${UNIX_SYS}" OFF)
  dep_option(SDL_LIBURING            "Enable liburing support" ON "${UNIX_SYS}" OFF)
  dep_option(SDL_DISKAUDIO           "Support the disk writer audio driver" ON "SDL_AUDIO" OFF)
-+set_option(SDL_POCKETFOUNDRY             "Sound and a gamepad from the Pocket Foundry Android app" OFF)
++set_option(SDL_POCKETFOUNDRY             "Pocket Foundry's sound, gamepad and frame cap" OFF)
  dep_option(SDL_DUMMYAUDIO          "Support the dummy audio driver" ON "SDL_AUDIO" OFF)
  dep_option(SDL_DUMMYVIDEO          "Use dummy video driver" ON "SDL_VIDEO" OFF)
  dep_option(SDL_IBUS                "Enable IBus support" ON "${UNIX_SYS}" OFF)

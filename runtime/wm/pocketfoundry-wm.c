@@ -87,12 +87,12 @@ int main(void)
                       XCB_WINDOW_CLASS_INPUT_ONLY, XCB_COPY_FROM_PARENT, 0, NULL);
     xcb_atom_t supported[] = { net_supported, net_check, net_wm_state, net_wm_state_fullscreen };
     xcb_change_property(c, XCB_PROP_MODE_REPLACE, screen->root, net_supported, XCB_ATOM_ATOM, 32,
-                        4, supported);
+                        sizeof supported / sizeof *supported, supported);
     xcb_change_property(c, XCB_PROP_MODE_REPLACE, screen->root, net_check, XCB_ATOM_WINDOW, 32, 1,
                         &check);
     xcb_change_property(c, XCB_PROP_MODE_REPLACE, check, net_check, XCB_ATOM_WINDOW, 32, 1, &check);
-    xcb_change_property(c, XCB_PROP_MODE_REPLACE, check, net_wm_name, utf8_string, 8, 10,
-                        "pocketfoundry-wm");
+    static const char name[] = "pocketfoundry-wm";
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, check, net_wm_name, utf8_string, 8, sizeof name - 1, name);
     xcb_flush(c);
 
     xcb_generic_event_t *e;

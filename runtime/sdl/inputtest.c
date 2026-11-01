@@ -39,8 +39,8 @@ int main(void)
             running = false;
             break;
         case SDL_EVENT_MOUSE_MOTION:
-            // Timestamps are in ns: at most every 100 ms unless a button is held.
-            if (e.motion.state || e.motion.timestamp - lastMotion > 100000000) {
+            // At most every 100 ms unless a button is held.
+            if (e.motion.state || e.motion.timestamp - lastMotion > SDL_MS_TO_NS(100)) {
                 printf("motion %.0f,%.0f%s\n", e.motion.x, e.motion.y, e.motion.state ? " held" : "");
                 lastMotion = e.motion.timestamp;
             }

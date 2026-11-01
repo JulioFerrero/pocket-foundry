@@ -3,14 +3,14 @@ apply plugin: 'com.android.application'
 android {
     namespace 'app.pocketfoundry'
     compileSdk 36
-    ndkVersion '29.0.14206865'   // what :lorie pins, so its native code builds once
+    ndkVersion '29.0.14206865'   // same NDK as :lorie (termux-x11/lorie/version.gradle), so one NDK builds both
 
     defaultConfig {
         applicationId 'app.pocketfoundry'
         minSdk 29
         targetSdk 34
-        versionCode 20
-        versionName '0.7.5'
+        versionCode project.versionCode.toInteger()   // both in gradle.properties
+        versionName project.versionName
         ndk { abiFilters 'arm64-v8a' }
     }
 
@@ -26,13 +26,14 @@ android {
     }
 
     // The release key signs debug builds too, so either installs over the other and the imported game stays.
-    def signing = file(System.getenv('POCKETFOUNDRY_SIGNING') ?: '../../pocketfoundry-keys/keystore.properties')
+    // Its paths start at the repo root, as in tools/release.sh.
+    def signing = rootProject.file(System.getenv('POCKETFOUNDRY_SIGNING') ?: '../pocketfoundry-keys/keystore.properties')
     if (signing.exists()) {
         def key = new Properties()
         signing.withInputStream { key.load(it) }
         signingConfigs {
             pocketfoundry {
-                storeFile file(key.storeFile)
+                storeFile rootProject.file(key.storeFile)
                 storePassword key.storePassword
                 keyAlias key.keyAlias
                 keyPassword key.keyPassword
@@ -54,4 +55,7 @@ dependencies {
     implementation project(':lorie')
     implementation 'androidx.appcompat:appcompat:1.7.1'
     implementation 'org.apache.commons:commons-compress:1.28.0'
+    testImplementation 'junit:junit:4.13.2'
+    // Android's org.json is a stub in local tests: every method throws.
+    testImplementation 'org.json:json:20240303'
 }

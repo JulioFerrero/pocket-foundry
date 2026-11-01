@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds a signed release APK and publishes it as a GitHub release:
-#   tools/release.sh 0.3            commit, tag v0.3, build, upload, publish
+#   tools/release.sh 0.3            bump the version, build, commit, tag v0.3, push, publish
 #   tools/release.sh 0.3 --draft    the same, left as a draft
 set -e
 cd "$(dirname "$0")/.."
@@ -22,21 +22,14 @@ signing=${POCKETFOUNDRY_SIGNING:-../pocketfoundry-keys/keystore.properties}
 [ -f "$signing" ] || fail "Pocket Foundry's key is missing: a release signed with another key won't install over earlier ones."
 
 # Every runtime piece built from this commit, and assemble after the others.
-stale=
-for piece in glibc mesa sdl wm assemble; do
-    built=$(cat "runtime/out/$piece.stamp" 2>/dev/null || true)
-    now="$(git rev-parse "HEAD:runtime/$piece") $(git rev-parse HEAD:runtime/Dockerfile)"
-    if [ "$built" != "$now" ] || { [ $piece != assemble ] && [ "runtime/out/$piece.stamp" -nt runtime/out/assemble.stamp ]; }; then
-        stale="$stale $piece"
-    fi
-done
-case "$stale" in *assemble*) ;; ?*) stale="$stale assemble" ;; esac
-[ -z "$stale" ] || fail "The runtime isn't built from this commit. Run: runtime/build.sh$stale"
+stale=$(runtime/build.sh --stale)
+[ -z "$stale" ] || fail "The runtime isn't built from this commit. Run: runtime/build.sh $stale"
 
 # A new versionName bumps versionCode by one.
-if ! grep -q "versionName '$version'" app/build.gradle; then
-    perl -pi -e 's/^(\s*versionCode )(\d+)$/$1.($2+1)/e; s/^(\s*versionName )\x27[^\x27]*\x27$/$1\x27'"$version"'\x27/' app/build.gradle
-    trap 'git checkout -q app/build.gradle' EXIT
+if ! grep -qxF "versionName=$version" gradle.properties; then
+    code=$(sed -n 's/^versionCode=//p' gradle.properties)
+    sed -i '' -e "s/^versionCode=.*/versionCode=$((code + 1))/" -e "s/^versionName=.*/versionName=$version/" gradle.properties
+    trap 'git checkout -q gradle.properties' EXIT
 fi
 
 tools/build.sh :app:assembleRelease
@@ -50,7 +43,7 @@ ours=$(PF_STOREPASS=$(prop storePassword) keytool -exportcert -keystore "$(prop 
        -storepass:env PF_STOREPASS | shasum -a 256 | cut -d' ' -f1)
 "$apksigner" verify --print-certs "$apk" | grep -q "certificate SHA-256 digest: $ours" ||
     fail "The APK isn't signed with Pocket Foundry's key."
-game='(^|/)(data/(base|core)/|bin/x64/|factorio$)|\.dat0$'
+game='(^|/)(data/(base|core)/|bin/(arm64|x64)/|factorio$)|level\.dat0$'   # Factorio's data, binary or a save
 ! unzip -Z1 "$apk" | grep -Eq "$game" || fail "The APK holds game files."
 ! xz -dc runtime/out/apk/assets/runtime.tar.xz | tar -t | grep -Eq "$game" || fail "The runtime holds game files."
 
@@ -61,8 +54,8 @@ cp "$apk" "$out/$name"
 (cd "$out" && shasum -a 256 "$name" > "$name.sha256")
 
 previous=$(git describe --tags --abbrev=0 2>/dev/null || true)
-if ! git diff --quiet app/build.gradle; then
-    git commit -q -m "Pocket Foundry $version" app/build.gradle
+if ! git diff --quiet gradle.properties; then
+    git commit -q -m "Pocket Foundry $version" gradle.properties
 fi
 trap - EXIT
 git tag -a "$tag" -m "Pocket Foundry $version"

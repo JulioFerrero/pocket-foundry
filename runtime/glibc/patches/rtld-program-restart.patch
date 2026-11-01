@@ -4,7 +4,7 @@
  #endif
  }
  
-+/* Pocket Foundry: the program the app started through the loader, when it set one.  */
++/* Pocket Foundry: $POCKETFOUNDRY_PROGRAM (the program the app started through this loader), or NULL.  */
 +static const char *
 +pocketfoundry_program (void)
 +{

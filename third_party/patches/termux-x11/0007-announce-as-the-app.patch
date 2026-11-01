@@ -1,16 +1,17 @@
 diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 --- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 +++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
-@@ -94,57 +94,55 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
-     // The first few announcements and their failures also go to stderr (see the native log macro).
-     private static int announcements = 0;
+@@ -91,51 +91,59 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+         }, 250);
+     }
  
-+    // Pocket Foundry: as the app itself first. Some ROMs (a Samsung on Android 13) quietly drop what is sent through
-+    // the borrowed system context; the server runs under the app's uid, so the app's own PendingIntent is valid.
++    // The first few announcements and their failures also go to stderr (see the native log macro).
++    private static int announcements = 0;
++
++    // Pocket Foundry: broadcast as the app first. Some ROMs (a Samsung on Android 13) silently drop broadcasts sent
++    // through the borrowed system context. The server runs under the app's uid, so the app's own PendingIntent works.
      static void sendBroadcast(Intent intent) {
-         boolean report = announcements++ < 3;
--        if (report)
--            System.err.println("CmdEntryPoint: announcing the X server to the app" + (ctx == null ? " (no context)" : ""));
++        boolean report = announcements++ < 3;
 +        try {
 +            String packageName = sendAsApp(intent);
 +            if (report)
@@ -26,8 +27,6 @@ diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/m
 +            if (report)
 +                System.err.println("CmdEntryPoint: announced the X server to the app, through the system context");
          } catch (Exception e) {
-             if (report)
--                System.err.println("CmdEntryPoint: broadcast through Context failed, using the activity manager: " + e);
 -            if (e instanceof NullPointerException && ctx == null)
 -                Log.i("Broadcast", "Context is null, falling back to manual broadcasting");
 -            else
@@ -54,6 +53,7 @@ diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/m
 -                    throw new RuntimeException(e3);
 -                }
 -            }
++            if (report)
 +                System.err.println("CmdEntryPoint: announcing through the system context failed too: " + e);
 +            Log.e("Broadcast", "Failed to broadcast intent through Context:", e);
 +        }
@@ -70,7 +70,6 @@ diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/m
 -                            @Override public void performReceive(Intent i, int r, String d, Bundle e, boolean o, boolean s, int a) {}
 -                        }, null, null);
 -            } catch (Exception ex) {
--                System.err.println("CmdEntryPoint: announcing through the activity manager failed: " + ex);
 -                throw new RuntimeException(ex);
 -            }
 +    private static String sendAsApp(Intent intent) throws Exception {
@@ -88,6 +87,7 @@ diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/m
          }
 +
 +        assert am != null;
++        // The last argument is the app's Android user (uid / UserHandle.PER_USER_RANGE): not 0 in a work profile.
 +        IIntentSender sender = am.getIntentSender(1, packageName, null, null, 0, new Intent[] { intent },
 +                null, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT, null, getuid() / 100000);
 +        //noinspection JavaReflectionMemberAccess

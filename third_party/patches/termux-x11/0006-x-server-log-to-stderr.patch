@@ -39,34 +39,7 @@ diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lor
 diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 --- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 +++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
-@@ -91,10 +91,18 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
-         }, 250);
-     }
- 
-+    // The first few announcements and their failures also go to stderr (see the native log macro).
-+    private static int announcements = 0;
-+
-     static void sendBroadcast(Intent intent) {
-+        boolean report = announcements++ < 3;
-+        if (report)
-+            System.err.println("CmdEntryPoint: announcing the X server to the app" + (ctx == null ? " (no context)" : ""));
-         try {
-             ctx.sendBroadcast(intent);
-         } catch (Exception e) {
-+            if (report)
-+                System.err.println("CmdEntryPoint: broadcast through Context failed, using the activity manager: " + e);
-             if (e instanceof NullPointerException && ctx == null)
-                 Log.i("Broadcast", "Context is null, falling back to manual broadcasting");
-             else
-@@ -133,6 +141,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
-                             @Override public void performReceive(Intent i, int r, String d, Bundle e, boolean o, boolean s, int a) {}
-                         }, null, null);
-             } catch (Exception ex) {
-+                System.err.println("CmdEntryPoint: announcing through the activity manager failed: " + ex);
-                 throw new RuntimeException(ex);
-             }
-         }
-@@ -151,6 +160,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+@@ -151,6 +151,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
      @SuppressLint("DiscouragedPrivateApi")
      public static Context createContext() {
          Context context;
@@ -74,7 +47,7 @@ diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/m
          PrintStream err = System.err;
          try {
              java.lang.reflect.Field f = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
-@@ -170,10 +180,13 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+@@ -170,10 +171,13 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
              }
          } catch (Exception e) {
              Log.e("Context", "Failed to instantiate context:", e);

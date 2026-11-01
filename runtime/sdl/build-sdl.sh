@@ -4,16 +4,15 @@ set -euo pipefail
 
 VERSION=3.4.18
 SHA256=9c75cf16330322c217dedd2e0609f1124f1b54b8633e763467b4684d0f4334a3
-PREFIX=/data/data/app.pocketfoundry/files/usr
 SRC=/work/sdl
 
-mkdir -p /build && cd /build
+cd /cache
 [ -f SDL3-$VERSION.tar.gz ] || curl -fL -o SDL3-$VERSION.tar.gz \
     https://github.com/libsdl-org/SDL/releases/download/release-$VERSION/SDL3-$VERSION.tar.gz
 echo "$SHA256  SDL3-$VERSION.tar.gz" | sha256sum -c -
 rm -rf "$SRC" && mkdir -p "$SRC" && tar -xzf SDL3-$VERSION.tar.gz -C "$SRC" --strip-components=1
 cd "$SRC"
-for p in /runtime/sdl/patches/*.patch; do patch -p1 < "$p"; done
+for p in /runtime/sdl/patches/*.patch; do patch -p1 --silent < "$p"; done
 mkdir -p src/pocketfoundry && cp /runtime/sdl/pocketfoundry/* src/pocketfoundry/
 
 # io_uring off: Android's syscall filter kills processes that use it.
@@ -34,11 +33,9 @@ rm -rf /out/sdl && DESTDIR=/out/sdl ninja -C build install
 strip --strip-unneeded /out/sdl$PREFIX/lib/libSDL3.so.*.*
 
 mkdir -p /out/sdl$PREFIX/bin
-gcc -O2 -o /out/sdl$PREFIX/bin/pocketfoundry-padtest /runtime/sdl/padtest.c \
-    -I/out/sdl$PREFIX/include -L/out/sdl$PREFIX/lib -lSDL3
-strip /out/sdl$PREFIX/bin/pocketfoundry-padtest
-gcc -O2 -o /out/sdl$PREFIX/bin/pocketfoundry-inputtest /runtime/sdl/inputtest.c \
-    -I/out/sdl$PREFIX/include -L/out/sdl$PREFIX/lib -lSDL3
-strip /out/sdl$PREFIX/bin/pocketfoundry-inputtest
-grep -E "SDL_POCKETFOUNDRY|SDL_AUDIO_DRIVER_|SDL_VIDEO_DRIVER_X11 |SDL_JOYSTICK_VIRTUAL" build/include-config-release/build_config/SDL_build_config.h || true
+for t in padtest inputtest; do
+    gcc -O2 -o /out/sdl$PREFIX/bin/pocketfoundry-$t /runtime/sdl/$t.c \
+        -I/out/sdl$PREFIX/include -L/out/sdl$PREFIX/lib -lSDL3
+    strip /out/sdl$PREFIX/bin/pocketfoundry-$t
+done
 ls -la /out/sdl$PREFIX/lib/

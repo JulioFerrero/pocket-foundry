@@ -5,7 +5,10 @@
 from PIL import Image, ImageDraw
 
 RES = "app/src/main/res"
-S = 432                                           # 108 dp at 4 px/dp
+PX_PER_DP = 4
+S = 108 * PX_PER_DP                               # an adaptive icon layer is 108 dp
+SUPERSAMPLE = 4                                   # launcher icons are cut out this much larger, for smooth edges
+SCALE, INSET = 2.25, 27                           # ic_launcher_monochrome.xml's <group>
 SIZES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
 
 
@@ -13,7 +16,7 @@ def paper():
     im = Image.new("RGB", (S, S))
     px = im.load()
     inner, outer = (0x1A, 0x3D, 0x61), (0x09, 0x17, 0x26)
-    cx, cy, r = 54 * 4, 50 * 4, 76 * 4             # as in drawable/ic_launcher_background.xml
+    cx, cy, r = 54 * PX_PER_DP, 50 * PX_PER_DP, 76 * PX_PER_DP   # as in drawable/ic_launcher_background.xml
     for y in range(S):
         for x in range(S):
             t = min(1, ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5 / r)
@@ -21,7 +24,7 @@ def paper():
     lines = Image.new("RGBA", (S, S))
     d = ImageDraw.Draw(lines)
     for i in range(1, 8):
-        v = round(13.5 * i * 4)
+        v = round(13.5 * i * PX_PER_DP)
         major = i % 2 == 0
         colour = (0x78, 0xAA, 0xE6, 0x38 if major else 0x1F)
         width = 4 if major else 2
@@ -32,8 +35,8 @@ def paper():
 
 def glyph(size):
     """drawable/ic_launcher_monochrome.xml as pixels."""
-    k = size / 108 * 2.25
-    at = lambda x, y: (27 * size / 108 + x * k, 27 * size / 108 + y * k)
+    k = size / 108 * SCALE
+    at = lambda x, y: (INSET * size / 108 + x * k, INSET * size / 108 + y * k)
     mask = Image.new("L", (size, size), 0)
     d = ImageDraw.Draw(mask)
     d.rectangle([at(15, 3.6), at(19, 8)], fill=255)
@@ -48,11 +51,12 @@ def glyph(size):
 
 
 def main():
+    foreground = Image.open(f"{RES}/mipmap-xxxhdpi/ic_launcher_foreground.png").convert("RGBA")
     icon = paper()
-    icon.alpha_composite(Image.open(f"{RES}/mipmap-xxxhdpi/ic_launcher_foreground.png").convert("RGBA"))
+    icon.alpha_composite(foreground)
     visible = icon.crop((S // 6, S // 6, S - S // 6, S - S // 6))   # the 72 dp a launcher shows
     for bucket, size in SIZES.items():
-        art = visible.resize((size * 4, size * 4), Image.LANCZOS)
+        art = visible.resize((size * SUPERSAMPLE, size * SUPERSAMPLE), Image.LANCZOS)
         for shape in ("square", "round"):
             mask = Image.new("L", art.size)
             d = ImageDraw.Draw(mask)
@@ -66,7 +70,6 @@ def main():
             suffix = "" if shape == "square" else "_round"
             for name in ("ic_launcher", "lorie_ic_launcher"):
                 out.save(f"{RES}/mipmap-{bucket}/{name}{suffix}.png", optimize=True)
-    foreground = Image.open(f"{RES}/mipmap-xxxhdpi/ic_launcher_foreground.png").convert("RGBA")
     silhouette = glyph(foreground.width)                # the foreground is opaque, useless as a monochrome mask
     for bucket, size in SIZES.items():
         layer = size * 9 // 4                        # 108 dp
