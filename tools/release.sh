@@ -68,7 +68,7 @@ notes=$out/notes.md
     echo
     echo "**Install:** open \`$name\` on the phone (Android 10 or later; Adreno 6xx or newer, another GPU with an imported driver, or any phone on the CPU, slowly), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
     echo
-    echo "**Only from here:** copies on APK sites are modified by others. The official APK is signed with the certificate whose SHA-256 is \`$ours\`."
+    echo "**Signing certificate (SHA-256):** \`$ours\`"
     echo
     if [ -n "$previous" ]; then
         echo "**Since $previous:**"

@@ -13,7 +13,7 @@ import app.pocketfoundry.Settings
 import app.pocketfoundry.TAG
 import app.pocketfoundry.game.Session
 import app.pocketfoundry.isDebuggable
-import app.pocketfoundry.isGenuine
+import app.pocketfoundry.isStock
 import app.pocketfoundry.ui.Arrow
 import app.pocketfoundry.ui.Factorio
 import app.pocketfoundry.ui.Frame
@@ -84,8 +84,7 @@ class UpdateFlow(private val activity: Activity, private val onChanged: () -> Un
      * they're for testing on the phone, and a release would replace them.
      */
     fun check() {
-        // Someone else's copy can't install ours over it: the warning on start says where to get it.
-        if (activity.isDebuggable || !activity.isGenuine || !Settings(activity).checkForUpdates || Updates.checked || checking) return
+        if (activity.isDebuggable || !activity.isStock || !Settings(activity).checkForUpdates || Updates.checked || checking) return
         checking = true
         background("update-check", { Updates.check(activity) }) { result ->
             result.onFailure { Log.i(TAG, "No update check: ${it.message}") }

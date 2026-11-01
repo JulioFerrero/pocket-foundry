@@ -84,13 +84,12 @@ class LauncherActivity : Activity() {
             add(stageHolder)
             add(overlay)
         })
-        if (!warned) warnIfModified()
+        if (!checked) checkBuild()
     }
 
-    // Someone else's build: whatever they added runs with the player's saves and factorio.com login. Once per app start.
-    private fun warnIfModified() {
-        warned = true
-        if (isGenuine) return
+    private fun checkBuild() {
+        checked = true
+        if (isStock) return
         val github = button(this, "GitHub", Tone.GREEN, Arrow.RIGHT) { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB))) }
         host.show("Modified copy", 460, "Continue", github) {
             add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
@@ -281,6 +280,6 @@ class LauncherActivity : Activity() {
         const val PICK_FILES = 1
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3
-        var warned = false   // the modified-copy warning, once per app start
+        var checked = false
     }
 }
