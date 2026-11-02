@@ -1,0 +1,17 @@
+--- a/src/gallium/drivers/zink/zink_kopper.c
++++ b/src/gallium/drivers/zink/zink_kopper.c
+@@ -51,8 +51,13 @@
+       if (cdt->present_modes & BITFIELD_BIT(VK_PRESENT_MODE_IMMEDIATE_KHR) &&
+           cdt->type != KOPPER_WAYLAND)
+          cdt->present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+-      else
++      else if (cdt->present_modes & BITFIELD_BIT(VK_PRESENT_MODE_MAILBOX_KHR))
+          cdt->present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
++      else
++         /* Pocket Foundry: only FIFO is certain (the Phone's driver offers only it). Asking for
++          * another fails the swapchain, and when that happens at a present the mode stays, so
++          * the next swapchain fails too and the game's window is lost. */
++         cdt->present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    } else if (interval > 0) {
+       cdt->present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    }
