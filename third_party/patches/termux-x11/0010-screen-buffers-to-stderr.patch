@@ -1,0 +1,45 @@
+diff --git a/lorie/src/main/cpp/lorie/buffer.c b/lorie/src/main/cpp/lorie/buffer.c
+index 65914b2..a9de8f5 100644
+--- a/lorie/src/main/cpp/lorie/buffer.c
++++ b/lorie/src/main/cpp/lorie/buffer.c
+@@ -7,6 +7,7 @@
+ #define EGL_EGLEXT_PROTOTYPES
+ #define GL_GLEXT_PROTOTYPES
+ #define __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__
++#include <stdio.h>
+ #include <string.h>
+ #include <stdlib.h>
+ #include <math.h>
+@@ -451,17 +452,29 @@ __LIBC_HIDDEN__ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
+     if (!eglGetCurrentDisplay() || !buffer)
+         return;
+ 
+-    if (buffer->image == NULL && buffer->desc.buffer && eglGetNativeClientBufferANDROID)
++    if (buffer->image == NULL && buffer->desc.buffer && eglGetNativeClientBufferANDROID) {
+         buffer->image = eglCreateImageKHR(eglGetCurrentDisplay(), EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, eglGetNativeClientBufferANDROID(buffer->desc.buffer), imageAttributes);
++        // Pocket Foundry: whether the screen can show the buffer, on stderr, which the app keeps in its screen log.
++        AHardwareBuffer_Desc d;
++        AHardwareBuffer_describe(buffer->desc.buffer, &d);
++        EGLint error = buffer->image ? EGL_SUCCESS : eglGetError();
++        fprintf(stderr, "buffer %llu (%ux%u, stride %u, format %u, usage 0x%llx): ", (unsigned long long) buffer->desc.id,
++                d.width, d.height, d.stride, d.format, (unsigned long long) d.usage);
++        if (buffer->image) fprintf(stderr, "GL image made\n");
++        else fprintf(stderr, "no GL image, EGL error 0x%x\n", error);
++    }
+ 
+     glGenTextures(1, &buffer->id);
+     glBindTexture(GL_TEXTURE_2D, buffer->id);
+     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+ 
+-    if (buffer->image)
++    if (buffer->image) {
++        while (glGetError() != GL_NO_ERROR);
+         glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, buffer->image);
+-    else if (buffer->desc.data && buffer->desc.width > 0 && buffer->desc.height > 0) {
++        GLenum error = glGetError();
++        if (error) fprintf(stderr, "buffer %llu: GL error 0x%x binding its image\n", (unsigned long long) buffer->desc.id, error);
++    } else if (buffer->desc.data && buffer->desc.width > 0 && buffer->desc.height > 0) {
+         int format = buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
+         // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
+         glTexImage2D(GL_TEXTURE_2D, 0, format, buffer->desc.stride, buffer->desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);

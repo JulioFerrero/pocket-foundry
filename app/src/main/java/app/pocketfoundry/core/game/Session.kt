@@ -17,6 +17,7 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.X11Prefs
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.Locale
@@ -296,6 +297,18 @@ object ScreenLog {
     private var start = 0L
     @Volatile var announced = false
         private set
+
+    /** Termux:X11's screen writes to the app's stderr whether it can show each buffer it gets (third_party patch 0010). */
+    init {
+        runCatching {
+            val (read, write) = Os.pipe()
+            Os.dup2(write, OsConstants.STDERR_FILENO)
+            Os.close(write)
+            thread(isDaemon = true, name = "screen stderr") {
+                FileInputStream(read).bufferedReader().forEachLine { if (it.startsWith("buffer ")) add(it) }
+            }
+        }
+    }
 
     @Synchronized
     fun begin(context: Context) {
