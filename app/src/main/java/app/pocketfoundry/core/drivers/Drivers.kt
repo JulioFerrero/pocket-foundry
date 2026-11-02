@@ -6,7 +6,6 @@ import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.util.Log
-import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG

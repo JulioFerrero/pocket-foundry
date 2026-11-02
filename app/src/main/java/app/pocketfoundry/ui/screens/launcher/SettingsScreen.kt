@@ -13,8 +13,8 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.updates.Updates
 import app.pocketfoundry.LauncherActivity
-import app.pocketfoundry.ui.kit.*
 import app.pocketfoundry.ui.screens.drivers.DriverDialog
+import app.pocketfoundry.ui.kit.*
 import app.pocketfoundry.ui.screens.saves.SavesDialog
 
 /** The display and game settings, and a bar to the update, the driver, saves, the game's files and a new import. */
