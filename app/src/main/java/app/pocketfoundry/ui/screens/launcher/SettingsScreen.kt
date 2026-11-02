@@ -46,12 +46,10 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val settings = Settings(launcher)
     private val x11 = X11Prefs(launcher)
     private val note = label(launcher, "Resolution, sprites, graphics and the FPS counter change when Factorio next starts.", 13f, Factorio.MUTED)
-    private val resolution =
-        Dropdown(launcher, resolutionNames()) { x11.resolutionScale = x11.resolutionScales[it] }
+    private val resolution = Dropdown(launcher, resolutionNames()) { x11.resolutionScale = x11.resolutionScales[it] }
     // Named in the order of Settings.BORDERS and Settings.SPRITE_QUALITIES.
     private val border = Dropdown(launcher, listOf("Off", "Thin", "Wide")) { settings.border = Settings.BORDERS[it] }
-    private val frameRate =
-        Choice(launcher, listOf("30 FPS", "60 FPS")) { settings.frameRate = FRAME_RATES[it] }
+    private val frameRate = Choice(launcher, listOf("30 FPS", "60 FPS")) { settings.frameRate = FRAME_RATES[it] }
     private val sprites = Dropdown(launcher, listOf("High", "Medium")) { settings.spriteQuality = Settings.SPRITE_QUALITIES[it] }
     private val graphics = Choice(launcher, listOf("Full", "Light")) { settings.lightGraphics = it == LIGHT }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)

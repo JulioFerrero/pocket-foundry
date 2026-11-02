@@ -95,11 +95,7 @@ object Updates {
         dir.deleteRecursively()
         dir.mkdirs()
         connect(release.apk) { connection ->
-            ProgressInputStream(
-                connection.inputStream,
-                connection.contentLengthLong,
-                onPercent
-            ).use { input ->
+            ProgressInputStream(connection.inputStream, connection.contentLengthLong, onPercent).use { input ->
                 file.outputStream().use { input.copyTo(it, 1 shl 16) }
             }
         }

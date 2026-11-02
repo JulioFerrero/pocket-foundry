@@ -14,7 +14,7 @@ enum class DpadDir(val bit: Int, val button: PadButton, val dx: Float, val dy: F
         /** The directions ([x], [y]) points along, each where it's past [threshold]. */
         fun state(x: Float, y: Float, threshold: Float) =
             (if (y < -threshold) UP.bit else 0) or (if (y > threshold) DOWN.bit else 0) or
-                    (if (x < -threshold) LEFT.bit else 0) or (if (x > threshold) RIGHT.bit else 0)
+                (if (x < -threshold) LEFT.bit else 0) or (if (x > threshold) RIGHT.bit else 0)
 
         /** Sends the buttons that differ between D-pad states [old] and [new]. Returns whether one went down. */
         fun send(old: Int, new: Int): Boolean {
