@@ -25,6 +25,11 @@ class Settings(private val context: Context) {
     var lightGraphics by prefs.bool(LIGHT_GRAPHICS, false)
     /** Whether the game's config has them off, so turning Light off can put them back once. */
     var lightApplied by prefs.bool("lightApplied", false)
+    /**
+     * Whether the game's config has textures uncompressed for the driver, so another driver can put Factorio's default
+     * back once. True at first: 0.8.3 to 0.8.5 left them uncompressed without noting it.
+     */
+    var uncompressedApplied by prefs.bool("uncompressedApplied", true)
     /** The player's choice, or null to follow Drivers.recommended. */
     var driver by prefs.stringOrNull("driver")
     /** The old Options field, one for every driver: Drivers.moveOldOptions hands it to the driver in use. */
