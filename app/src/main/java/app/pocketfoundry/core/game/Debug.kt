@@ -6,13 +6,13 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
 import androidx.core.content.ContextCompat
-import app.pocketfoundry.core.system.Paths
-import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
-import app.pocketfoundry.isDebuggable
+import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.mainHandler
+import app.pocketfoundry.core.system.Paths
+import app.pocketfoundry.core.system.TAG
 
 /**
  * Debug builds only: `game.KEY=value`, `x11.KEY=value` and `test.program=…` lines from files/debug.env, to try

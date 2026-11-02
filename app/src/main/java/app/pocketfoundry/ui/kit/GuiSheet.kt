@@ -10,8 +10,8 @@ import android.graphics.RectF
 import android.graphics.Typeface
 import android.util.Log
 import app.pocketfoundry.core.system.Paths
-import app.pocketfoundry.R
 import app.pocketfoundry.core.system.TAG
+import app.pocketfoundry.R
 import java.io.File
 import java.io.FileNotFoundException
 

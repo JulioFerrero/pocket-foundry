@@ -4,14 +4,12 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.util.Log
+import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.Paths
-import app.pocketfoundry.ProgressInputStream
 import app.pocketfoundry.core.system.TAG
-import app.pocketfoundry.Uris
-import app.pocketfoundry.untarXz
-import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import org.json.JSONObject
 
 /** assets/runtime.tar.xz: glibc, Mesa, SDL, X11 libraries and xkb data, pocketfoundry-wm and the test tools. */
 object Runtime {

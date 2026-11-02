@@ -34,7 +34,7 @@
         </activity>
 
         <activity
-            android:name=".launcher.LogActivity"
+            android:name="app.pocketfoundry.ui.screens.launcher.LogActivity"
             android:label="Logs"
             android:theme="@style/Theme.PocketFoundry.Launcher"
             android:screenOrientation="sensorLandscape"
@@ -51,7 +51,7 @@
         </activity>
 
         <service
-            android:name=".game.GameService"
+            android:name="app.pocketfoundry.core.game.GameService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
@@ -63,7 +63,7 @@
 
         <!-- Factorio's folder (mods, saves, config) in the phone's Files app and file pickers. -->
         <provider
-            android:name=".saves.GameFilesProvider"
+            android:name="app.pocketfoundry.core.saves.GameFilesProvider"
             android:authorities="app.pocketfoundry.files"
             android:exported="true"
             android:grantUriPermissions="true"

@@ -2,8 +2,8 @@
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
+import android.graphics.Rect
 import android.os.SystemClock
 import android.view.Gravity
 import android.view.KeyEvent

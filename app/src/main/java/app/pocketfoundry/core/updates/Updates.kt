@@ -7,15 +7,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import androidx.core.content.ContextCompat
-import app.pocketfoundry.ProgressInputStream
-import app.pocketfoundry.appVersion
-import app.pocketfoundry.objects
-import app.pocketfoundry.sha256
-import org.json.JSONArray
+import app.pocketfoundry.core.system.*
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONArray
 
 /** Pocket Foundry's own releases on GitHub: whether a newer one is out, and its APK handed to Android's installer. */
 object Updates {

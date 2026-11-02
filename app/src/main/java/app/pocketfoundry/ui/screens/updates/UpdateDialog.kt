@@ -8,25 +8,13 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.LeadingMarginSpan
 import android.util.Log
-import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
-import app.pocketfoundry.core.game.Session
-import app.pocketfoundry.isDebuggable
-import app.pocketfoundry.isStock
-import app.pocketfoundry.ui.kit.Arrow
-import app.pocketfoundry.ui.kit.Factorio
-import app.pocketfoundry.ui.kit.Frame
-import app.pocketfoundry.ui.kit.MaxHeightScrollView
-import app.pocketfoundry.ui.kit.Tone
-import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
-import app.pocketfoundry.ui.kit.button
-import app.pocketfoundry.ui.kit.dpi
-import app.pocketfoundry.ui.kit.heading
-import app.pocketfoundry.ui.kit.label
-import app.pocketfoundry.ui.kit.shown
-import app.pocketfoundry.ui.kit.stack
+import app.pocketfoundry.core.updates.Updates
+import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.ui.kit.*
 import java.io.File
 
 /** Release notes since this version, newest first, and an Update button. Shown on start once per release, and from Settings. */

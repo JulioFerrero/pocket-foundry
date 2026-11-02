@@ -1,15 +1,14 @@
 ﻿package app.pocketfoundry.ui.controller
 
+import android.os.SystemClock
+import android.view.ViewConfiguration
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
-
-import android.os.SystemClock
-import android.view.ViewConfiguration
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.dp
-import com.termux.x11.MainActivity
 import com.termux.x11.input.InputStub
+import com.termux.x11.MainActivity
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.ln

@@ -11,24 +11,12 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ScrollView
-import app.pocketfoundry.LauncherActivity
-import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.core.drivers.DriverImport
+import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.Session
-import app.pocketfoundry.ui.kit.FRAME_BORDER
-import app.pocketfoundry.ui.kit.Factorio
-import app.pocketfoundry.ui.kit.Frame
-import app.pocketfoundry.ui.kit.Tone
-import app.pocketfoundry.ui.kit.WRAP
-import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
-import app.pocketfoundry.ui.kit.button
-import app.pocketfoundry.ui.kit.dpi
-import app.pocketfoundry.ui.kit.immersive
-import app.pocketfoundry.ui.kit.label
-import app.pocketfoundry.ui.kit.pad
-import app.pocketfoundry.ui.kit.shown
-import app.pocketfoundry.ui.kit.stack
-import app.pocketfoundry.ui.kit.withNote
+import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.ui.kit.*
 
 /** The drivers to choose from, the chosen one lit, and the Options field for testing them. */
 class DriverDialog(private val launcher: LauncherActivity) {

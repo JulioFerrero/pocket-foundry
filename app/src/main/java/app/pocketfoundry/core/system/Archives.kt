@@ -1,13 +1,13 @@
 ﻿package app.pocketfoundry.core.system
 
 import android.system.Os
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import java.io.File
 import java.io.FilterInputStream
-import java.io.IOException
 import java.io.InputStream
+import java.io.IOException
 import java.util.concurrent.ArrayBlockingQueue
 import kotlin.concurrent.thread
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 
 fun untarXz(input: InputStream, dest: File, strip: Int = 0) {
     val root = dest.canonicalFile

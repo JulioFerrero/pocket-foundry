@@ -4,6 +4,8 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Window
+import app.pocketfoundry.ui.controller.ControllerView
+import app.pocketfoundry.ui.controller.PointerGestures
 
 /**
  * The game window's input. A finger on a control goes to [ControllerView], other fingers to [PointerGestures]. Keys

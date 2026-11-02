@@ -3,7 +3,6 @@
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
-
 import kotlin.math.hypot
 
 /**

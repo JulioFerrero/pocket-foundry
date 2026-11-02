@@ -1,8 +1,8 @@
 ﻿package app.pocketfoundry.ui.screens.launcher
 
 import android.app.Activity
-import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ClipData
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -15,24 +15,14 @@ import android.text.style.StyleSpan
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import app.pocketfoundry.core.system.Paths
-import app.pocketfoundry.core.system.Settings
-import app.pocketfoundry.appVersion
 import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
+import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.mainHandler
-import app.pocketfoundry.ui.kit.FButton
-import app.pocketfoundry.ui.kit.Factorio
-import app.pocketfoundry.ui.kit.Frame
-import app.pocketfoundry.ui.kit.MATCH
-import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.buttonBar
-import app.pocketfoundry.ui.kit.dpi
-import app.pocketfoundry.ui.kit.immersive
-import app.pocketfoundry.ui.kit.pad
-import app.pocketfoundry.ui.kit.panel
-import app.pocketfoundry.ui.kit.stack
+import app.pocketfoundry.core.system.Paths
+import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.ui.kit.*
 import java.io.File
 
 /** The phone's facts and the ends of the game's logs, every 2 s, to read or copy into a report. */

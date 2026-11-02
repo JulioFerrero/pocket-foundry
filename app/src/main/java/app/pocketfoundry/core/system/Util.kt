@@ -14,11 +14,11 @@ import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.util.Log
-import org.json.JSONArray
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import kotlin.concurrent.thread
+import org.json.JSONArray
 
 const val TAG = "PocketFoundry"
 const val MIB = 1 shl 20

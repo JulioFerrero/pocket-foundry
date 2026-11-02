@@ -4,27 +4,11 @@ import android.net.Uri
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
-import app.pocketfoundry.LauncherActivity
-import app.pocketfoundry.Uris
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.GameImport
-import app.pocketfoundry.ui.kit.Arrow
-import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
-import app.pocketfoundry.ui.kit.BarView
-import app.pocketfoundry.ui.kit.Factorio
-import app.pocketfoundry.ui.kit.Frame
-import app.pocketfoundry.ui.kit.GuiSprites
-import app.pocketfoundry.ui.kit.Tone
-import app.pocketfoundry.ui.kit.WRAP
-import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
-import app.pocketfoundry.ui.kit.button
-import app.pocketfoundry.ui.kit.label
-import app.pocketfoundry.ui.kit.link
-import app.pocketfoundry.ui.kit.panel
-import app.pocketfoundry.ui.kit.row
-import app.pocketfoundry.ui.kit.shown
-import app.pocketfoundry.ui.kit.stack
+import app.pocketfoundry.core.system.Uris
+import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.ui.kit.*
 
 /** Before the game is imported: what to import and where to get it. */
 class WelcomeScreen(private val launcher: LauncherActivity) {

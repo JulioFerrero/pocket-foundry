@@ -2,43 +2,24 @@
 
 import android.content.Context
 import android.content.Intent
-import android.text.TextUtils
 import android.text.format.DateFormat
 import android.text.format.DateUtils
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
-import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.Saves
-import app.pocketfoundry.ui.kit.Arrow
-import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
-import app.pocketfoundry.ui.kit.Factorio
-import app.pocketfoundry.ui.kit.Frame
-import app.pocketfoundry.ui.kit.MATCH
-import app.pocketfoundry.ui.kit.Tone
-import app.pocketfoundry.ui.kit.WRAP
-import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
-import app.pocketfoundry.ui.kit.button
-import app.pocketfoundry.ui.kit.groove
-import app.pocketfoundry.ui.kit.heading
-import app.pocketfoundry.ui.kit.label
-import app.pocketfoundry.ui.kit.pad
-import app.pocketfoundry.ui.kit.panel
-import app.pocketfoundry.ui.kit.row
-import app.pocketfoundry.ui.kit.shown
-import app.pocketfoundry.ui.kit.spacer
-import app.pocketfoundry.ui.kit.stack
-import app.pocketfoundry.ui.kit.withNote
+import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.ui.kit.*
 import java.io.File
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /** The main menu, and the newest save's card. While a game runs, it's the pause menu. */
 class HomeScreen(private val launcher: LauncherActivity) {
