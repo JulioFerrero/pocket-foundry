@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.game
+package app.pocketfoundry.core.game
 
 import android.media.AudioAttributes
 import android.media.AudioFormat

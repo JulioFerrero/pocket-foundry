@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry
+package app.pocketfoundry
 
 import android.content.Intent
 import app.pocketfoundry.core.game.DebugPad

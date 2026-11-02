@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.controller
+package app.pocketfoundry.ui.controller
 
 import android.content.Context
 import android.graphics.Canvas

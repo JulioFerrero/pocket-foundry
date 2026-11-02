@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.screens.drivers
+package app.pocketfoundry.ui.screens.drivers
 
 import android.graphics.Typeface
 import android.net.Uri

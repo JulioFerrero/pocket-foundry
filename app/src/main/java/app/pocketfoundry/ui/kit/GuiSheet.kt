@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.kit
+package app.pocketfoundry.ui.kit
 
 import android.content.Context
 import android.graphics.Bitmap

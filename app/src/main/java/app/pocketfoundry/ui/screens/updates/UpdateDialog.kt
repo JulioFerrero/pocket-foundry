@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.screens.updates
+package app.pocketfoundry.ui.screens.updates
 
 import android.app.Activity
 import android.content.Intent

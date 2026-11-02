@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.controller
+package app.pocketfoundry.core.controller
 
 import android.view.InputDevice
 import android.view.KeyEvent

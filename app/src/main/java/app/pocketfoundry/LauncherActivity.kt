@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry
+package app.pocketfoundry
 
 import android.app.Activity
 import android.content.Intent

@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.game
+package app.pocketfoundry.core.game
 
 import android.app.Notification
 import android.app.NotificationChannel

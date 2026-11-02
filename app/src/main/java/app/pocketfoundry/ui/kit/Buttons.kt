@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.kit
+package app.pocketfoundry.ui.kit
 
 import android.annotation.SuppressLint
 import android.content.Context

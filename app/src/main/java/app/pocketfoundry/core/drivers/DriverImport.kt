@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.drivers
+package app.pocketfoundry.core.drivers
 
 import android.content.Context
 import android.net.Uri

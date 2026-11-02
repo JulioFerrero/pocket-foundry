@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.saves
+package app.pocketfoundry.core.saves
 
 import android.content.ContentValues
 import android.content.Context

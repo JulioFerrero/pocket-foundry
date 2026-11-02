@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.system
+package app.pocketfoundry.core.system
 
 import app.pocketfoundry.NativeXz
 

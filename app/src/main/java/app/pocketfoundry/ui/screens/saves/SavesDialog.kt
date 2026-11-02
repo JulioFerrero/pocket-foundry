@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.screens.saves
+package app.pocketfoundry.ui.screens.saves
 
 import android.net.Uri
 import app.pocketfoundry.core.saves.Saves

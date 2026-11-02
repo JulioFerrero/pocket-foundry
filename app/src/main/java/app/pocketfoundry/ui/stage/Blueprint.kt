@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.stage
+package app.pocketfoundry.ui.stage
 
 import android.graphics.Canvas
 import android.graphics.DashPathEffect

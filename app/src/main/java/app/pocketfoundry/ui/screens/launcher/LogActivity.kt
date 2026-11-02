@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.screens.launcher
+package app.pocketfoundry.ui.screens.launcher
 
 import android.app.Activity
 import android.content.ClipboardManager

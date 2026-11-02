@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.controller
+package app.pocketfoundry.ui.controller
 
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.PadAxis

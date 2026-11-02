@@ -1,4 +1,4 @@
-﻿// .xz decoding for NativeXzInputStream (Kotlin), on top of liblzma.
+// .xz decoding for NativeXzInputStream (Kotlin), on top of liblzma.
 #include <jni.h>
 #include <lzma.h>
 #include <stdint.h>

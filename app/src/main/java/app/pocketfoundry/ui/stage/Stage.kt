@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.ui.stage
+package app.pocketfoundry.ui.stage
 
 import android.annotation.SuppressLint
 import android.content.Context

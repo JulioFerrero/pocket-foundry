@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.updates
+package app.pocketfoundry.core.updates
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver

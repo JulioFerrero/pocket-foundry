@@ -1,4 +1,4 @@
-﻿package app.pocketfoundry.core.game
+package app.pocketfoundry.core.game
 
 import android.app.Activity
 import android.app.Application
