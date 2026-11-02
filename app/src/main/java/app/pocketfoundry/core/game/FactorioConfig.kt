@@ -18,13 +18,26 @@ object FactorioConfig {
     fun write(context: Context, paths: Paths, keyboard: Boolean, compression: Compression) {
         val settings = Settings(context)
         val light = settings.lightGraphics
+        val uncompressed = compression == Compression.NONE
         val old = if (paths.config.exists()) paths.config.readText() else ""
         // Factorio derives its paths from its executable (here the loader), so name them.
         val config = update(old, File(paths.game, "data").path, paths.gameData.path, keyboard,
-                            settings.spriteQuality, compression, effects(light, settings.lightApplied))
+                            settings.spriteQuality, compression, textures(uncompressed, settings.uncompressedApplied),
+                            effects(light, settings.lightApplied))
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
         settings.lightApplied = light
+        settings.uncompressedApplied = uncompressed
+    }
+
+    /**
+     * A driver that needs them gets uncompressed textures at every start. The next driver puts Factorio's default back
+     * once; after that the game's menu decides (null).
+     */
+    internal fun textures(uncompressed: Boolean, uncompressedApplied: Boolean): String? = when {
+        uncompressed -> "none"
+        uncompressedApplied -> "low-quality"
+        else -> null
     }
 
     /**
@@ -34,7 +47,7 @@ object FactorioConfig {
     internal fun effects(light: Boolean, lightApplied: Boolean): Boolean? = if (light || lightApplied) !light else null
 
     internal fun update(ini: String, readData: String, writeData: String, keyboard: Boolean, spriteQuality: String,
-                        compression: Compression, effects: Boolean?): String {
+                        compression: Compression, textures: String?, effects: Boolean?): String {
         var config = if (ini.startsWith("; version=")) ini else VERSION_HEADER
         config = setIni(config, "path", "read-data", readData)
         config = setIni(config, "path", "write-data", writeData)
@@ -48,7 +61,7 @@ object FactorioConfig {
         config = setIni(config, "graphics", "graphics-quality", spriteQuality)
         for (key in listOf("gpu-accelerated-compression", "gpu-accelerated-mipmap-compression"))
             config = setIni(config, "graphics", key, (compression == Compression.GPU).toString())
-        if (compression == Compression.NONE) config = setIni(config, "graphics", "texture-compression-level", "none")
+        if (textures != null) config = setIni(config, "graphics", "texture-compression-level", textures)
         if (effects != null) for (key in EFFECTS) config = setIni(config, "graphics", key, effects.toString())
         return config
     }

@@ -3,6 +3,7 @@ package app.pocketfoundry.core.system
 import android.content.Context
 import android.content.SharedPreferences
 import app.pocketfoundry.core.drivers.Drivers
+import app.pocketfoundry.core.drivers.Gpu
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.properties.ReadWriteProperty
@@ -25,6 +26,11 @@ class Settings(private val context: Context) {
     var lightGraphics by prefs.bool(LIGHT_GRAPHICS, false)
     /** Whether the game's config has them off, so turning Light off can put them back once. */
     var lightApplied by prefs.bool("lightApplied", false)
+    /**
+     * Whether the game's config has textures uncompressed for the driver, so another driver can put Factorio's default
+     * back once. True at first: 0.8.3 to 0.8.5 left them uncompressed without noting it.
+     */
+    var uncompressedApplied by prefs.bool("uncompressedApplied", true)
     /** The player's choice, or null to follow Drivers.recommended. */
     var driver by prefs.stringOrNull("driver")
     /** The old Options field, one for every driver: Drivers.moveOldOptions hands it to the driver in use. */
@@ -53,10 +59,14 @@ class Settings(private val context: Context) {
 
     fun takeLayoutEditorRequest() = editLayout.also { if (it) editLayout = false }
 
-    /** The sprites and effects that suit the CPU driver, or a GPU's. [onlyUnset] keeps what the player chose. */
+    /**
+     * The sprites and effects that suit the CPU driver, or a GPU's. Malis get Medium sprites too: High crashed PanVK
+     * while loading, and their own driver loads them uncompressed. [onlyUnset] keeps what the player chose.
+     */
     fun setDriverDefaults(cpu: Boolean, onlyUnset: Boolean = false) {
         val edit = prefs.edit()
-        if (!onlyUnset || !prefs.contains(SPRITE_QUALITY)) edit.putString(SPRITE_QUALITY, if (cpu) "medium" else "high")
+        val sprites = if (cpu || Gpu.mali) "medium" else "high"
+        if (!onlyUnset || !prefs.contains(SPRITE_QUALITY)) edit.putString(SPRITE_QUALITY, sprites)
         if (!onlyUnset || !prefs.contains(LIGHT_GRAPHICS)) edit.putBoolean(LIGHT_GRAPHICS, cpu)
         edit.apply()
     }
