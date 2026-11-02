@@ -105,9 +105,8 @@ object Drivers {
 
     /**
      * Factorio's GPU compressor fails its self-test on PanVK, whose BC emulation skips the compressor's copies (a G610
-     * faulted right after): the CPU compresses instead. Malis have no BC formats, so Mesa stores compressed textures
-     * whole anyway, and on their own driver creating them failed (a G610 ran out of memory on each, then faulted):
-     * there they load uncompressed, for no more memory.
+     * faulted right after): the CPU compresses instead. Malis have no BC formats, so on their own driver Mesa would
+     * only unpack what the CPU packed: textures load uncompressed there, for no more memory.
      */
     fun compression(id: String) = when {
         id.startsWith("panvk-") -> Compression.CPU
@@ -149,7 +148,7 @@ object Drivers {
         // needs and the driver may lack, like null descriptors on Mali.
         PHONE -> mapOf("VK_DRIVER_FILES" to File(paths.lib, "hybris/hybris_icd.json").path,
                        "VK_LAYER_PATH" to File(paths.lib, "hybris").path,
-                       "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") + if (Gpu.mali) MALI_GL else emptyMap()
+                       "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") + if (Gpu.mali) MALI else emptyMap()
         // llvmpipe: Mesa on the CPU. Software GLX still follows MESA_LOADER_DRIVER_OVERRIDE, so it must name llvmpipe too.
         // 256-bit code (two NEON registers at a time) and bilinear filtering were the fastest that still looked right.
         CPU -> mapOf("LIBGL_ALWAYS_SOFTWARE" to "1", "MESA_LOADER_DRIVER_OVERRIDE" to "llvmpipe",
@@ -162,9 +161,12 @@ object Drivers {
      * Factorio needs OpenGL 3.3, which Zink offers only on Vulkan drivers with depth clamp and vertex attribute
      * divisors; some Malis' lack one (G52, G610). Asked for anyway, a G610 got its context: without the extension, Zink
      * steps each instanced attribute once per instance. The game also runs on 3.3 where the driver offers more.
+     * The compat layer's stand-in for the BC textures Malis lack failed on every one Factorio made (a G925, and the
+     * vivo with it forced): Mesa unpacks them itself instead.
      */
-    private val MALI_GL = mapOf("MESA_GL_VERSION_OVERRIDE" to "3.3",
-                                "MESA_EXTENSION_OVERRIDE" to "+GL_ARB_instanced_arrays")
+    private val MALI = mapOf("MESA_GL_VERSION_OVERRIDE" to "3.3",
+                             "MESA_EXTENSION_OVERRIDE" to "+GL_ARB_instanced_arrays",
+                             "HYBRIS_BC_TEXTURES" to "0")
 
     /** The libraries an imported driver brought, searched after the runtime's. */
     fun libraries(paths: Paths, id: String): File? = if (id in BUNDLED) null else File(paths.drivers, id)
