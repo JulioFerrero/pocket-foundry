@@ -142,7 +142,7 @@ class LogActivity : Activity() {
 
     companion object {
         /** Each log with how many of its last lines to show. */
-        private val LOG_TAILS = listOf(Paths::gameLog to 400, Paths::wmLog to 20, Paths::screenLog to 20, Paths::x11Log to 120)
+        private val LOG_TAILS = listOf(Paths::gameLog to 400, Paths::wmLog to 20, Paths::screenLog to 40, Paths::x11Log to 120)
         private val TEXT = Color.rgb(0xD5, 0xD9, 0xE0)
         private val DIM = Color.rgb(0x7A, 0x78, 0x76)
         private val AMBER = Color.rgb(0xE6, 0xB4, 0x50)
