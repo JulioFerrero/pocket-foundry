@@ -4,7 +4,7 @@
 # what Zink needs. Our patch shows the frames through Termux:X11.
 set -euo pipefail
 
-COMMIT=aee1f6ab3483a6babc41b0def751cfeb0ace24f2    # branch arlinux, 2026-10-31
+COMMIT=226b247d90adcb5eb1b120885fac8b96063726ee    # branch arlinux, 2026-11-02
 HEADERS=2c6ac3dcc4f8db593dd69906b0ec22822abfed91   # Halium/android-headers, as taowen/arlinux-rootfs pins it
 # Vulkan headers newer than Debian's: those of the Mesa we build (its build fetched the tarball).
 MESA=$(sed -n 's/^COMMIT=\([0-9a-f]*\).*/\1/p' /runtime/mesa/build-mesa.sh)
@@ -33,7 +33,7 @@ NOCONFIGURE=1 ./autogen.sh
     --enable-adreno-quirks --enable-mali-quirks --enable-property-cache \
     --with-default-hybris-ld-library-path=/vendor/lib64/egl:/vendor/lib64/hw:/vendor/lib64:/system/lib64:/system_ext/lib64
 make -C common -j"$(nproc)" SUBDIRS=. libhybris-common.la
-dirs="common/q libsync platforms/common hardware ui gralloc vulkan"
+dirs="common/q libsync platforms/common properties hardware ui gralloc vulkan"
 for dir in $dirs; do make -C $dir -j"$(nproc)"; done
 
 rm -rf /out/hybris
