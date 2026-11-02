@@ -75,11 +75,11 @@ object Session {
         val paths = Paths(context)
         val newGame = game?.isAlive != true
         paths.logs.mkdirs()
+        if (newGame) ScreenLog.begin(context)
         paths.home.mkdirs()
         Runtime.writeResolvConf(context)
         Settings(context).writeFrameRate()
         startBridges(context, paths)
-        if (newGame) ScreenLog.begin(context)
         if (xServer?.isAlive != true) startXServer(context, paths)
         if (wm?.isAlive != true) wm = Glibc.start(paths, listOf(File(paths.prefix, "bin/pocketfoundry-wm").path), paths.wmLog)
         if (newGame) launchGame(context, paths, gameArgs)

@@ -20,6 +20,7 @@ import app.pocketfoundry.ui.WRAP
 import app.pocketfoundry.ui.add
 import app.pocketfoundry.ui.background
 import app.pocketfoundry.ui.button
+import app.pocketfoundry.ui.capped
 import app.pocketfoundry.ui.label
 import app.pocketfoundry.ui.link
 import app.pocketfoundry.ui.panel
@@ -29,7 +30,7 @@ import app.pocketfoundry.ui.stack
 
 /** Before the game is imported: what to import and where to get it. */
 class WelcomeScreen(private val launcher: LauncherActivity) {
-    private val error = label(launcher, "", 14f, Factorio.ERROR)
+    private val error = label(launcher, "", 14f, Factorio.ERROR).capped(3)
     private val importButton = button(launcher, "Import Factorio", Tone.GREEN, Arrow.RIGHT, onClick = launcher::pickGame)
 
     val view: View = panel(launcher, "Pocket Foundry") {

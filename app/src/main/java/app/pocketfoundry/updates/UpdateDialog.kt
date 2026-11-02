@@ -22,6 +22,7 @@ import app.pocketfoundry.ui.Tone
 import app.pocketfoundry.ui.add
 import app.pocketfoundry.ui.background
 import app.pocketfoundry.ui.button
+import app.pocketfoundry.ui.capped
 import app.pocketfoundry.ui.dpi
 import app.pocketfoundry.ui.heading
 import app.pocketfoundry.ui.label
@@ -32,7 +33,7 @@ import java.io.File
 /** Release notes since this version, newest first, and an Update button. Shown on start once per release, and from Settings. */
 class UpdateDialog(private val launcher: LauncherActivity, private val release: Updates.Release) {
     private val updateButton = button(launcher, "Update", Tone.GREEN, Arrow.RIGHT) { launcher.updates.start() }
-    private val status = label(launcher, "", 14f, Factorio.ERROR)
+    private val status = label(launcher, "", 14f, Factorio.ERROR).capped(2)
 
     fun show(onClose: () -> Unit) {
         Settings(launcher).updateShown = release.version

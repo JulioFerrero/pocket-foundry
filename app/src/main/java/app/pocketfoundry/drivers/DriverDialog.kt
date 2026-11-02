@@ -25,6 +25,7 @@ import app.pocketfoundry.ui.WRAP
 import app.pocketfoundry.ui.add
 import app.pocketfoundry.ui.background
 import app.pocketfoundry.ui.button
+import app.pocketfoundry.ui.capped
 import app.pocketfoundry.ui.heading
 import app.pocketfoundry.ui.immersive
 import app.pocketfoundry.ui.label
@@ -76,7 +77,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         add(stack(launcher, Frame.SHALLOW, padding = 4) { add(options) })
     }
 
-    private val status = label(launcher, "Applies when Factorio next starts.", 14f, Factorio.MUTED)
+    private val status = label(launcher, "Applies when Factorio next starts.", 14f, Factorio.MUTED).capped(2)
     private val importButton = button(launcher, "Import") { launcher.pickFiles { if (host.isOpen) import(it.first()) } }
 
     fun show() {

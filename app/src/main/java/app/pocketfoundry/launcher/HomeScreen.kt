@@ -23,6 +23,7 @@ import app.pocketfoundry.ui.WRAP
 import app.pocketfoundry.ui.add
 import app.pocketfoundry.ui.background
 import app.pocketfoundry.ui.button
+import app.pocketfoundry.ui.capped
 import app.pocketfoundry.ui.groove
 import app.pocketfoundry.ui.heading
 import app.pocketfoundry.ui.label
@@ -50,7 +51,7 @@ class HomeScreen(private val launcher: LauncherActivity) {
     private val logs = button(launcher, "Logs") { launcher.startActivity(Intent(launcher, LogActivity::class.java)) }
     private val quit = button(launcher, "Quit", Tone.RED, Arrow.LEFT) { confirmQuit() }
     private val groove = groove(launcher)
-    private val footerLeft = label(launcher, "", 15f, weight = 700)
+    private val footerLeft = label(launcher, "", 15f, weight = 700).capped(2)
     private val footerRight = label(launcher, "", 15f, weight = 700)
     private val card = SaveCard(launcher)
 
