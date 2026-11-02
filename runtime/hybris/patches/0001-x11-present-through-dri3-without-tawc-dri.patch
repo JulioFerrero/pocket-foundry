@@ -13,8 +13,8 @@ their format. There a swapchain draws into ordinary BGRA images and copies each 
 buffers: the X server reads them in the window's BGRX order whatever their format says. The copies are recorded once
 per image on the presenting queue's family. HYBRIS_SWAPCHAIN_BLIT=1 does the same on any driver, to test it.
 
-The X server shows the buffers as GL textures. HYBRIS_SWAPCHAIN_TEXTURE=1 allocates them for that too, as Android's
-compositor asks for its own, for drivers that make textures only of such buffers.
+HYBRIS_SWAPCHAIN_TEST=1 paints the copied buffers' top half magenta and copies only the bottom half of each frame, to
+tell a screen that never shows the buffers from frames that are black.
 
 --- a/hybris/vulkan/Makefile.am	2026-11-02 14:03:33
 +++ b/hybris/vulkan/Makefile.am	2026-11-02 14:03:33
@@ -311,16 +311,8 @@ compositor asks for its own, for drivers that make textures only of such buffers
      capabilities->supportedUsageFlags = usage;
      return VK_SUCCESS;
 --- a/hybris/vulkan/icd/swapchain.c	2026-11-02 14:03:33
-+++ b/hybris/vulkan/icd/swapchain.c	2026-11-02 20:40:15
-@@ -18,6 +18,7 @@
- #include <string.h>
- #include <unistd.h>
- #ifdef WANT_WAYLAND
-+#include <hardware/gralloc.h>
- #include <hybris/gralloc/gralloc.h>
- #include <hybris/grallocusage/GrallocUsageConversion.h>
- #include <system/graphics.h>
-@@ -34,6 +35,14 @@
++++ b/hybris/vulkan/icd/swapchain.c	2026-11-02 21:08:54
+@@ -34,6 +34,14 @@
      enum image_state state;
      int acquire_fence;
      VkSemaphore present_ready;
@@ -335,7 +327,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
  };
  
  struct swapchain_state {
-@@ -48,6 +57,9 @@
+@@ -48,6 +56,9 @@
      int retired;
      VkAllocationCallbacks allocator;
      int custom_allocator;
@@ -345,7 +337,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
      struct swapchain_state *next;
  };
  
-@@ -107,6 +119,12 @@
+@@ -107,6 +118,12 @@
      if (window) window->ops->disconnect(window);
  }
  
@@ -358,7 +350,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
  static int hal_format(VkFormat format)
  {
      if (format == VK_FORMAT_R8G8B8A8_UNORM) return HAL_PIXEL_FORMAT_RGBA_8888;
-@@ -116,7 +134,8 @@
+@@ -116,7 +133,8 @@
  
  static VkResult import_image(const struct hybris_icd_device *device,
      const VkSwapchainCreateInfoKHR *info, struct ANativeWindowBuffer *native,
@@ -368,7 +360,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
  {
      PFN_vkCreateImage create = (PFN_vkCreateImage)device->resolver(device->handle, "vkCreateImage");
      if (!create) return VK_ERROR_EXTENSION_NOT_PRESENT;
-@@ -136,13 +155,13 @@
+@@ -136,13 +154,13 @@
          .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
          .pNext = &buffer,
          .imageType = VK_IMAGE_TYPE_2D,
@@ -384,7 +376,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
          .sharingMode = info->imageSharingMode,
          .queueFamilyIndexCount = info->queueFamilyIndexCount,
          .pQueueFamilyIndices = info->pQueueFamilyIndices,
-@@ -150,19 +169,204 @@
+@@ -150,19 +168,219 @@
      return create(device->handle, &image_info, allocator, image);
  }
  
@@ -456,11 +448,18 @@ compositor asks for its own, for drivers that make textures only of such buffers
 +    PFN_vkCmdPipelineBarrier barrier = (PFN_vkCmdPipelineBarrier)
 +        device->resolver(device->handle, "vkCmdPipelineBarrier");
 +    PFN_vkCmdCopyImage copy = (PFN_vkCmdCopyImage)device->resolver(device->handle, "vkCmdCopyImage");
++    PFN_vkCmdClearColorImage clear = (PFN_vkCmdClearColorImage)
++        device->resolver(device->handle, "vkCmdClearColorImage");
 +    PFN_vkCreateFence create_fence = (PFN_vkCreateFence)device->resolver(device->handle, "vkCreateFence");
 +    PFN_vkDestroyCommandPool destroy_pool = (PFN_vkDestroyCommandPool)
 +        device->resolver(device->handle, "vkDestroyCommandPool");
-+    if (!create_pool || !allocate || !begin || !end || !barrier || !copy || !create_fence || !destroy_pool)
++    if (!create_pool || !allocate || !begin || !end || !barrier || !copy || !clear || !create_fence || !destroy_pool)
 +        return VK_ERROR_EXTENSION_NOT_PRESENT;
++    /* HYBRIS_SWAPCHAIN_TEST=1 paints the buffers' top half magenta and copies only the bottom half of each frame: on
++     * a black screen, magenta says the buffers reach it and the frames are black. */
++    const char *test = getenv("HYBRIS_SWAPCHAIN_TEST");
++    uint32_t top = test && !strcmp(test, "1") ? state->extent.height / 2 : 0;
++    if (top) fprintf(stderr, "hybris WSI: test: top half magenta, bottom half the frame\n");
 +    VkCommandPoolCreateInfo pool_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
 +        .queueFamilyIndex = family};
 +    VkResult result = create_pool(device->handle, &pool_info, allocator, &state->pool);
@@ -492,9 +491,17 @@ compositor asks for its own, for drivers that make textures only of such buffers
 +             .image = image->native_image, .subresourceRange = whole}};
 +        barrier(image->blit, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
 +            0, NULL, 0, NULL, 2, to_copy);
++        if (top) {
++            const VkClearColorValue magenta = {.float32 = {1, 0, 1, 1}};
++            clear(image->blit, image->native_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &magenta, 1, &whole);
++            VkMemoryBarrier cleared = {.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
++                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
++            barrier(image->blit, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
++                1, &cleared, 0, NULL, 0, NULL);
++        }
 +        const VkImageSubresourceLayers layers = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-+        VkImageCopy region = {.srcSubresource = layers, .dstSubresource = layers,
-+            .extent = {state->extent.width, state->extent.height, 1}};
++        VkImageCopy region = {.srcSubresource = layers, .srcOffset = {0, (int32_t)top, 0}, .dstSubresource = layers,
++            .dstOffset = {0, (int32_t)top, 0}, .extent = {state->extent.width, state->extent.height - top, 1}};
 +        /* Byte for byte, not converted: the X server reads the buffer in its window's BGRX order, whatever format
 +         * the buffer is labelled with. */
 +        copy(image->blit, image->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image->native_image,
@@ -554,6 +561,13 @@ compositor asks for its own, for drivers that make textures only of such buffers
  {
      PFN_vkDestroyImage destroy = device
          ? (PFN_vkDestroyImage)device->resolver(device->handle, "vkDestroyImage") : NULL;
+-    for (uint32_t i = 0; i < state->count; ++i) {
+-        if (state->images[i].present_ready && device) {
+-            PFN_vkDestroySemaphore destroy_semaphore = (PFN_vkDestroySemaphore)
+-                device->resolver(device->handle, "vkDestroySemaphore");
+-            destroy_semaphore(device->handle, state->images[i].present_ready,
+-                state->custom_allocator ? &state->allocator : NULL);
+-        }
 +    const VkAllocationCallbacks *allocator = state->custom_allocator ? &state->allocator : NULL;
 +    PFN_vkDestroySemaphore destroy_semaphore = device
 +        ? (PFN_vkDestroySemaphore)device->resolver(device->handle, "vkDestroySemaphore") : NULL;
@@ -573,13 +587,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
 +        destroy_pool(device->handle, state->pool, allocator);   // frees the blit command buffers
 +        state->pool = VK_NULL_HANDLE;
 +    }
-     for (uint32_t i = 0; i < state->count; ++i) {
--        if (state->images[i].present_ready && device) {
--            PFN_vkDestroySemaphore destroy_semaphore = (PFN_vkDestroySemaphore)
--                device->resolver(device->handle, "vkDestroySemaphore");
--            destroy_semaphore(device->handle, state->images[i].present_ready,
--                state->custom_allocator ? &state->allocator : NULL);
--        }
++    for (uint32_t i = 0; i < state->count; ++i) {
 +        if (state->images[i].present_ready && destroy_semaphore)
 +            destroy_semaphore(device->handle, state->images[i].present_ready, allocator);
 +        if (state->images[i].blitted && destroy_semaphore)
@@ -596,7 +604,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
          if (state->images[i].native && !state->retired && state->window &&
              state->images[i].state != IMAGE_PRESENTED) {
              state->window->ops->cancel(state->window, state->images[i].native,
-@@ -173,6 +377,12 @@
+@@ -173,6 +391,12 @@
          if (state->images[i].native)
              state->images[i].native->common.decRef(&state->images[i].native->common);
          state->images[i].image = VK_NULL_HANDLE;
@@ -609,7 +617,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
          state->images[i].native = NULL;
      }
  }
-@@ -190,7 +400,18 @@
+@@ -190,7 +414,18 @@
      if (info->oldSwapchain) retire_swapchain(info->oldSwapchain);
      if (!info->imageExtent.width || !info->imageExtent.height)
          return VK_ERROR_INITIALIZATION_FAILED;
@@ -629,7 +637,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
      if (!pixel) return VK_ERROR_FORMAT_NOT_SUPPORTED;
      /* RGBX preserves the Vulkan RGBA image layout while making the native
       * compositor ignore application alpha, as OPAQUE requires. */
-@@ -224,12 +445,13 @@
+@@ -224,12 +459,13 @@
       * report SUBOPTIMAL while the window and image sizes differ; actual surface
       * loss and pool errors retain their ordinary failure paths. */
      VkImageFormatProperties properties;
@@ -646,7 +654,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
          !(info->compositeAlpha & capabilities.supportedCompositeAlpha))
          return VK_ERROR_INITIALIZATION_FAILED;
      for (const VkBaseInStructure *next = info->pNext; next; next = next->pNext) {
-@@ -242,7 +464,7 @@
+@@ -242,7 +478,7 @@
              "vkGetSwapchainGrallocUsage2ANDROID");
      if (!usage2) return VK_ERROR_EXTENSION_NOT_PRESENT;
      uint64_t consumer = 0, producer = 0;
@@ -655,15 +663,8 @@ compositor asks for its own, for drivers that make textures only of such buffers
      if (result != VK_SUCCESS) {
          fprintf(stderr, "hybris WSI: gralloc usage query failed: result=%d format=%d usage=0x%x\n",
              result, info->imageFormat, info->imageUsage);
-@@ -254,9 +476,15 @@
-             producer, consumer, info->imageFormat, info->imageUsage);
-         return VK_ERROR_FORMAT_NOT_SUPPORTED;
-     }
-+    /* The X server shows the buffers as GL textures. HYBRIS_SWAPCHAIN_TEXTURE=1 allocates them for that too, as
-+     * Android's compositor asks for its own: a driver may make textures only of such buffers. */
+@@ -257,6 +493,8 @@
      int usage = android_convertGralloc1To0Usage(producer, consumer);
-+    const char *texture = getenv("HYBRIS_SWAPCHAIN_TEXTURE");
-+    if (texture && !strcmp(texture, "1")) usage |= GRALLOC_USAGE_HW_TEXTURE;
      uint32_t count = info->minImageCount;
      if (count < 2 || count > 8) return VK_ERROR_INITIALIZATION_FAILED;
 +    fprintf(stderr, "hybris WSI: %u buffers of %ux%u, Vulkan format %d, gralloc usage 0x%x\n", count,
@@ -671,7 +672,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
      struct swapchain_state *state = object_alloc(allocator, sizeof(*state),
          VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
      if (!state) return VK_ERROR_OUT_OF_HOST_MEMORY;
-@@ -268,6 +496,8 @@
+@@ -268,6 +506,8 @@
      state->extent = info->imageExtent;
      state->custom_allocator = allocator != NULL;
      if (allocator) state->allocator = *allocator;
@@ -680,7 +681,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
      state->images = object_alloc(allocator, count * sizeof(*state->images),
          VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
      if (!state->images) {
-@@ -303,8 +533,11 @@
+@@ -303,8 +543,11 @@
          buffer->common.incRef(&buffer->common);
          state->images[i].native = buffer;
          state->images[i].acquire_fence = fence;
@@ -694,7 +695,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
          if (result != VK_SUCCESS) {
              fprintf(stderr, "hybris WSI: native image import failed: result=%d format=%d usage=0x%x"
                  " native_format=%d native_usage=0x%x extent=%ux%u\n",
-@@ -319,6 +552,8 @@
+@@ -319,6 +562,8 @@
              context.resolver(device, "vkCreateSemaphore");
          VkSemaphoreCreateInfo semaphore = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
          result = create_semaphore(device, &semaphore, allocator, &state->images[i].present_ready);
@@ -703,7 +704,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
          if (result != VK_SUCCESS) {
              destroy_images(&context, state);
              object_free(allocator, state->custom_allocator, state->images);
-@@ -451,7 +686,7 @@
+@@ -451,7 +696,7 @@
          return VK_ERROR_EXTENSION_NOT_PRESENT;
      }
      /* Driver owns native_fence after this call, including failure. */
@@ -712,7 +713,7 @@ compositor asks for its own, for drivers that make textures only of such buffers
      if (result != VK_SUCCESS) return result;
      state->images[slot].state = IMAGE_ACQUIRED;
      *index = slot;
-@@ -545,9 +780,17 @@
+@@ -545,9 +790,17 @@
          (PFN_vkQueueSignalReleaseImageANDROID)context->resolver(context->handle,
              "vkQueueSignalReleaseImageANDROID");
      if (!release_image) return VK_ERROR_EXTENSION_NOT_PRESENT;
