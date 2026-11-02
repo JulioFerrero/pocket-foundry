@@ -17,6 +17,7 @@ Your finger is the cursor: touch the game where you want something to happen.
 |---|---|
 | Left stick | Walk. |
 | Right stick | Moves the cursor. |
+| R3 (the small R above the right stick) | Shows a cross next to the player; the right stick moves it like a mouse. |
 | Y (the largest) | Inventory and crafting. |
 | A | Build, open, craft, pick up. |
 | X | Mine, craft 5. |
