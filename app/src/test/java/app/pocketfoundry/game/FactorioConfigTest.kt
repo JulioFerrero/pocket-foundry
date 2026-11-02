@@ -1,5 +1,6 @@
 package app.pocketfoundry.game
 
+import app.pocketfoundry.core.game.FactorioConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

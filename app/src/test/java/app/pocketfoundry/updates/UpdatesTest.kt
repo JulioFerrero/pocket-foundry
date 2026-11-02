@@ -1,5 +1,6 @@
 package app.pocketfoundry.updates
 
+import app.pocketfoundry.core.updates.Updates
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals

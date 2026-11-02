@@ -1,5 +1,6 @@
 package app.pocketfoundry.game
 
+import app.pocketfoundry.core.game.DebugEnv
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

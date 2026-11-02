@@ -1,7 +1,7 @@
 package app.pocketfoundry.saves
 
-import app.pocketfoundry.saves.GameFilesProvider.Companion.isPlainName
-import app.pocketfoundry.saves.GameFilesProvider.Companion.numberedName
+import app.pocketfoundry.core.saves.GameFilesProvider.Companion.isPlainName
+import app.pocketfoundry.core.saves.GameFilesProvider.Companion.numberedName
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

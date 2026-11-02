@@ -1,6 +1,8 @@
 package app.pocketfoundry.drivers
 
-import app.pocketfoundry.MIB
+import app.pocketfoundry.core.drivers.DriverImport
+import app.pocketfoundry.core.drivers.Elf
+import app.pocketfoundry.core.system.MIB
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

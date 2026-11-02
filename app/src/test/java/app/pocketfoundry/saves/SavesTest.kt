@@ -1,5 +1,6 @@
 package app.pocketfoundry.saves
 
+import app.pocketfoundry.core.saves.Saves
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
