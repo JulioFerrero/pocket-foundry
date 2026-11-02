@@ -26,8 +26,15 @@ cd "$SRC"
 for p in /runtime/hybris/patches/*.patch; do patch -p1 --silent < "$p"; done
 # The compat layer copies the feature structures Zink chains to vkCreateDevice and refuses any it has no size for:
 # list those of the Vulkan our Mesa knows, which newer phone drivers support (maintenance9 on Android 17's Mali).
-python3 tools/generate-device-create-sizes.py "$SRC/headers/src/vulkan/registry/vk.xml" \
-    hybris/vulkan/layer/device_create_sizes.inc
+# Its registry files core structures under VK_BASE/COMPUTE/GRAPHICS_VERSION_1_x, which the headers call VK_VERSION_1_x:
+# under a name the headers don't define, structures drop out of the list (VkPhysicalDeviceFeatures2 did once).
+sizes=hybris/vulkan/layer/device_create_sizes.inc
+python3 tools/generate-device-create-sizes.py "$SRC/headers/src/vulkan/registry/vk.xml" $sizes
+sed -i -E 's/VK_(BASE|COMPUTE|GRAPHICS)_VERSION_/VK_VERSION_/g' $sizes
+for guard in $(grep -oE 'defined\(VK_[A-Za-z0-9_]+\)' $sizes | sort -u | sed -E 's/defined\((.*)\)/\1/'); do
+    case $guard in VK_ENABLE_BETA_EXTENSIONS|VK_USE_PLATFORM_*) continue ;; esac
+    grep -rq "#define $guard " "$SRC/headers/include/vulkan" || { echo "$sizes: the headers don't define $guard"; exit 1; }
+done
 
 # As taowen/arlinux-rootfs builds it (tools/build/linux-gpu.sh), less EGL and GLES: the game's OpenGL is Zink.
 cd hybris
