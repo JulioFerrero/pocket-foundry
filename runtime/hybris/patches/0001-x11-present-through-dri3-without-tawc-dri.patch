@@ -8,9 +8,14 @@ buffer opaque, so their swapchains can be OPAQUE whatever the format (Zink alway
 Also accept DirectColor visuals, as Mesa's X11 WSI does: GLX gives Zink's windows one, and its pixels are laid out
 like TrueColor's.
 
---- a/hybris/vulkan/Makefile.am	2026-11-02 02:53:00
-+++ b/hybris/vulkan/Makefile.am	2026-11-02 02:54:39
-@@ -90,7 +90,7 @@
+Mali's driver draws BGRA but can't back a hardware buffer with it, while X11 windows are BGRA and Zink asks for
+their format. There a swapchain draws into ordinary BGRA images and copies each frame, byte for byte, into RGBA
+buffers: the X server reads them in the window's BGRX order whatever their format says. The copies are recorded once
+per image on the presenting queue's family. HYBRIS_SWAPCHAIN_BLIT=1 does the same on any driver, to test it.
+
+--- a/hybris/vulkan/Makefile.am	2026-11-02 14:03:33
++++ b/hybris/vulkan/Makefile.am	2026-11-02 14:03:33
+@@ -91,7 +91,7 @@
  libhybris_vulkan_icd_la_SOURCES += icd/native_window_x11.cpp
  libhybris_vulkan_icd_la_CFLAGS += $(XCB_CFLAGS) $(X11_CFLAGS)
  libhybris_vulkan_icd_la_CXXFLAGS += $(XCB_CFLAGS) $(X11_CFLAGS)
@@ -19,8 +24,8 @@ like TrueColor's.
  endif
  libhybris_vulkan_icd_la_SOURCES += \
      icd/native_window.h icd/native_window_wayland.c icd/native_window_headless.cpp \
---- a/hybris/vulkan/icd/native_window.h	2026-11-02 03:15:40
-+++ b/hybris/vulkan/icd/native_window.h	2026-11-02 03:15:52
+--- a/hybris/vulkan/icd/native_window.h	2026-11-02 14:03:33
++++ b/hybris/vulkan/icd/native_window.h	2026-11-02 14:03:33
 @@ -16,6 +16,9 @@
      void (*destroy)(struct hybris_icd_window *);
      /* Zero extent means application-selected (Wayland). */
@@ -31,8 +36,8 @@ like TrueColor's.
  };
  struct hybris_icd_window { const struct hybris_icd_window_ops *ops; };
  #ifdef __cplusplus
---- a/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 02:53:00
-+++ b/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 03:21:36
+--- a/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 14:03:33
++++ b/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 14:03:33
 @@ -1,10 +1,17 @@
  /* SPDX-License-Identifier: Apache-2.0 */
  #include "native_window.h"
@@ -290,8 +295,8 @@ like TrueColor's.
      if (!o->events) { destroy(&o->base); return -ENOMEM; }
      int result = select(o, TAWC_DRI_EVENT_MASK_CONFIGURE_NOTIFY | TAWC_DRI_EVENT_MASK_BUFFER_RELEASE);
      if (result) { destroy(&o->base); return result; }
---- a/hybris/vulkan/icd/wsi.c	2026-11-02 03:15:40
-+++ b/hybris/vulkan/icd/wsi.c	2026-11-02 03:15:52
+--- a/hybris/vulkan/icd/wsi.c	2026-11-02 14:03:33
++++ b/hybris/vulkan/icd/wsi.c	2026-11-02 14:03:33
 @@ -551,7 +551,8 @@
       * BGRA has no equivalent native backing here, so do not advertise a
       * format-independent OPAQUE guarantee when BGRA is also offered. */
@@ -302,3 +307,484 @@ like TrueColor's.
          capabilities->supportedCompositeAlpha |= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
      capabilities->supportedUsageFlags = usage;
      return VK_SUCCESS;
+--- a/hybris/vulkan/icd/swapchain.c	2026-11-02 14:03:33
++++ b/hybris/vulkan/icd/swapchain.c	2026-11-02 14:52:00
+@@ -34,6 +34,14 @@
+     enum image_state state;
+     int acquire_fence;
+     VkSemaphore present_ready;
++    /* A blitting swapchain's application draws into `image`, in its own memory; each frame is copied into
++     * `native_image`, the hardware buffer's, before the buffer is released. */
++    VkImage native_image;
++    VkDeviceMemory memory;
++    VkCommandBuffer blit;
++    VkSemaphore blitted;
++    VkFence blit_done;
++    int blitting;   // a submitted blit not waited for yet
+ };
+ 
+ struct swapchain_state {
+@@ -48,6 +56,9 @@
+     int retired;
+     VkAllocationCallbacks allocator;
+     int custom_allocator;
++    int blit;
++    VkCommandPool pool;
++    uint32_t pool_family;
+     struct swapchain_state *next;
+ };
+ 
+@@ -107,6 +118,12 @@
+     if (window) window->ops->disconnect(window);
+ }
+ 
++/* The image the native buffer backs: the one acquired and released through the HAL. */
++static VkImage native_image(const struct swapchain_image *image)
++{
++    return image->native_image ? image->native_image : image->image;
++}
++
+ static int hal_format(VkFormat format)
+ {
+     if (format == VK_FORMAT_R8G8B8A8_UNORM) return HAL_PIXEL_FORMAT_RGBA_8888;
+@@ -116,7 +133,8 @@
+ 
+ static VkResult import_image(const struct hybris_icd_device *device,
+     const VkSwapchainCreateInfoKHR *info, struct ANativeWindowBuffer *native,
+-    int usage, const VkAllocationCallbacks *allocator, VkImage *image)
++    int usage, VkFormat format, VkImageUsageFlags image_usage,
++    const VkAllocationCallbacks *allocator, VkImage *image)
+ {
+     PFN_vkCreateImage create = (PFN_vkCreateImage)device->resolver(device->handle, "vkCreateImage");
+     if (!create) return VK_ERROR_EXTENSION_NOT_PRESENT;
+@@ -136,33 +154,218 @@
+         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+         .pNext = &buffer,
+         .imageType = VK_IMAGE_TYPE_2D,
+-        .format = info->imageFormat,
++        .format = format,
+         .extent = {info->imageExtent.width, info->imageExtent.height, 1},
+         .mipLevels = 1,
+         .arrayLayers = info->imageArrayLayers ? info->imageArrayLayers : 1,
+         .samples = VK_SAMPLE_COUNT_1_BIT,
+         .tiling = VK_IMAGE_TILING_OPTIMAL,
+-        .usage = info->imageUsage,
++        .usage = image_usage,
+         .sharingMode = info->imageSharingMode,
+         .queueFamilyIndexCount = info->queueFamilyIndexCount,
+         .pQueueFamilyIndices = info->pQueueFamilyIndices,
+         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
+     return create(device->handle, &image_info, allocator, image);
++}
++
++/* A blitting swapchain's image for the application: an ordinary image of its format and usage, in device memory. */
++static VkResult create_drawn_image(const struct hybris_icd_device *device,
++    const VkSwapchainCreateInfoKHR *info, const VkAllocationCallbacks *allocator,
++    VkImage *image, VkDeviceMemory *memory)
++{
++    struct hybris_icd_physical physical;
++    if (!hybris_icd_lookup_physical(device->physical, &physical)) return VK_ERROR_INITIALIZATION_FAILED;
++    PFN_vkGetPhysicalDeviceMemoryProperties memory_types = (PFN_vkGetPhysicalDeviceMemoryProperties)
++        physical.resolver(physical.instance, "vkGetPhysicalDeviceMemoryProperties");
++    PFN_vkCreateImage create = (PFN_vkCreateImage)device->resolver(device->handle, "vkCreateImage");
++    PFN_vkGetImageMemoryRequirements requirements = (PFN_vkGetImageMemoryRequirements)
++        device->resolver(device->handle, "vkGetImageMemoryRequirements");
++    PFN_vkAllocateMemory allocate = (PFN_vkAllocateMemory)device->resolver(device->handle, "vkAllocateMemory");
++    PFN_vkBindImageMemory bind = (PFN_vkBindImageMemory)device->resolver(device->handle, "vkBindImageMemory");
++    if (!memory_types || !create || !requirements || !allocate || !bind) return VK_ERROR_EXTENSION_NOT_PRESENT;
++    VkImageCreateInfo image_info = {
++        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
++        .imageType = VK_IMAGE_TYPE_2D,
++        .format = info->imageFormat,
++        .extent = {info->imageExtent.width, info->imageExtent.height, 1},
++        .mipLevels = 1,
++        .arrayLayers = 1,
++        .samples = VK_SAMPLE_COUNT_1_BIT,
++        .tiling = VK_IMAGE_TILING_OPTIMAL,
++        .usage = info->imageUsage | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
++        .sharingMode = info->imageSharingMode,
++        .queueFamilyIndexCount = info->queueFamilyIndexCount,
++        .pQueueFamilyIndices = info->pQueueFamilyIndices,
++        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
++    VkResult result = create(device->handle, &image_info, allocator, image);
++    if (result != VK_SUCCESS) return result;
++    VkMemoryRequirements needs;
++    requirements(device->handle, *image, &needs);
++    VkPhysicalDeviceMemoryProperties types;
++    memory_types(device->physical, &types);
++    uint32_t type = UINT32_MAX;
++    for (uint32_t i = 0; i < types.memoryTypeCount && type == UINT32_MAX; ++i)
++        if ((needs.memoryTypeBits & (1u << i)) &&
++            (types.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
++            type = i;
++    for (uint32_t i = 0; i < types.memoryTypeCount && type == UINT32_MAX; ++i)
++        if (needs.memoryTypeBits & (1u << i)) type = i;
++    if (type == UINT32_MAX) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
++    VkMemoryAllocateInfo allocate_info = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
++        .allocationSize = needs.size, .memoryTypeIndex = type};
++    result = allocate(device->handle, &allocate_info, allocator, memory);
++    return result == VK_SUCCESS ? bind(device->handle, *image, *memory, 0) : result;
++}
++
++/* Each image's blit into its hardware buffer, recorded once for the family of the queue that presents. The
++ * application leaves its image in PRESENT_SRC, and finds it there again. */
++static VkResult prepare_blits(const struct hybris_icd_device *device, struct swapchain_state *state,
++    VkQueue queue)
++{
++    uint32_t family;
++    if (!hybris_icd_queue_family(queue, &family)) return VK_ERROR_UNKNOWN;
++    if (state->pool) return family == state->pool_family ? VK_SUCCESS : VK_ERROR_UNKNOWN;
++    const VkAllocationCallbacks *allocator = state->custom_allocator ? &state->allocator : NULL;
++    PFN_vkCreateCommandPool create_pool = (PFN_vkCreateCommandPool)
++        device->resolver(device->handle, "vkCreateCommandPool");
++    PFN_vkAllocateCommandBuffers allocate = (PFN_vkAllocateCommandBuffers)
++        device->resolver(device->handle, "vkAllocateCommandBuffers");
++    PFN_vkBeginCommandBuffer begin = (PFN_vkBeginCommandBuffer)
++        device->resolver(device->handle, "vkBeginCommandBuffer");
++    PFN_vkEndCommandBuffer end = (PFN_vkEndCommandBuffer)device->resolver(device->handle, "vkEndCommandBuffer");
++    PFN_vkCmdPipelineBarrier barrier = (PFN_vkCmdPipelineBarrier)
++        device->resolver(device->handle, "vkCmdPipelineBarrier");
++    PFN_vkCmdCopyImage copy = (PFN_vkCmdCopyImage)device->resolver(device->handle, "vkCmdCopyImage");
++    PFN_vkCreateFence create_fence = (PFN_vkCreateFence)device->resolver(device->handle, "vkCreateFence");
++    PFN_vkDestroyCommandPool destroy_pool = (PFN_vkDestroyCommandPool)
++        device->resolver(device->handle, "vkDestroyCommandPool");
++    if (!create_pool || !allocate || !begin || !end || !barrier || !copy || !create_fence || !destroy_pool)
++        return VK_ERROR_EXTENSION_NOT_PRESENT;
++    VkCommandPoolCreateInfo pool_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
++        .queueFamilyIndex = family};
++    VkResult result = create_pool(device->handle, &pool_info, allocator, &state->pool);
++    if (result != VK_SUCCESS) return result;
++    state->pool_family = family;
++    for (uint32_t i = 0; i < state->count && result == VK_SUCCESS; ++i) {
++        struct swapchain_image *image = &state->images[i];
++        if (!image->blit_done) {
++            VkFenceCreateInfo fence_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
++            result = create_fence(device->handle, &fence_info, allocator, &image->blit_done);
++            if (result != VK_SUCCESS) break;
++        }
++        VkCommandBufferAllocateInfo buffer_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
++            .commandPool = state->pool, .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY, .commandBufferCount = 1};
++        result = allocate(device->handle, &buffer_info, &image->blit);
++        if (result != VK_SUCCESS) break;
++        VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        result = begin(image->blit, &begin_info);
++        if (result != VK_SUCCESS) break;
++        const VkImageSubresourceRange whole = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
++        VkImageMemoryBarrier to_copy[2] = {
++            {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
++             .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++             .image = image->image, .subresourceRange = whole},
++            {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
++             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED, .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
++             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++             .image = image->native_image, .subresourceRange = whole}};
++        barrier(image->blit, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
++            0, NULL, 0, NULL, 2, to_copy);
++        const VkImageSubresourceLayers layers = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
++        VkImageCopy region = {.srcSubresource = layers, .dstSubresource = layers,
++            .extent = {state->extent.width, state->extent.height, 1}};
++        /* Byte for byte, not converted: the X server reads the buffer in its window's BGRX order, whatever format
++         * the buffer is labelled with. */
++        copy(image->blit, image->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image->native_image,
++            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
++        VkImageMemoryBarrier to_present[2] = {
++            {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
++             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
++             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++             .image = image->image, .subresourceRange = whole},
++            {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
++             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
++             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
++             .image = image->native_image, .subresourceRange = whole}};
++        barrier(image->blit, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,
++            0, NULL, 0, NULL, 2, to_present);
++        result = end(image->blit);
++    }
++    if (result != VK_SUCCESS) {
++        // Freeing the pool frees the buffers recorded so far: the next present starts over.
++        destroy_pool(device->handle, state->pool, allocator);
++        state->pool = VK_NULL_HANDLE;
++        for (uint32_t i = 0; i < state->count; ++i) state->images[i].blit = VK_NULL_HANDLE;
++    }
++    return result;
+ }
+ 
++/* Submits the image's blit after the application's waits. Its buffer came back only after the image's previous
++ * blit had finished, so the wait for that one returns at once. */
++static VkResult submit_blit(const struct hybris_icd_device *device, struct swapchain_state *state,
++    VkQueue queue, struct swapchain_image *image, uint32_t waits, const VkSemaphore *wait)
++{
++    VkResult result = prepare_blits(device, state, queue);
++    if (result != VK_SUCCESS) return result;
++    PFN_vkWaitForFences wait_fences = (PFN_vkWaitForFences)device->resolver(device->handle, "vkWaitForFences");
++    PFN_vkResetFences reset_fences = (PFN_vkResetFences)device->resolver(device->handle, "vkResetFences");
++    PFN_vkQueueSubmit submit = (PFN_vkQueueSubmit)device->resolver(device->handle, "vkQueueSubmit");
++    if (image->blitting) {
++        result = wait_fences(device->handle, 1, &image->blit_done, VK_TRUE, UINT64_MAX);
++        if (result == VK_SUCCESS) result = reset_fences(device->handle, 1, &image->blit_done);
++        if (result != VK_SUCCESS) return result;
++        image->blitting = 0;
++    }
++    VkPipelineStageFlags *stages = waits ? malloc(waits * sizeof(*stages)) : NULL;
++    if (waits && !stages) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    for (uint32_t i = 0; i < waits; ++i) stages[i] = VK_PIPELINE_STAGE_TRANSFER_BIT;
++    VkSubmitInfo copy = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
++        .waitSemaphoreCount = waits, .pWaitSemaphores = wait, .pWaitDstStageMask = stages,
++        .commandBufferCount = 1, .pCommandBuffers = &image->blit,
++        .signalSemaphoreCount = 1, .pSignalSemaphores = &image->blitted};
++    result = submit(queue, 1, &copy, image->blit_done);
++    free(stages);
++    image->blitting = result == VK_SUCCESS;
++    return result;
++}
++
+ static void destroy_images(const struct hybris_icd_device *device, struct swapchain_state *state)
+ {
+     PFN_vkDestroyImage destroy = device
+         ? (PFN_vkDestroyImage)device->resolver(device->handle, "vkDestroyImage") : NULL;
+-    for (uint32_t i = 0; i < state->count; ++i) {
+-        if (state->images[i].present_ready && device) {
+-            PFN_vkDestroySemaphore destroy_semaphore = (PFN_vkDestroySemaphore)
+-                device->resolver(device->handle, "vkDestroySemaphore");
+-            destroy_semaphore(device->handle, state->images[i].present_ready,
+-                state->custom_allocator ? &state->allocator : NULL);
+-        }
++    const VkAllocationCallbacks *allocator = state->custom_allocator ? &state->allocator : NULL;
++    PFN_vkDestroySemaphore destroy_semaphore = device
++        ? (PFN_vkDestroySemaphore)device->resolver(device->handle, "vkDestroySemaphore") : NULL;
++    PFN_vkFreeMemory free_memory = device
++        ? (PFN_vkFreeMemory)device->resolver(device->handle, "vkFreeMemory") : NULL;
++    PFN_vkWaitForFences wait_fences = device
++        ? (PFN_vkWaitForFences)device->resolver(device->handle, "vkWaitForFences") : NULL;
++    PFN_vkDestroyFence destroy_fence = device
++        ? (PFN_vkDestroyFence)device->resolver(device->handle, "vkDestroyFence") : NULL;
++    // The application waited for its own work, not for the blits that followed it.
++    for (uint32_t i = 0; i < state->count; ++i)
++        if (state->images[i].blitting && wait_fences)
++            wait_fences(device->handle, 1, &state->images[i].blit_done, VK_TRUE, UINT64_MAX);
++    if (state->pool && device) {
++        PFN_vkDestroyCommandPool destroy_pool = (PFN_vkDestroyCommandPool)
++            device->resolver(device->handle, "vkDestroyCommandPool");
++        destroy_pool(device->handle, state->pool, allocator);   // frees the blit command buffers
++        state->pool = VK_NULL_HANDLE;
++    }
++    for (uint32_t i = 0; i < state->count; ++i) {
++        if (state->images[i].present_ready && destroy_semaphore)
++            destroy_semaphore(device->handle, state->images[i].present_ready, allocator);
++        if (state->images[i].blitted && destroy_semaphore)
++            destroy_semaphore(device->handle, state->images[i].blitted, allocator);
++        if (state->images[i].blit_done && destroy_fence)
++            destroy_fence(device->handle, state->images[i].blit_done, allocator);
+         if (state->images[i].image && destroy)
+-            destroy(state->device, state->images[i].image, state->custom_allocator ? &state->allocator : NULL);
++            destroy(state->device, state->images[i].image, allocator);
++        if (state->images[i].native_image && destroy)
++            destroy(state->device, state->images[i].native_image, allocator);
++        if (state->images[i].memory && free_memory)
++            free_memory(state->device, state->images[i].memory, allocator);
+         if (state->images[i].native && !state->retired && state->window &&
+             state->images[i].state != IMAGE_PRESENTED) {
+             state->window->ops->cancel(state->window, state->images[i].native,
+@@ -173,6 +376,12 @@
+         if (state->images[i].native)
+             state->images[i].native->common.decRef(&state->images[i].native->common);
+         state->images[i].image = VK_NULL_HANDLE;
++        state->images[i].native_image = VK_NULL_HANDLE;
++        state->images[i].memory = VK_NULL_HANDLE;
++        state->images[i].blit = VK_NULL_HANDLE;
++        state->images[i].blitted = VK_NULL_HANDLE;
++        state->images[i].blit_done = VK_NULL_HANDLE;
++        state->images[i].blitting = 0;
+         state->images[i].native = NULL;
+     }
+ }
+@@ -190,7 +399,18 @@
+     if (info->oldSwapchain) retire_swapchain(info->oldSwapchain);
+     if (!info->imageExtent.width || !info->imageExtent.height)
+         return VK_ERROR_INITIALIZATION_FAILED;
+-    int pixel = hal_format(info->imageFormat);
++    /* Mali's driver draws BGRA but can't back a hardware buffer with it, while X11 windows are BGRA and Zink asks
++     * for their format. Such a swapchain draws into ordinary images and copies each frame into RGBA buffers.
++     * HYBRIS_SWAPCHAIN_BLIT=1 does the same on any driver, to test it. */
++    VkImageFormatProperties importable;
++    const char *force = getenv("HYBRIS_SWAPCHAIN_BLIT");
++    int blit = info->imageFormat == VK_FORMAT_B8G8R8A8_UNORM && ((force && !strcmp(force, "1")) ||
++        hybris_icd_wsi_image_properties(context.physical, info->imageFormat, info->imageUsage,
++            &importable) != VK_SUCCESS);
++    VkFormat native_format = blit ? VK_FORMAT_R8G8B8A8_UNORM : info->imageFormat;
++    VkImageUsageFlags native_usage = blit
++        ? VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT : info->imageUsage;
++    int pixel = hal_format(native_format);
+     if (!pixel) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+     /* RGBX preserves the Vulkan RGBA image layout while making the native
+      * compositor ignore application alpha, as OPAQUE requires. */
+@@ -224,12 +444,13 @@
+      * report SUBOPTIMAL while the window and image sizes differ; actual surface
+      * loss and pool errors retain their ordinary failure paths. */
+     VkImageFormatProperties properties;
+-    checked = hybris_icd_wsi_image_properties(context.physical, info->imageFormat,
+-        info->imageUsage, &properties);
++    checked = hybris_icd_wsi_image_properties(context.physical, native_format,
++        native_usage, &properties);
+     if (checked != VK_SUCCESS) return checked;
+     if (info->imageExtent.width > properties.maxExtent.width ||
+         info->imageExtent.height > properties.maxExtent.height ||
+-        (info->imageUsage & ~capabilities.supportedUsageFlags) ||
++        // A blitting swapchain's application draws into ordinary images: their creation checks its usage.
++        (!blit && (info->imageUsage & ~capabilities.supportedUsageFlags)) ||
+         !(info->compositeAlpha & capabilities.supportedCompositeAlpha))
+         return VK_ERROR_INITIALIZATION_FAILED;
+     for (const VkBaseInStructure *next = info->pNext; next; next = next->pNext) {
+@@ -242,7 +463,7 @@
+             "vkGetSwapchainGrallocUsage2ANDROID");
+     if (!usage2) return VK_ERROR_EXTENSION_NOT_PRESENT;
+     uint64_t consumer = 0, producer = 0;
+-    VkResult result = usage2(device, info->imageFormat, info->imageUsage, 0, &consumer, &producer);
++    VkResult result = usage2(device, native_format, native_usage, 0, &consumer, &producer);
+     if (result != VK_SUCCESS) {
+         fprintf(stderr, "hybris WSI: gralloc usage query failed: result=%d format=%d usage=0x%x\n",
+             result, info->imageFormat, info->imageUsage);
+@@ -268,6 +489,8 @@
+     state->extent = info->imageExtent;
+     state->custom_allocator = allocator != NULL;
+     if (allocator) state->allocator = *allocator;
++    state->blit = blit;
++    if (blit) fprintf(stderr, "hybris WSI: BGRA swapchain, copied into RGBA buffers\n");
+     state->images = object_alloc(allocator, count * sizeof(*state->images),
+         VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+     if (!state->images) {
+@@ -303,8 +526,11 @@
+         buffer->common.incRef(&buffer->common);
+         state->images[i].native = buffer;
+         state->images[i].acquire_fence = fence;
+-        result = import_image(&context, info, buffer, buffer->usage, allocator,
+-            &state->images[i].image);
++        result = import_image(&context, info, buffer, buffer->usage, native_format, native_usage, allocator,
++            blit ? &state->images[i].native_image : &state->images[i].image);
++        if (result == VK_SUCCESS && blit)
++            result = create_drawn_image(&context, info, allocator, &state->images[i].image,
++                &state->images[i].memory);
+         if (result != VK_SUCCESS) {
+             fprintf(stderr, "hybris WSI: native image import failed: result=%d format=%d usage=0x%x"
+                 " native_format=%d native_usage=0x%x extent=%ux%u\n",
+@@ -319,6 +545,8 @@
+             context.resolver(device, "vkCreateSemaphore");
+         VkSemaphoreCreateInfo semaphore = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+         result = create_semaphore(device, &semaphore, allocator, &state->images[i].present_ready);
++        if (result == VK_SUCCESS && blit)
++            result = create_semaphore(device, &semaphore, allocator, &state->images[i].blitted);
+         if (result != VK_SUCCESS) {
+             destroy_images(&context, state);
+             object_free(allocator, state->custom_allocator, state->images);
+@@ -451,7 +679,7 @@
+         return VK_ERROR_EXTENSION_NOT_PRESENT;
+     }
+     /* Driver owns native_fence after this call, including failure. */
+-    result = acquire(device, state->images[slot].image, native_fence, semaphore, fence);
++    result = acquire(device, native_image(&state->images[slot]), native_fence, semaphore, fence);
+     if (result != VK_SUCCESS) return result;
+     state->images[slot].state = IMAGE_ACQUIRED;
+     *index = slot;
+@@ -545,9 +773,17 @@
+         (PFN_vkQueueSignalReleaseImageANDROID)context->resolver(context->handle,
+             "vkQueueSignalReleaseImageANDROID");
+     if (!release_image) return VK_ERROR_EXTENSION_NOT_PRESENT;
++    struct swapchain_image *image = &state->images[index];
++    uint32_t waits = info->waitSemaphoreCount;
++    const VkSemaphore *wait = info->pWaitSemaphores;
++    if (state->blit) {
++        VkResult blitted = submit_blit(context, state, queue, image, waits, wait);
++        if (blitted != VK_SUCCESS) return blitted;
++        waits = 1;
++        wait = &image->blitted;
++    }
+     int fence = -1;
+-    VkResult result = release_image(queue, info->waitSemaphoreCount, info->pWaitSemaphores,
+-        state->images[index].image, &fence);
++    VkResult result = release_image(queue, waits, wait, native_image(image), &fence);
+     if (result != VK_SUCCESS) {
+         if (fence >= 0) close(fence);
+         return result;
+--- a/hybris/vulkan/icd/device.c	2026-11-02 14:03:33
++++ b/hybris/vulkan/icd/device.c	2026-11-02 14:03:47
+@@ -19,6 +19,7 @@
+     int swapchain_enabled;
+     uint32_t queue_count;
+     VkQueue *queues;
++    uint32_t *families;
+     VkAllocationCallbacks allocator;
+     int custom_allocator;
+     struct device_state *next;
+@@ -26,12 +27,17 @@
+ static pthread_mutex_t device_guard = PTHREAD_MUTEX_INITIALIZER;
+ static struct device_state *devices;
+ static uint64_t next_generation;
++static void free_array(struct device_state *state, void *array)
++{
++    if (!array) return;
++    if (state->custom_allocator) state->allocator.pfnFree(state->allocator.pUserData, array);
++    else free(array);
++}
++
+ static void free_state(struct device_state *state)
+ {
+-    if (state->queues) {
+-        if (state->custom_allocator) state->allocator.pfnFree(state->allocator.pUserData, state->queues);
+-        else free(state->queues);
+-    }
++    free_array(state, state->queues);
++    free_array(state, state->families);
+     if (state->custom_allocator)
+         state->allocator.pfnFree(state->allocator.pUserData, state);
+     else
+@@ -103,9 +109,12 @@
+         result = VK_ERROR_OUT_OF_HOST_MEMORY;
+     else if (queue_count) {
+         size_t size = (size_t)queue_count * sizeof(VkQueue);
++        size_t families = (size_t)queue_count * sizeof(uint32_t);
+         state->queues = allocator ? allocator->pfnAllocation(allocator->pUserData, size,
+             _Alignof(VkQueue), VK_SYSTEM_ALLOCATION_SCOPE_DEVICE) : malloc(size);
+-        if (!state->queues) result = VK_ERROR_OUT_OF_HOST_MEMORY;
++        state->families = allocator ? allocator->pfnAllocation(allocator->pUserData, families,
++            _Alignof(uint32_t), VK_SYSTEM_ALLOCATION_SCOPE_DEVICE) : malloc(families);
++        if (!state->queues || !state->families) result = VK_ERROR_OUT_OF_HOST_MEMORY;
+         else {
+             PFN_vkGetDeviceQueue get = (PFN_vkGetDeviceQueue)resolver(*device, "vkGetDeviceQueue");
+             PFN_vkGetDeviceQueue2 get2 = (PFN_vkGetDeviceQueue2)resolver(*device, "vkGetDeviceQueue2");
+@@ -120,6 +129,7 @@
+                         get2(*device, &qi, &handle);
+                     }
+                     if (!handle) { result = VK_ERROR_INITIALIZATION_FAILED; break; }
++                    state->families[state->queue_count] = created->queueFamilyIndex;
+                     state->queues[state->queue_count++] = handle;
+                 }
+             }
+@@ -180,6 +190,17 @@
+     return found;
+ }
+ 
++int hybris_icd_queue_family(VkQueue queue, uint32_t *family)
++{
++    int found = 0;
++    pthread_mutex_lock(&device_guard);
++    for (const struct device_state *state = devices; state && !found; state = state->next)
++        for (uint32_t i = 0; i < state->queue_count; ++i)
++            if (state->queues[i] == queue) { *family = state->families[i]; found = 1; break; }
++    pthread_mutex_unlock(&device_guard);
++    return found;
++}
++
+ int hybris_icd_lookup_queue(VkQueue queue, struct hybris_icd_device *out)
+ {
+     VkDevice device = VK_NULL_HANDLE;
+--- a/hybris/vulkan/icd/device.h	2026-11-02 14:03:33
++++ b/hybris/vulkan/icd/device.h	2026-11-02 14:03:47
+@@ -16,5 +16,7 @@
+ PFN_vkVoidFunction VKAPI_CALL hybris_icd_device_proc(VkDevice device, const char *name);
+ void VKAPI_CALL hybris_icd_destroy_device(VkDevice device, const VkAllocationCallbacks *allocator);
+ int hybris_icd_lookup_queue(VkQueue queue, struct hybris_icd_device *out);
++/* The family of a queue the device created: for the commands the adapter records itself. */
++int hybris_icd_queue_family(VkQueue queue, uint32_t *family);
+ int hybris_icd_lookup_device(VkDevice device, struct hybris_icd_device *out);
+ #endif
