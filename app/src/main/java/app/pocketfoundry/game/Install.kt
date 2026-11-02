@@ -8,6 +8,7 @@ import app.pocketfoundry.Paths
 import app.pocketfoundry.ProgressInputStream
 import app.pocketfoundry.TAG
 import app.pocketfoundry.Uris
+import app.pocketfoundry.drivers.Drivers
 import app.pocketfoundry.untarXz
 import org.json.JSONObject
 import java.io.File
@@ -32,6 +33,7 @@ object Runtime {
         context.assets.open("runtime.tar.xz").use { untarXz(it, paths.files) }
         paths.tmp.mkdirs()
         stamp(paths).writeText(assetVersion(context))
+        Drivers.forgetGames(context)
     }
 
     /** glibc reads files/usr/etc/resolv.conf, which Android doesn't have. */

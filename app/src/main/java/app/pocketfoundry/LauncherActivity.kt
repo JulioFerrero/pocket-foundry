@@ -70,6 +70,7 @@ class LauncherActivity : Activity() {
         super.onCreate(savedInstanceState)
         X11Prefs(this).setUp()
         Drivers.fillDefaults(this)
+        Drivers.moveOldOptions(this)
         updates.check()
         edgeToEdge()
         val overlay = FrameLayout(this).apply {

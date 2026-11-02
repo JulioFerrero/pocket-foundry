@@ -25,9 +25,14 @@ class Settings(private val context: Context) {
     var lightGraphics by prefs.bool(LIGHT_GRAPHICS, false)
     /** Whether the game's config has them off, so turning Light off can put them back once. */
     var lightApplied by prefs.bool("lightApplied", false)
-    /** The player's choice, or null for the phone's default (Drivers.chosen). */
+    /** The player's choice, or null to follow Drivers.recommended. */
     var driver by prefs.stringOrNull("driver")
+    /** The old Options field, one for every driver: Drivers.moveOldOptions hands it to the driver in use. */
     var driverOptions by prefs.string("driverOptions", "")
+    /** Settings -> Driver -> Options: each driver's `NAME=value` text by driver id, as JSON. */
+    var driverOptionsById by prefs.string("driverOptionsById", "{}")
+    /** How the last game ended with each driver: Drivers.Outcome names by driver id, as JSON. */
+    var driverGames by prefs.string("driverGames", "{}")
     /** Android is asked once for notifications, which carry Quit. */
     var askedNotifications by prefs.bool("askedNotifications", false)
     /** Settings' Edit layout asks the game screen to open the editor. */

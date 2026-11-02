@@ -6,6 +6,7 @@ import android.view.Gravity
 import android.view.View
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.Uris
+import app.pocketfoundry.drivers.Drivers
 import app.pocketfoundry.drivers.Gpu
 import app.pocketfoundry.game.GameImport
 import app.pocketfoundry.ui.Arrow
@@ -40,7 +41,9 @@ class WelcomeScreen(private val launcher: LauncherActivity) {
                 add(link(launcher, "factorio.com", "https://factorio.com/download"))
             })
             if (!Gpu.supported) {
-                add(label(launcher, "No GPU driver for this phone's ${Gpu.name} yet: the game runs on the CPU, slowly.", 14f, Factorio.MUTED))
+                val note = if (Drivers.cpu(launcher)) "No GPU driver for this phone's ${Gpu.name} yet: the game runs on the CPU, slowly."
+                           else "This phone's ${Gpu.name} runs the game through its own driver, still experimental."
+                add(label(launcher, note, 14f, Factorio.MUTED))
             }
             add(error)
         })
