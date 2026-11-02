@@ -1,0 +1,13 @@
+--- a/src/gallium/frontends/dri/dri_drawable.c
++++ b/src/gallium/frontends/dri/dri_drawable.c
+@@ -621,6 +621,10 @@
+    }
+ 
+    if (args->ctx->hud) {
++      /* Pocket Foundry: submit the frame before the HUD draws on it. Through Zink,
++       * Qualcomm's Vulkan driver loses the green of dark frames when the HUD's
++       * draws come in the same submission. */
++      pipe->flush(pipe, NULL, 0);
+       hud_run(args->ctx->hud, args->ctx->st->cso_context,
+               args->drawable->textures[ST_ATTACHMENT_BACK_LEFT]);
+    }
