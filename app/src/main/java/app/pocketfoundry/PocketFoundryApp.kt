@@ -2,7 +2,7 @@ package app.pocketfoundry
 
 import android.content.Intent
 import app.pocketfoundry.core.game.DebugPad
-import app.pocketfoundry.core.game.GameScreens
+import app.pocketfoundry.ui.screens.game.GameScreens
 import app.pocketfoundry.core.game.ScreenLog
 import com.termux.x11.CmdEntryPoint
 import com.termux.x11.LorieApp
