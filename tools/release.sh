@@ -77,7 +77,7 @@ notes=$out/notes.md
         echo "**First release.** What's in it: see the [README](https://github.com/JulioFerrero/pocket-foundry#readme)."
     fi
     echo
-    echo "**Source:** this release is built from [$tag](https://github.com/JulioFerrero/pocket-foundry/tree/$tag), GPL-3.0. The runtime inside (glibc, Mesa, SDL, Termux:X11's X server) comes from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
+    echo "**Source:** this release is built from [$tag](https://github.com/JulioFerrero/pocket-foundry/tree/$tag), GPL-3.0. The runtime inside (glibc, Mesa, libhybris, SDL, Termux:X11's X server) comes from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
 } > "$notes"
 
 gh release create "$tag" $draft --title "Pocket Foundry $version" --notes-file "$notes" "$out/$name" "$out/$name.sha256"
