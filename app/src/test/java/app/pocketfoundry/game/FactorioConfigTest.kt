@@ -1,5 +1,6 @@
 package app.pocketfoundry.game
 
+import app.pocketfoundry.core.drivers.Drivers.Compression
 import app.pocketfoundry.core.game.FactorioConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,9 +13,9 @@ class FactorioConfigTest {
                                     "show-particles", "show-item-shadows", "show-inserter-shadows",
                                     "additional-terrain-effects", "high-quality-terrain", "elevated-rail-shadows")
 
-    private fun update(ini: String, keyboard: Boolean = false, gpuCompression: Boolean = true,
+    private fun update(ini: String, keyboard: Boolean = false, compression: Compression = Compression.GPU,
                        effects: Boolean? = null) =
-        FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", gpuCompression, effects)
+        FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", compression, effects)
 
     /** [key]'s value in [section], or null. */
     private fun value(ini: String, section: String, key: String) = ini.lines()
@@ -93,9 +94,22 @@ class FactorioConfigTest {
     }
 
     @Test fun `a driver without GPU compression turns it off`() {
-        val config = update("", gpuCompression = false)
+        val config = update("", compression = Compression.CPU)
         assertEquals("false", value(config, "graphics", "gpu-accelerated-compression"))
         assertEquals("false", value(config, "graphics", "gpu-accelerated-mipmap-compression"))
+    }
+
+    private val playerCompression = "; version=13\n[graphics]\ntexture-compression-level=high-quality\n"
+
+    @Test fun `a driver without compressed textures loads them uncompressed`() {
+        val config = update(playerCompression, compression = Compression.NONE)
+        assertEquals("none", value(config, "graphics", "texture-compression-level"))
+        assertEquals("false", value(config, "graphics", "gpu-accelerated-compression"))
+    }
+
+    @Test fun `other drivers keep the player's texture compression`() {
+        val config = update(playerCompression)
+        assertEquals("high-quality", value(config, "graphics", "texture-compression-level"))
     }
 
     @Test fun `a UI scale mode the player chose stays`() {

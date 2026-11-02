@@ -131,7 +131,7 @@ object Session {
         Saves.deleteInterrupted(paths)
         keyboard = keyboardConnected(context) && !gamepadConnected(context)
         val driver = Drivers.chosen(context).also { this.driver = it }
-        FactorioConfig.write(context, paths, keyboard, Drivers.gpuCompression(driver))
+        FactorioConfig.write(context, paths, keyboard, Drivers.compression(driver))
         val testProgram = DebugEnv.read(context, "test")["program"]?.takeIf { it.matches(TOOL_NAME) }
         val command = if (testProgram != null) listOf(File(paths.prefix, "bin/$testProgram").path)
                       else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs

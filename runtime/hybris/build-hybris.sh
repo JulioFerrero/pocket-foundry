@@ -20,9 +20,14 @@ cd /cache
 rm -rf "$SRC" && mkdir -p "$SRC/headers"
 tar -xzf libhybris-$COMMIT.tar.gz -C "$SRC" --strip-components=1
 tar -xzf android-headers-$HEADERS.tar.gz -C "$SRC/headers" --strip-components=1
-tar -xzf mesa-$MESA.tar.gz -C "$SRC/headers" --strip-components=1 --wildcards '*/include/vulkan' '*/include/vk_video'
+tar -xzf mesa-$MESA.tar.gz -C "$SRC/headers" --strip-components=1 --wildcards '*/include/vulkan' '*/include/vk_video' \
+    '*/src/vulkan/registry/vk.xml'
 cd "$SRC"
 for p in /runtime/hybris/patches/*.patch; do patch -p1 --silent < "$p"; done
+# The compat layer copies the feature structures Zink chains to vkCreateDevice and refuses any it has no size for:
+# list those of the Vulkan our Mesa knows, which newer phone drivers support (maintenance9 on Android 17's Mali).
+python3 tools/generate-device-create-sizes.py "$SRC/headers/src/vulkan/registry/vk.xml" \
+    hybris/vulkan/layer/device_create_sizes.inc
 
 # As taowen/arlinux-rootfs builds it (tools/build/linux-gpu.sh), less EGL and GLES: the game's OpenGL is Zink.
 cd hybris
