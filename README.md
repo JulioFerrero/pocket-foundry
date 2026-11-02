@@ -9,10 +9,10 @@
 **Play your own copy of Factorio on Android.** The official Linux ARM64 build runs on the phone itself: no
 emulation, no streaming, no game files in the app.
 
-|                                                                            |                                                                                      |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| ![Welcome: Pocket Foundry's blueprint](docs/screenshots/welcome.jpg)       | ![Importing: the blueprint built as the import goes](docs/screenshots/importing.jpg) |
-| ![Home over a factory drawn from your own copy](docs/screenshots/home.jpg) | ![Playing with the on-screen controller](docs/screenshots/playing.jpg)               |
+| | |
+|---|---|
+| ![Welcome: Pocket Foundry's blueprint](docs/screenshots/welcome.jpg) | ![Importing: the blueprint built as the import goes](docs/screenshots/importing.jpg) |
+| ![Home over a factory drawn from your own copy](docs/screenshots/home.jpg) | ![Playing with the on-screen controller](docs/screenshots/playing.jpg) |
 
 ## Getting started
 
@@ -30,13 +30,13 @@ Releases are signed with the certificate whose SHA-256 is
 
 Pocket Foundry picks the driver for the phone's GPU by itself. If it doesn't start, the next game uses the next one.
 
-| GPU                  | Found in                              | Runs with                                                    |
-| -------------------- | ------------------------------------- | ------------------------------------------------------------ |
-| Adreno 6xx and newer | Snapdragon                            | Turnip, bundled and tested                                   |
-| Mali                 | MediaTek, Google Tensor, older Exynos | The phone's own driver (experimental), or a community driver |
-| Xclipse              | Exynos (Galaxy S24, S25)              | The phone's own driver (experimental), or a community driver |
-| PowerVR              | Pixel 10                              | The phone's own driver (experimental)                        |
-| Adreno 5xx and older | Older Snapdragon                      | The CPU                                                      |
+| GPU | Found in | Runs with |
+|---|---|---|
+| Adreno 6xx and newer | Snapdragon | Turnip, bundled and tested |
+| Mali | MediaTek, Google Tensor, older Exynos | The phone's own driver (experimental), or a community driver |
+| Xclipse | Exynos (Galaxy S24, S25) | The phone's own driver (experimental), or a community driver |
+| PowerVR | Pixel 10 | The phone's own driver (experimental) |
+| Adreno 5xx and older | Older Snapdragon | The CPU |
 
 The phone's own driver is new and only tested on an Adreno so far: reports from Mali, Xclipse and PowerVR phones help.
 
