@@ -9,8 +9,6 @@ import java.util.concurrent.ArrayBlockingQueue
 import kotlin.concurrent.thread
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 
-import app.pocketfoundry.NativeXz
-
 fun untarXz(input: InputStream, dest: File, strip: Int = 0) {
     val root = dest.canonicalFile
     val buffer = ByteArray(MIB)

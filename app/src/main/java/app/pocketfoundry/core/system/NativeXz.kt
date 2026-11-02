@@ -1,4 +1,4 @@
-package app.pocketfoundry
+package app.pocketfoundry.core.system
 
 /** liblzma through JNI (app/src/main/cpp/xz_jni.c). */
 object NativeXz {
