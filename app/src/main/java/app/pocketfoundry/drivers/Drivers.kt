@@ -100,11 +100,20 @@ object Drivers {
     /** Whether [id] is the phone's own driver, which MaliBridge's credit goes with. */
     fun isPhone(id: String) = id == PHONE
 
+    /** How Factorio compresses its textures: on the GPU, on the CPU, or not at all. */
+    enum class Compression { GPU, CPU, NONE }
+
     /**
-     * Whether Factorio may compress its textures on the GPU. Its compressor fails its self-test on PanVK, whose BC
-     * emulation skips the compressor's copies (a G610 faulted right after): the CPU compresses instead.
+     * Factorio's GPU compressor fails its self-test on PanVK, whose BC emulation skips the compressor's copies (a G610
+     * faulted right after): the CPU compresses instead. Malis have no BC formats, so Mesa stores compressed textures
+     * whole anyway, and on their own driver creating them failed (a G610 ran out of memory on each, then faulted):
+     * there they load uncompressed, for no more memory.
      */
-    fun gpuCompression(id: String) = !id.startsWith("panvk-")
+    fun compression(id: String) = when {
+        id.startsWith("panvk-") -> Compression.CPU
+        id == PHONE && Gpu.mali -> Compression.NONE
+        else -> Compression.GPU
+    }
 
     /** The player picked Turnip or Freedreno for a GPU that isn't an Adreno they run on. */
     fun missingForGpu(context: Context) = !fits(chosen(context))
@@ -140,7 +149,7 @@ object Drivers {
         // needs and the driver may lack, like null descriptors on Mali.
         PHONE -> mapOf("VK_DRIVER_FILES" to File(paths.lib, "hybris/hybris_icd.json").path,
                        "VK_LAYER_PATH" to File(paths.lib, "hybris").path,
-                       "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat")
+                       "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") + if (Gpu.mali) MALI_GL else emptyMap()
         // llvmpipe: Mesa on the CPU. Software GLX still follows MESA_LOADER_DRIVER_OVERRIDE, so it must name llvmpipe too.
         // 256-bit code (two NEON registers at a time) and bilinear filtering were the fastest that still looked right.
         CPU -> mapOf("LIBGL_ALWAYS_SOFTWARE" to "1", "MESA_LOADER_DRIVER_OVERRIDE" to "llvmpipe",
@@ -148,6 +157,14 @@ object Drivers {
         // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
         else -> mapOf("VK_DRIVER_FILES" to File(paths.drivers, "$id/icd.json").path, "MESA_VK_WSI_DEBUG" to "sw")
     }
+
+    /**
+     * Factorio needs OpenGL 3.3, which Zink offers only on Vulkan drivers with depth clamp and vertex attribute
+     * divisors; some Malis' lack one (G52, G610). Asked for anyway, a G610 got its context: without the extension, Zink
+     * steps each instanced attribute once per instance. The game also runs on 3.3 where the driver offers more.
+     */
+    private val MALI_GL = mapOf("MESA_GL_VERSION_OVERRIDE" to "3.3",
+                                "MESA_EXTENSION_OVERRIDE" to "+GL_ARB_instanced_arrays")
 
     /** The libraries an imported driver brought, searched after the runtime's. */
     fun libraries(paths: Paths, id: String): File? = if (id in BUNDLED) null else File(paths.drivers, id)
@@ -195,6 +212,9 @@ object Gpu {
      * couldn't be named, or an Adreno named without three digits (the laptops' X1-85), gets the benefit of the doubt.
      */
     val supported: Boolean get() = isSupported(name)
+
+    /** Arm's Mali, which the phone's driver sets up for OpenGL 3.3 and uncompressed textures. */
+    val mali: Boolean get() = name?.contains("Mali") == true
 
     /** Android's Vulkan is 1.2 or newer, with the timeline semaphores Zink needs: worth trying the phone's driver. */
     fun hasVulkan(context: Context) =
