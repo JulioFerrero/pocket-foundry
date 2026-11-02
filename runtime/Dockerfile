@@ -27,6 +27,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         llvm-19-dev libpolly-19-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# libhybris, for the phone's own Vulkan driver
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        autoconf automake libtool libwayland-dev libwayland-egl-backend-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # The libraries assemble copies into the runtime, and the X keyboard data
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglx0 libegl1 libglvnd0 libvulkan1 \

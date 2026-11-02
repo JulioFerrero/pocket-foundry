@@ -1,10 +1,11 @@
-// A stand-in for libwayland-client.so.0. Linux builds of Mesa's Vulkan drivers (PanVK's, for one) link Wayland for
-// Wayland windows, which never happen here: the game draws through X11. Debian 13's Wayland (1.23) lacks symbols
-// newer drivers import, so this defines the client API with every call failing.
+// A stand-in for libwayland-client.so.0. Linux builds of Vulkan drivers (Mesa's PanVK, libhybris's) link Wayland for
+// Wayland windows, which never happen here: the game draws through X11. Debian 13's Wayland (1.23) lacks symbols newer
+// drivers import, so this defines the client API with every call failing.
 //
 // Signatures are left out on purpose: each function ignores its arguments, and on arm64 a caller passes them in
 // registers either way, so one "fails" body fits any of them.
 #include <stddef.h>
+#include <stdlib.h>
 
 struct wl_message;
 struct wl_interface {
@@ -45,7 +46,7 @@ NOTHING(wl_log_set_handler_client)
 long wl_proxy_get_id(void) { return 0; }
 long wl_proxy_get_version(void) { return 0; }
 
-// The list helpers are real: they touch only the caller's memory.
+// The list and array helpers are real: they touch only the caller's data.
 struct wl_list { struct wl_list *prev, *next; };
 
 void wl_list_init(struct wl_list *list) { list->prev = list->next = list; }
@@ -77,4 +78,24 @@ void wl_list_insert_list(struct wl_list *list, struct wl_list *other) {
     other->prev->next = list->next;
     list->next->prev = other->prev;
     list->next = other->next;
+}
+
+struct wl_array { size_t size, alloc; void *data; };
+
+void wl_array_init(struct wl_array *array) { array->size = array->alloc = 0; array->data = NULL; }
+
+void wl_array_release(struct wl_array *array) { free(array->data); }
+
+void *wl_array_add(struct wl_array *array, size_t size) {
+    size_t alloc = array->alloc ? array->alloc : 16;
+    while (alloc < array->size + size) alloc *= 2;
+    if (array->alloc < alloc) {
+        void *data = realloc(array->data, alloc);
+        if (!data) return NULL;
+        array->data = data;
+        array->alloc = alloc;
+    }
+    void *p = (char *) array->data + array->size;
+    array->size += size;
+    return p;
 }
