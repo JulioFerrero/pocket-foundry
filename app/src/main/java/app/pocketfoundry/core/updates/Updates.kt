@@ -1,5 +1,6 @@
 package app.pocketfoundry.core.updates
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -7,7 +8,10 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import androidx.core.content.ContextCompat
-import app.pocketfoundry.core.system.*
+import app.pocketfoundry.core.system.ProgressInputStream
+import app.pocketfoundry.core.system.appVersion
+import app.pocketfoundry.core.system.objects
+import app.pocketfoundry.core.system.sha256
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -91,7 +95,11 @@ object Updates {
         dir.deleteRecursively()
         dir.mkdirs()
         connect(release.apk) { connection ->
-            ProgressInputStream(connection.inputStream, connection.contentLengthLong, onPercent).use { input ->
+            ProgressInputStream(
+                connection.inputStream,
+                connection.contentLengthLong,
+                onPercent
+            ).use { input ->
                 file.outputStream().use { input.copyTo(it, 1 shl 16) }
             }
         }
@@ -106,6 +114,7 @@ object Updates {
      * Hands [file] to Android's installer, which asks the user and then replaces this app, closing it. [onFailure]
      * gets the reason when it doesn't: cancelled, or not allowed to install apps.
      */
+    @SuppressLint("WrongConstant")
     fun install(context: Context, file: File, onFailure: (String) -> Unit) {
         val app = context.applicationContext
         val installer = app.packageManager.packageInstaller

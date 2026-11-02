@@ -6,15 +6,39 @@ import android.widget.FrameLayout
 import android.widget.ScrollView
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.GameFilesProvider
-import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.GITHUB
 import app.pocketfoundry.core.system.ResolutionScale
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.updates.Updates
 import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.core.game.ScreenLog.add
+import app.pocketfoundry.core.system.appVersion
+import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
+import app.pocketfoundry.ui.kit.Choice
+import app.pocketfoundry.ui.kit.Dropdown
+import app.pocketfoundry.ui.kit.Factorio
+import app.pocketfoundry.ui.kit.Frame
+import app.pocketfoundry.ui.kit.MATCH
+import app.pocketfoundry.ui.kit.Tone
+import app.pocketfoundry.ui.kit.WRAP
+import app.pocketfoundry.ui.kit.add
+import app.pocketfoundry.ui.kit.button
+import app.pocketfoundry.ui.kit.buttonBar
+import app.pocketfoundry.ui.kit.checkBox
+import app.pocketfoundry.ui.kit.column
+import app.pocketfoundry.ui.kit.displayCompat
+import app.pocketfoundry.ui.kit.dpi
+import app.pocketfoundry.ui.kit.heading
+import app.pocketfoundry.ui.kit.keepScrollBar
+import app.pocketfoundry.ui.kit.label
+import app.pocketfoundry.ui.kit.link
+import app.pocketfoundry.ui.kit.panel
+import app.pocketfoundry.ui.kit.row
+import app.pocketfoundry.ui.kit.shown
+import app.pocketfoundry.ui.kit.stack
+import app.pocketfoundry.ui.kit.withNote
 import app.pocketfoundry.ui.screens.drivers.DriverDialog
-import app.pocketfoundry.ui.kit.*
 import app.pocketfoundry.ui.screens.saves.SavesDialog
 
 /** The display and game settings, and a bar to the update, the driver, saves, the game's files and a new import. */
@@ -22,10 +46,12 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val settings = Settings(launcher)
     private val x11 = X11Prefs(launcher)
     private val note = label(launcher, "Resolution, sprites, graphics and the FPS counter change when Factorio next starts.", 13f, Factorio.MUTED)
-    private val resolution = Dropdown(launcher, resolutionNames()) { x11.resolutionScale = x11.resolutionScales[it] }
+    private val resolution =
+        Dropdown(launcher, resolutionNames()) { x11.resolutionScale = x11.resolutionScales[it] }
     // Named in the order of Settings.BORDERS and Settings.SPRITE_QUALITIES.
     private val border = Dropdown(launcher, listOf("Off", "Thin", "Wide")) { settings.border = Settings.BORDERS[it] }
-    private val frameRate = Choice(launcher, listOf("30 FPS", "60 FPS")) { settings.frameRate = FRAME_RATES[it] }
+    private val frameRate =
+        Choice(launcher, listOf("30 FPS", "60 FPS")) { settings.frameRate = FRAME_RATES[it] }
     private val sprites = Dropdown(launcher, listOf("High", "Medium")) { settings.spriteQuality = Settings.SPRITE_QUALITIES[it] }
     private val graphics = Choice(launcher, listOf("Full", "Light")) { settings.lightGraphics = it == LIGHT }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)

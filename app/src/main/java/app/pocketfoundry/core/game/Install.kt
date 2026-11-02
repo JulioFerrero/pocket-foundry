@@ -5,9 +5,11 @@ import android.net.ConnectivityManager
 import android.net.Uri
 import android.util.Log
 import app.pocketfoundry.core.drivers.Drivers
-import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.Paths
+import app.pocketfoundry.core.system.ProgressInputStream
 import app.pocketfoundry.core.system.TAG
+import app.pocketfoundry.core.system.Uris
+import app.pocketfoundry.core.system.untarXz
 import java.io.File
 import java.io.IOException
 import org.json.JSONObject

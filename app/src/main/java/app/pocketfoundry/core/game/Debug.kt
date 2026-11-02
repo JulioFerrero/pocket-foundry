@@ -1,5 +1,6 @@
 package app.pocketfoundry.core.game
 
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -9,10 +10,10 @@ import androidx.core.content.ContextCompat
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
-import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.TAG
+import app.pocketfoundry.core.system.isDebuggable
 
 /**
  * Debug builds only: `game.KEY=value`, `x11.KEY=value` and `test.program=…` lines from files/debug.env, to try
@@ -42,6 +43,7 @@ object DebugPad : BroadcastReceiver() {
     private const val ACTION = "app.pocketfoundry.debug.PAD"
     private const val TAP_MS = 120L
 
+    @SuppressLint("WrongConstant")
     fun registerIfDebuggable(context: Context) {
         if (!context.isDebuggable) return
         ContextCompat.registerReceiver(context, this, IntentFilter(ACTION), ContextCompat.RECEIVER_EXPORTED)

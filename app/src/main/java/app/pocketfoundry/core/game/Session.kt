@@ -6,14 +6,12 @@ import android.os.SystemClock
 import android.os.Vibrator
 import android.system.Os
 import android.system.OsConstants
-import app.pocketfoundry.core.controller.*
 import app.pocketfoundry.core.controller.gamepadConnected
 import app.pocketfoundry.core.controller.gamepadVibrator
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.keyboardConnected
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.saves.Saves
-import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings

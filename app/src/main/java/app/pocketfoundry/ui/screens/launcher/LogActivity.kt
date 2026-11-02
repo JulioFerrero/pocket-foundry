@@ -21,7 +21,17 @@ import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
-import app.pocketfoundry.ui.kit.*
+import app.pocketfoundry.ui.kit.FButton
+import app.pocketfoundry.ui.kit.Factorio
+import app.pocketfoundry.ui.kit.Frame
+import app.pocketfoundry.ui.kit.MATCH
+import app.pocketfoundry.ui.kit.add
+import app.pocketfoundry.ui.kit.buttonBar
+import app.pocketfoundry.ui.kit.dpi
+import app.pocketfoundry.ui.kit.immersive
+import app.pocketfoundry.ui.kit.pad
+import app.pocketfoundry.ui.kit.panel
+import app.pocketfoundry.ui.kit.stack
 import java.io.File
 
 /** The phone's facts and the ends of the game's logs, every 2 s, to read or copy into a report. */

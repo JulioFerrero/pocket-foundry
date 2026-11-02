@@ -8,7 +8,10 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
-import app.pocketfoundry.ui.kit.*
+import app.pocketfoundry.ui.kit.Factorio
+import app.pocketfoundry.ui.kit.GuiSheet
+import app.pocketfoundry.ui.kit.Tone
+import app.pocketfoundry.ui.kit.dp
 
 /**
  * Draws the controls in the game's own GUI sprites, or in a drawn look when the game's files can't be read. Also the
