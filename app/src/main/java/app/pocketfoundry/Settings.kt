@@ -3,6 +3,7 @@ package app.pocketfoundry
 import android.content.Context
 import android.content.SharedPreferences
 import app.pocketfoundry.drivers.Drivers
+import app.pocketfoundry.drivers.Gpu
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.properties.ReadWriteProperty
@@ -58,10 +59,14 @@ class Settings(private val context: Context) {
 
     fun takeLayoutEditorRequest() = editLayout.also { if (it) editLayout = false }
 
-    /** The sprites and effects that suit the CPU driver, or a GPU's. [onlyUnset] keeps what the player chose. */
+    /**
+     * The sprites and effects that suit the CPU driver, or a GPU's. Malis get Medium sprites too: High crashed PanVK
+     * while loading, and their own driver loads them uncompressed. [onlyUnset] keeps what the player chose.
+     */
     fun setDriverDefaults(cpu: Boolean, onlyUnset: Boolean = false) {
         val edit = prefs.edit()
-        if (!onlyUnset || !prefs.contains(SPRITE_QUALITY)) edit.putString(SPRITE_QUALITY, if (cpu) "medium" else "high")
+        val sprites = if (cpu || Gpu.mali) "medium" else "high"
+        if (!onlyUnset || !prefs.contains(SPRITE_QUALITY)) edit.putString(SPRITE_QUALITY, sprites)
         if (!onlyUnset || !prefs.contains(LIGHT_GRAPHICS)) edit.putBoolean(LIGHT_GRAPHICS, cpu)
         edit.apply()
     }
