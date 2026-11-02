@@ -31,7 +31,6 @@ import app.pocketfoundry.ui.kit.displayCompat
 import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.shown
 import com.termux.x11.MainActivity
-import com.termux.x11.R
 import java.io.File
 import java.util.WeakHashMap
 import kotlin.math.abs
@@ -166,7 +165,7 @@ private class GameScreen(activity: MainActivity) {
  * shows the newest save's preview (or grass), blurred and darkened.
  */
 private class GameBorder(private val activity: MainActivity) {
-    private val frame: FrameLayout = activity.findViewById(R.id.frame)
+    private val frame: FrameLayout = activity.findViewById(com.termux.x11.R.id.frame)
     private val game = activity.lorieView
     private val backdrop = ImageView(activity).apply {
         scaleType = ImageView.ScaleType.CENTER_CROP
