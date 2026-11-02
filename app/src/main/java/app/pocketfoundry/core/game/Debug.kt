@@ -43,7 +43,6 @@ object DebugPad : BroadcastReceiver() {
     private const val ACTION = "app.pocketfoundry.debug.PAD"
     private const val TAP_MS = 120L
 
-    @SuppressLint("WrongConstant")
     fun registerIfDebuggable(context: Context) {
         if (!context.isDebuggable) return
         ContextCompat.registerReceiver(context, this, IntentFilter(ACTION), ContextCompat.RECEIVER_EXPORTED)

@@ -114,7 +114,6 @@ object Updates {
      * Hands [file] to Android's installer, which asks the user and then replaces this app, closing it. [onFailure]
      * gets the reason when it doesn't: cancelled, or not allowed to install apps.
      */
-    @SuppressLint("WrongConstant")
     fun install(context: Context, file: File, onFailure: (String) -> Unit) {
         val app = context.applicationContext
         val installer = app.packageManager.packageInstaller
