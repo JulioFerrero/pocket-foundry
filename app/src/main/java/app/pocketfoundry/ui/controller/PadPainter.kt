@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
+import app.pocketfoundry.core.controller.DpadDir
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.GuiSheet
 import app.pocketfoundry.ui.kit.Tone

@@ -8,7 +8,6 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import app.pocketfoundry.core.system.mainHandler
-import app.pocketfoundry.ui.controller.DpadDir
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
