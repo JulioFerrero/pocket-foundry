@@ -14,7 +14,6 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.updates.Updates
 import app.pocketfoundry.LauncherActivity
-import app.pocketfoundry.ui.*
 import app.pocketfoundry.ui.kit.Arrow
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
