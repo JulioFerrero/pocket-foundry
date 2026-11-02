@@ -1,5 +1,7 @@
 ﻿package app.pocketfoundry.core.system
 
+import app.pocketfoundry.NativeXz
+
 import android.system.Os
 import java.io.File
 import java.io.FilterInputStream
@@ -107,17 +109,7 @@ private class PrefetchInputStream(private val source: InputStream) : InputStream
     }
 }
 
-/** liblzma through JNI (app/src/main/cpp/xz_jni.c). */
-object NativeXz {
-    init {
-        System.loadLibrary("pocketfoundry")
-    }
 
-    @JvmStatic external fun open(): Long
-    @JvmStatic external fun decode(handle: Long, input: ByteArray, inOff: Int, inLen: Int,
-                                   out: ByteArray, outOff: Int, outLen: Int, inputEnded: Boolean): Long
-    @JvmStatic external fun close(handle: Long)
-}
 
 /** Several times faster than the Java xz decoder. */
 class NativeXzInputStream(private val input: InputStream) : InputStream() {
