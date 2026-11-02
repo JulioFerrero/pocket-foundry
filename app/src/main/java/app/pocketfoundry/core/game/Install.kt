@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Uri
 import android.util.Log
+import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.TAG
@@ -30,6 +31,7 @@ object Runtime {
         context.assets.open("runtime.tar.xz").use { untarXz(it, paths.files) }
         paths.tmp.mkdirs()
         stamp(paths).writeText(assetVersion(context))
+        Drivers.forgetGames(context)
     }
 
     /** glibc reads files/usr/etc/resolv.conf, which Android doesn't have. */

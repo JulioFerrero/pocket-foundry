@@ -15,13 +15,13 @@ object FactorioConfig {
                                  "show-particles", "show-item-shadows", "show-inserter-shadows", "additional-terrain-effects",
                                  "high-quality-terrain", "elevated-rail-shadows")
 
-    fun write(context: Context, paths: Paths, keyboard: Boolean, panvk: Boolean) {
+    fun write(context: Context, paths: Paths, keyboard: Boolean, gpuCompression: Boolean) {
         val settings = Settings(context)
         val light = settings.lightGraphics
         val old = if (paths.config.exists()) paths.config.readText() else ""
         // Factorio derives its paths from its executable (here the loader), so name them.
         val config = update(old, File(paths.game, "data").path, paths.gameData.path, keyboard,
-                            settings.spriteQuality, panvk, effects(light, settings.lightApplied))
+                            settings.spriteQuality, gpuCompression, effects(light, settings.lightApplied))
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
         settings.lightApplied = light
@@ -34,7 +34,7 @@ object FactorioConfig {
     internal fun effects(light: Boolean, lightApplied: Boolean): Boolean? = if (light || lightApplied) !light else null
 
     internal fun update(ini: String, readData: String, writeData: String, keyboard: Boolean, spriteQuality: String,
-                        panvk: Boolean, effects: Boolean?): String {
+                        gpuCompression: Boolean, effects: Boolean?): String {
         var config = if (ini.startsWith("; version=")) ini else VERSION_HEADER
         config = setIni(config, "path", "read-data", readData)
         config = setIni(config, "path", "write-data", writeData)
@@ -46,10 +46,8 @@ object FactorioConfig {
             config = setIni(config, "interface", "custom-proportional-ui-scale", "1.25")
         }
         config = setIni(config, "graphics", "graphics-quality", spriteQuality)
-        // PanVK's BC emulation skips the copies Factorio's GPU texture compressor makes: its self-test fails there,
-        // and a G610 faulted right after. The CPU compresses instead.
         for (key in listOf("gpu-accelerated-compression", "gpu-accelerated-mipmap-compression"))
-            config = setIni(config, "graphics", key, (!panvk).toString())
+            config = setIni(config, "graphics", key, gpuCompression.toString())
         if (effects != null) for (key in EFFECTS) config = setIni(config, "graphics", key, effects.toString())
         return config
     }

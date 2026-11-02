@@ -3,7 +3,7 @@
 # Adreno 6xx and newer), plus llvmpipe for phones without a GPU driver.
 set -euo pipefail
 
-COMMIT=6f90e92dfdacc4759d8e9ccb328805d0f0b4439b   # tag mesa-27.0.0-devel-20261025
+COMMIT=eb3e7fd4f009cab04b1482aad4843c0bde28a786   # tag mesa-27.0.0-devel-20261025-r1
 SRC=/work/mesa
 
 cd /cache

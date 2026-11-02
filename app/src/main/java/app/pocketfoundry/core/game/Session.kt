@@ -38,7 +38,10 @@ object Session {
     private const val WINDOW_TIMEOUT_MS = 60_000L
     private const val LOG_POLL_MS = 250L
     private const val WINDOW_OPENED = "Initialised OpenGL"
-    private val NO_WINDOW = listOf("Failed to create an application window", "Failed to create OpenGL context")
+    private val NO_WINDOW = listOf("Failed to create an application window", "Failed to create OpenGL context",
+                                   "Factorio crashed")
+    /** Exit statuses above this are 128 plus the signal that killed the process. */
+    private const val SIGNALLED = 128
 
     @Volatile var state = State.STOPPED
         private set
@@ -54,6 +57,10 @@ object Session {
     /** Whether that failure was Factorio not opening its window: the graphics driver didn't start. */
     @Volatile var noWindow = false
         private set
+    /** The graphics driver of the running or last game. */
+    @Volatile var driver: String? = null
+        private set
+    @Volatile private var windowOpened = false
 
     private var xServer: Process? = null
     private var wm: Process? = null
@@ -70,11 +77,11 @@ object Session {
         val paths = Paths(context)
         val newGame = game?.isAlive != true
         paths.logs.mkdirs()
+        if (newGame) ScreenLog.begin(context)
         paths.home.mkdirs()
         Runtime.writeResolvConf(context)
         Settings(context).writeFrameRate()
         startBridges(context, paths)
-        if (newGame) ScreenLog.begin(context)
         if (xServer?.isAlive != true) startXServer(context, paths)
         if (wm?.isAlive != true) wm = Glibc.start(paths, listOf(File(paths.prefix, "bin/pocketfoundry-wm").path), paths.wmLog)
         if (newGame) launchGame(context, paths, gameArgs)
@@ -125,8 +132,8 @@ object Session {
     private fun launchGame(context: Context, paths: Paths, gameArgs: List<String>) {
         Saves.deleteInterrupted(paths)
         keyboard = keyboardConnected(context) && !gamepadConnected(context)
-        val driver = Drivers.chosen(context)
-        FactorioConfig.write(context, paths, keyboard, Drivers.isPanvk(driver))
+        val driver = Drivers.chosen(context).also { this.driver = it }
+        FactorioConfig.write(context, paths, keyboard, Drivers.gpuCompression(driver))
         val testProgram = DebugEnv.read(context, "test")["program"]?.takeIf { it.matches(TOOL_NAME) }
         val command = if (testProgram != null) listOf(File(paths.prefix, "bin/$testProgram").path)
                       else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
@@ -137,8 +144,10 @@ object Session {
         ScreenLog.add("game started")
         lastFailure = null
         noWindow = false
+        windowOpened = false
         setState(State.RUNNING)
-        thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(started, started.waitFor()) }
+        val app = context.applicationContext
+        thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(app, driver, started, started.waitFor()) }
         watchForNoWindow(started, gamePid, paths.gameLog)
         context.startForegroundService(Intent(context, GameService::class.java))
     }
@@ -178,7 +187,7 @@ object Session {
     }
 
     @Synchronized
-    private fun onGameExit(process: Process, status: Int) {
+    private fun onGameExit(context: Context, driver: String, process: Process, status: Int) {
         if (process !== game) return
         ScreenLog.add("game exited ($status)")
         val quitting = state == State.QUITTING
@@ -186,15 +195,30 @@ object Session {
         xServer?.destroy()
         game = null; wm = null; xServer = null
         lastFailure = if (quitting || status == 0) null else status
+        // Killed by a signal before its window opened: the driver crashed starting, like one that opens no window.
+        if (lastFailure != null && !windowOpened && status > SIGNALLED) noWindow = true
+        val outcome = when {
+            noWindow -> Drivers.Outcome.DIDNT_START
+            lastFailure != null -> Drivers.Outcome.STOPPED
+            windowOpened -> Drivers.Outcome.RAN
+            else -> null   // quit while loading, or a test program
+        }
+        outcome?.let { Drivers.record(context, driver, it) }
         setState(State.STOPPED)
     }
 
-    /** Without a window or GL context Factorio doesn't exit: it spins with nothing on screen, deaf to SIGTERM. */
+    /**
+     * Without a window or GL context Factorio doesn't exit: it spins with nothing on screen, deaf to SIGTERM. Crashing
+     * before it has one (a driver failing as it starts), it symbolizes its stack trace for a minute or more, in the dark.
+     */
     private fun watchForNoWindow(process: Process, pid: Int, log: File) = thread(name = "pocketfoundry-game-window", isDaemon = true) {
         val deadline = System.currentTimeMillis() + WINDOW_TIMEOUT_MS
         while (process.isAlive && System.currentTimeMillis() < deadline) {
             val text = runCatching { log.readText() }.getOrDefault("")
-            if (WINDOW_OPENED in text) return@thread
+            if (WINDOW_OPENED in text) {
+                windowOpened = true
+                return@thread
+            }
             if (NO_WINDOW.any { it in text }) {
                 noWindow = true
                 Os.kill(pid, OsConstants.SIGKILL)

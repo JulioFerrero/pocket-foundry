@@ -13,6 +13,7 @@ import android.widget.FrameLayout
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.GameImport
 import app.pocketfoundry.core.game.Runtime
+import app.pocketfoundry.core.game.ScreenLog
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.system.*
 import app.pocketfoundry.core.updates.Updates
@@ -53,6 +54,7 @@ class LauncherActivity : Activity() {
         super.onCreate(savedInstanceState)
         X11Prefs(this).setUp()
         Drivers.fillDefaults(this)
+        Drivers.moveOldOptions(this)
         updates.check()
         edgeToEdge()
         val overlay = FrameLayout(this).apply {
@@ -237,7 +239,8 @@ class LauncherActivity : Activity() {
             Session.start(this, if (save != null) listOf("--load-game", save.path) else emptyList())
         }) { result ->
             busy = null
-            result.onFailure { error = it.message ?: "Factorio didn't start. See Logs." }
+            // Logs keeps the whole of it: Home has room for two lines.
+            result.onFailure { error = it.message ?: "Factorio didn't start. See Logs."; ScreenLog.add("didn't start: $it") }
             refresh()
             if (result.isSuccess) showGame()
         }

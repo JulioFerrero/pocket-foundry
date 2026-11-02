@@ -31,7 +31,7 @@ class HomeScreen(private val launcher: LauncherActivity) {
     private val logs = button(launcher, "Logs") { launcher.startActivity(Intent(launcher, LogActivity::class.java)) }
     private val quit = button(launcher, "Quit", Tone.RED, Arrow.LEFT) { confirmQuit() }
     private val groove = groove(launcher)
-    private val footerLeft = label(launcher, "", 15f, weight = 700)
+    private val footerLeft = label(launcher, "", 15f, weight = 700).capped(2)
     private val footerRight = label(launcher, "", 15f, weight = 700)
     private val card = SaveCard(launcher)
 
@@ -77,8 +77,8 @@ class HomeScreen(private val launcher: LauncherActivity) {
 
         val failure = error ?: Session.lastFailure?.let { status ->
             when {
-                Drivers.missingForGpu(launcher) -> "No driver for this phone's GPU yet: choose CPU in Driver."
-                Session.noWindow -> "The graphics driver didn't start. See Logs."
+                Drivers.missingForGpu(launcher) -> "That driver needs an Adreno GPU: choose another in Driver."
+                Session.noWindow -> driverDidntStart()
                 else -> "Factorio stopped unexpectedly ($status). See Logs."
             }
         }
@@ -91,6 +91,12 @@ class HomeScreen(private val launcher: LauncherActivity) {
         }
         footerLeft.text = left
         footerRight.text = right
+    }
+
+    /** Which driver didn't start, and the one the next game moves on to when the choice is the app's. */
+    private fun driverDidntStart(): String {
+        val next = Drivers.chosen(launcher).takeIf { it != Session.driver } ?: return "The graphics driver didn't start. See Logs."
+        return "${Drivers.find(launcher, Session.driver)?.name} didn't start. Next game: ${Drivers.find(launcher, next)?.name}."
     }
 
     /** Quitting a running game, with what's lost: everything since the last save. */

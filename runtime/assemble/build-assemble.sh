@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs inside the build container after glibc, mesa, sdl and wm: packs the runtime the app unpacks.
+# Runs inside the build container after glibc, mesa, sdl, wm and hybris: packs the runtime the app unpacks.
 set -euo pipefail
 
 GLIBC=/out/glibc$PREFIX
@@ -17,8 +17,9 @@ rm -rf $OUT/lib/pkgconfig
 cp -a $MESA/share/. $OUT/share/
 
 cp /out/wm/pocketfoundry-wm $OUT/bin/
+cp -a /out/hybris$PREFIX/lib/hybris $OUT/lib/
 
-# Stand-ins for two libraries that imported Vulkan drivers link but never use here (see the .c files).
+# Stand-ins for two libraries that Vulkan drivers link but never use here (see the .c files).
 gcc -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -o $OUT/lib/libwayland-client.so.0 /runtime/assemble/wayland-client.c
 gcc -shared -fPIC -O2 -Wl,-soname,libSPIRV-Tools.so -o $OUT/lib/libSPIRV-Tools.so /runtime/assemble/spirv-tools.c
 
@@ -31,12 +32,13 @@ seeds="libGL.so.1 libGLX.so.0 libGLdispatch.so.0 libEGL.so.1 libvulkan.so.1
        libXfixes.so.3 libXss.so.1 libXrender.so.1 libxkbcommon.so.0 libxkbcommon-x11.so.0"
 targets="$(for s in $seeds; do echo $DEB/$s; done) $(find $OUT/lib -maxdepth 2 -name '*.so*' -type f) $OUT/bin/pocketfoundry-wm"
 for s in $seeds; do cp -L $DEB/$s $OUT/lib/; done
-LD_LIBRARY_PATH=$OUT/lib ldd $targets 2>/dev/null | awk '/=> \// {print $1, $3}' | sort -u |
+LD_LIBRARY_PATH=$OUT/lib:$OUT/lib/hybris ldd $targets 2>/dev/null | awk '/=> \// {print $1, $3}' | sort -u |
 while read -r name path; do
     case " $GLIBC_LIBS " in *" $name "*) continue ;; esac
-    [ -e "$OUT/lib/$name" ] || cp -L "$path" "$OUT/lib/$name"
+    case "$path" in $OUT/*) continue ;; esac   # already in the runtime
+    cp -L "$path" "$OUT/lib/$name"
 done
-missing=$(LD_LIBRARY_PATH=$OUT/lib ldd $targets 2>/dev/null | grep "not found" | sort -u || true)
+missing=$(LD_LIBRARY_PATH=$OUT/lib:$OUT/lib/hybris ldd $targets 2>/dev/null | grep "not found" | sort -u || true)
 [ -z "$missing" ] || { echo "unresolved:"; echo "$missing"; exit 1; }
 
 # glibc last: ldd above runs on the container's 2.41 and must not pick up our libc.

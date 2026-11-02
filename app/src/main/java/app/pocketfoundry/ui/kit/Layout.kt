@@ -18,6 +18,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.net.Uri
 import android.text.SpannableStringBuilder
+import android.text.TextUtils
 import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.ForegroundColorSpan
@@ -213,6 +214,12 @@ fun label(context: Context, text: CharSequence = "", size: Float = 15f, color: I
     }
 
 fun heading(context: Context, text: CharSequence, size: Float = 22f) = label(context, text, size, Factorio.HEADING, 600)
+
+/** At most [lines] lines, the rest cut with "…": a long error can't push a panel's buttons off the screen. */
+fun TextView.capped(lines: Int) = apply {
+    maxLines = lines
+    ellipsize = TextUtils.TruncateAt.END
+}
 
 /** Underlined text that opens [url] in the browser; lit like a button while focused. */
 fun link(context: Context, text: CharSequence, url: String, size: Float = 14f) = label(context, text, size, Factorio.LINK).apply {

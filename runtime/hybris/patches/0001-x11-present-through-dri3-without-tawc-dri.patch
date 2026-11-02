@@ -1,0 +1,304 @@
+X11 WSI: without TAWC-DRI, present through standard DRI3 and Present.
+
+Termux:X11 has no TAWC-DRI, but imports an Android hardware buffer read from a socket passed as a DRI3 buffer fd
+(modifier 1255). Each swapchain buffer is imported once as a pixmap, frames are PresentPixmap requests, and
+PresentIdleNotify releases buffers the way TAWC-DRI's buffer-release event does. Its depth-24 windows show any
+buffer opaque, so their swapchains can be OPAQUE whatever the format (Zink always asks for it).
+
+Also accept DirectColor visuals, as Mesa's X11 WSI does: GLX gives Zink's windows one, and its pixels are laid out
+like TrueColor's.
+
+--- a/hybris/vulkan/Makefile.am	2026-11-02 02:53:00
++++ b/hybris/vulkan/Makefile.am	2026-11-02 02:54:39
+@@ -90,7 +90,7 @@
+ libhybris_vulkan_icd_la_SOURCES += icd/native_window_x11.cpp
+ libhybris_vulkan_icd_la_CFLAGS += $(XCB_CFLAGS) $(X11_CFLAGS)
+ libhybris_vulkan_icd_la_CXXFLAGS += $(XCB_CFLAGS) $(X11_CFLAGS)
+-libhybris_vulkan_icd_la_LDFLAGS += -lxcb -lX11-xcb -lX11
++libhybris_vulkan_icd_la_LDFLAGS += -lxcb -lxcb-dri3 -lxcb-present -lX11-xcb -lX11
+ endif
+ libhybris_vulkan_icd_la_SOURCES += \
+     icd/native_window.h icd/native_window_wayland.c icd/native_window_headless.cpp \
+--- a/hybris/vulkan/icd/native_window.h	2026-11-02 03:15:40
++++ b/hybris/vulkan/icd/native_window.h	2026-11-02 03:15:52
+@@ -16,6 +16,9 @@
+     void (*destroy)(struct hybris_icd_window *);
+     /* Zero extent means application-selected (Wayland). */
+     int (*extent)(struct hybris_icd_window *, uint32_t *, uint32_t *);
++    /* Optional: nonzero when the window shows every buffer opaque, whatever
++     * its format, so any swapchain can be OPAQUE. */
++    int (*opaque)(struct hybris_icd_window *);
+ };
+ struct hybris_icd_window { const struct hybris_icd_window_ops *ops; };
+ #ifdef __cplusplus
+--- a/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 02:53:00
++++ b/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 03:21:36
+@@ -1,10 +1,17 @@
+ /* SPDX-License-Identifier: Apache-2.0 */
+ #include "native_window.h"
+ #include "../../platforms/common/nativewindowbase.h"
++#include <android/hardware_buffer.h>
+ #include <arlinux/tawc-dri.h>
++extern "C" {
++#include <hybris/common/binding.h>
++}
+ #include <hybris/gralloc/gralloc.h>
++#include <xcb/dri3.h>
++#include <xcb/present.h>
+ #include <xcb/xcb.h>
+ #include <xcb/xcbext.h>
++#include <dlfcn.h>
+ #include <errno.h>
+ #include <limits.h>
+ #include <new>
+@@ -18,6 +25,18 @@
+ #include <unistd.h>
+ 
+ static xcb_extension_t extension = {TAWC_DRI_NAME, 0};
++/* Without TAWC-DRI, frames use standard DRI3 and Present, for X servers which
++ * import an Android hardware buffer read from a socket passed as the buffer fd
++ * (Termux:X11). Each pool buffer becomes one pixmap; PresentIdleNotify then
++ * releases buffers as TAWC-DRI's buffer-release event does. */
++static const uint64_t AHARDWAREBUFFER_SOCKET_FD = 1255;
++typedef int (*send_hardware_buffer_fn)(const AHardwareBuffer *, int);
++static send_hardware_buffer_fn send_hardware_buffer() {
++    static void *library = android_dlopen("libnativewindow.so", RTLD_NOW);
++    static auto send = library ? reinterpret_cast<send_hardware_buffer_fn>(
++        android_dlsym(library, "AHardwareBuffer_sendHandleToUnixSocket")) : nullptr;
++    return send;
++}
+ static int64_t now_ns() {
+     timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
+     return (int64_t)t.tv_sec * 1000000000LL + t.tv_nsec;
+@@ -32,6 +51,7 @@
+ struct Buffer : BaseNativeWindowBuffer {
+     bool held = false;
+     bool queued = false;
++    xcb_pixmap_t pixmap = 0;
+     Buffer() { handle = nullptr; }
+     ~Buffer() { if (handle) hybris_gralloc_release(handle, 1); }
+ };
+@@ -45,7 +65,8 @@
+     xcb_special_event_t *events;
+     Buffer *pool[8];
+     unsigned count, pool_width, pool_height, next_buffer;
+-    bool trace;
++    bool dri3, trace;
++    uint8_t depth;
+     unsigned trace_count;
+     Pending *pending;
+     pthread_mutex_t mutex;
+@@ -71,21 +92,38 @@
+     return xcb_connection_has_error(connection) ? -EPIPE : 0;
+ }
+ static int select(Owner *o, uint32_t mask) {
++    if (o->dri3) {
++        uint32_t events = mask ? XCB_PRESENT_EVENT_MASK_CONFIGURE_NOTIFY | XCB_PRESENT_EVENT_MASK_IDLE_NOTIFY : 0;
++        return check(o->connection, xcb_present_select_input_checked(o->connection, o->eid, o->window, events).sequence);
++    }
+     tawc_dri_select_input_req body = {};
+     body.eid = o->eid; body.window = o->window; body.event_mask = mask;
+     iovec parts[3] = {}; parts[2] = {&body, sizeof(body)};
+     xcb_protocol_request_t request = {1, &extension, X_TAWCDRI_SelectInput, 1};
+     return check(o->connection, xcb_send_request(o->connection, XCB_REQUEST_CHECKED, parts + 2, &request));
+ }
++static void resized(Owner *o, xcb_ge_generic_event_t *ge) {
++    if (o->dri3 && ge->event_type == XCB_PRESENT_EVENT_CONFIGURE_NOTIFY) {
++        auto *configure = reinterpret_cast<xcb_present_configure_notify_event_t *>(ge);
++        o->width = configure->width; o->height = configure->height;
++    } else if (!o->dri3 && ge->event_type == TAWC_DRI_EVENT_CONFIGURE_NOTIFY) {
++        auto *configure = reinterpret_cast<tawc_dri_configure_notify_event *>(ge);
++        o->width = configure->width; o->height = configure->height;
++    }
++}
++/* The serial of the present whose buffer the event releases, or zero. */
++static uint32_t released(Owner *o, xcb_ge_generic_event_t *ge) {
++    if (o->dri3) return ge->event_type == XCB_PRESENT_EVENT_IDLE_NOTIFY ?
++        reinterpret_cast<xcb_present_idle_notify_event_t *>(ge)->serial : 0;
++    return ge->event_type == TAWC_DRI_EVENT_BUFFER_RELEASE ?
++        reinterpret_cast<tawc_dri_buffer_release_event *>(ge)->serial : 0;
++}
+ static void drain(Owner *o) {
+     xcb_generic_event_t *event;
+     while ((event = xcb_poll_for_special_event(o->connection, o->events))) {
+         auto *ge = reinterpret_cast<xcb_ge_generic_event_t *>(event);
+-        if (ge->event_type == TAWC_DRI_EVENT_CONFIGURE_NOTIFY) {
+-            auto *configure = reinterpret_cast<tawc_dri_configure_notify_event *>(event);
+-            o->width = configure->width; o->height = configure->height;
+-        } else if (ge->event_type == TAWC_DRI_EVENT_BUFFER_RELEASE) {
+-            uint32_t serial = reinterpret_cast<tawc_dri_buffer_release_event *>(event)->serial;
++        resized(o, ge);
++        if (uint32_t serial = released(o, ge)) {
+             Pending **link = &o->pending;
+             while (*link && (*link)->serial != serial) link = &(*link)->next;
+             if (*link) {
+@@ -105,7 +143,10 @@
+     }
+ }
+ static void drop_pool(Owner *o) {
+-    for (unsigned i = 0; i < o->count; ++i) o->pool[i]->common.decRef(&o->pool[i]->common);
++    for (unsigned i = 0; i < o->count; ++i) {
++        if (o->pool[i]->pixmap) xcb_free_pixmap(o->connection, o->pool[i]->pixmap);
++        o->pool[i]->common.decRef(&o->pool[i]->common);
++    }
+     o->count = 0;
+     o->next_buffer = 0;
+ }
+@@ -116,6 +157,25 @@
+     drain(o); drop_pool(o); o->draining = false;
+     pthread_mutex_unlock(&o->mutex);
+ }
++/* The server writes a byte to the socket, then reads the buffer from it: send
++ * it first, and keep our end open until the server has processed the request. */
++static int import(Owner *o, Buffer *b) {
++    auto *buffer = hybris_gralloc_get_hardware_buffer(b->handle);
++    send_hardware_buffer_fn send = send_hardware_buffer();
++    if (!buffer || !send) return -ENOTSUP;
++    int pair[2];
++    if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, pair)) return -errno;
++    if (send(buffer, pair[0])) { close(pair[0]); close(pair[1]); return -EIO; }
++    b->pixmap = xcb_generate_id(o->connection);
++    /* libxcb owns pair[1] once sent. The server takes the stride from the buffer. */
++    unsigned sequence = xcb_dri3_pixmap_from_buffers_checked(o->connection, b->pixmap, o->window, 1,
++        b->width, b->height, b->stride * 4, 0, 0, 0, 0, 0, 0, 0, o->depth, 32,
++        AHARDWAREBUFFER_SOCKET_FD, &pair[1]).sequence;
++    int error = check(o->connection, sequence);
++    close(pair[0]);
++    if (error) b->pixmap = 0;
++    return error;
++}
+ static int configure(hybris_icd_window *base, unsigned width, unsigned height,
+     int format, unsigned usage, unsigned count) {
+     if (!width || !height || width > INT_MAX || height > INT_MAX || count < 2 || count > 8) return -EINVAL;
+@@ -137,6 +197,7 @@
+         b->stride = stride;
+         b->common.incRef(&b->common);
+         o->pool[o->count++] = b;
++        if (o->dri3 && (error = import(o, b))) break;
+     }
+     if (error) drop_pool(o);
+     pthread_mutex_unlock(&o->mutex); return error;
+@@ -196,7 +257,7 @@
+     auto *data = static_cast<char *>(calloc(1, bytes));
+     if (!p || !data) { free(p); free(data); return -ENOMEM; }
+     int fds[64], copied = 0;
+-    for (; copied < h->numFds; ++copied) {
++    for (; !o->dri3 && copied < h->numFds; ++copied) {
+         fds[copied] = dup(h->data[copied]);
+         if (fds[copied] < 0) {
+             while (copied) close(fds[--copied]);
+@@ -210,16 +271,22 @@
+         p->serial = o->serial;
+         for (Pending *q = o->pending; q; q = q->next) if (q->serial == p->serial) { p->serial = 0; break; }
+     } while (!p->serial);
+-    auto *body = reinterpret_cast<tawc_dri_present_buffer_req *>(data);
+-    body->window = o->window; body->num_fds = h->numFds; body->num_ints = h->numInts;
+-    body->width = b->width; body->height = b->height; body->stride = b->stride;
+-    body->format = b->format; body->usage_lo = b->usage; body->serial = p->serial;
+-    memcpy(data + sizeof(*body), h->data + h->numFds, h->numInts * sizeof(int32_t));
+-    iovec parts[3] = {}; parts[2] = {data, bytes};
+-    xcb_protocol_request_t request = {1, &extension, X_TAWCDRI_PresentBuffer, 1};
+-    unsigned sequence = xcb_send_request_with_fds(o->connection, XCB_REQUEST_CHECKED,
+-        parts + 2, &request, h->numFds, fds);
+-    /* libxcb owns the duplicate FDs after send_request_with_fds. */
++    unsigned sequence;
++    if (o->dri3) {
++        sequence = xcb_present_pixmap_checked(o->connection, o->window, b->pixmap, p->serial,
++            0, 0, 0, 0, 0, 0, 0, XCB_PRESENT_OPTION_NONE, 0, 0, 0, 0, nullptr).sequence;
++    } else {
++        auto *body = reinterpret_cast<tawc_dri_present_buffer_req *>(data);
++        body->window = o->window; body->num_fds = h->numFds; body->num_ints = h->numInts;
++        body->width = b->width; body->height = b->height; body->stride = b->stride;
++        body->format = b->format; body->usage_lo = b->usage; body->serial = p->serial;
++        memcpy(data + sizeof(*body), h->data + h->numFds, h->numInts * sizeof(int32_t));
++        iovec parts[3] = {}; parts[2] = {data, bytes};
++        xcb_protocol_request_t request = {1, &extension, X_TAWCDRI_PresentBuffer, 1};
++        sequence = xcb_send_request_with_fds(o->connection, XCB_REQUEST_CHECKED,
++            parts + 2, &request, h->numFds, fds);
++        /* libxcb owns the duplicate FDs after send_request_with_fds. */
++    }
+     p->buffer = b; b->common.incRef(&b->common);
+     p->next = o->pending; o->pending = p;
+     trace(o, "present", p);
+@@ -331,7 +398,21 @@
+     pthread_cond_destroy(&o->work_ready); pthread_cond_destroy(&o->idle);
+     pthread_mutex_destroy(&o->mutex); free(o);
+ }
+-static const hybris_icd_window_ops ops = {configure, dequeue, queue, cancel, disconnect, destroy, extent};
++/* A depth-24 window has no alpha: the DRI3 server shows any buffer opaque. */
++static int opaque(hybris_icd_window *base) {
++    Owner *o = get(base);
++    return o->dri3 && o->depth == 24;
++}
++static const hybris_icd_window_ops ops = {configure, dequeue, queue, cancel, disconnect, destroy, extent, opaque};
++/* DRI3 1.2 (buffers with modifiers), Present, and a way to send buffers. */
++static bool dri3_supported(xcb_connection_t *connection) {
++    const xcb_query_extension_reply_t *dri3 = xcb_get_extension_data(connection, &xcb_dri3_id);
++    const xcb_query_extension_reply_t *present = xcb_get_extension_data(connection, &xcb_present_id);
++    if (!dri3 || !dri3->present || !present || !present->present || !send_hardware_buffer()) return false;
++    auto *version = xcb_dri3_query_version_reply(connection, xcb_dri3_query_version(connection, 1, 2), nullptr);
++    bool ok = version && (version->major_version > 1 || version->minor_version >= 2);
++    free(version); return ok;
++}
+ int hybris_icd_xcb_supported(xcb_connection_t *connection, uint32_t visual) {
+     if (!connection || xcb_connection_has_error(connection)) return 0;
+     sockaddr_storage peer = {}; socklen_t peer_size = sizeof(peer);
+@@ -341,11 +422,14 @@
+     for (auto screen = xcb_setup_roots_iterator(setup); screen.rem; xcb_screen_next(&screen))
+         for (auto depth = xcb_screen_allowed_depths_iterator(screen.data); depth.rem; xcb_depth_next(&depth))
+             for (auto v = xcb_depth_visuals_iterator(depth.data); v.rem; xcb_visualtype_next(&v))
+-                if (v.data->visual_id == visual && v.data->_class == XCB_VISUAL_CLASS_TRUE_COLOR &&
++                /* DirectColor has TrueColor's pixel layout: Mesa's X11 WSI takes both, and GLX offers both. */
++                if (v.data->visual_id == visual &&
++                    (v.data->_class == XCB_VISUAL_CLASS_TRUE_COLOR || v.data->_class == XCB_VISUAL_CLASS_DIRECT_COLOR) &&
+                     (depth.data->depth == 24 || depth.data->depth == 32) &&
+                     v.data->red_mask == 0xff0000 && v.data->green_mask == 0xff00 && v.data->blue_mask == 0xff) compatible = true;
++    if (!compatible) return 0;
+     const xcb_query_extension_reply_t *present = xcb_get_extension_data(connection, &extension);
+-    if (!compatible || !present || !present->present) return 0;
++    if (!present || !present->present) return dri3_supported(connection);
+     tawc_dri_query_version_req body = {}; body.major_version = 0; body.minor_version = 3;
+     iovec parts[3] = {}; parts[2] = {&body, sizeof(body)};
+     xcb_protocol_request_t request = {1, &extension, X_TAWCDRI_QueryVersion, 0};
+@@ -359,17 +443,26 @@
+     xcb_generic_error_t *error = nullptr;
+     auto *attributes = xcb_get_window_attributes_reply(connection, xcb_get_window_attributes(connection, window), &error);
+     if (!attributes || error) { free(attributes); free(error); return -EPIPE; }
+-    bool supported = hybris_icd_xcb_supported(connection, attributes->visual);
++    uint32_t visual = attributes->visual;
+     free(attributes);
+-    if (!supported) return -ENOTSUP;
++    if (!hybris_icd_xcb_supported(connection, visual)) {
++        fprintf(stderr, "hybris X11 WSI: no presentation for window %u, visual %u\n", window, visual);
++        return -ENOTSUP;
++    }
++    auto *geometry = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, window), nullptr);
++    if (!geometry) return -EPIPE;
++    uint8_t depth = geometry->depth;
++    free(geometry);
+     auto *o = static_cast<Owner *>(calloc(1, sizeof(Owner)));
+     if (!o) return -ENOMEM;
+     const char *logging = getenv("HYBRIS_X11_TRACE");
+     o->trace = logging && !strcmp(logging, "1");
+     o->base.ops = &ops; o->connection = connection; o->window = window; o->eid = xcb_generate_id(connection);
++    o->dri3 = !xcb_get_extension_data(connection, &extension)->present;
++    o->depth = depth;
+     pthread_mutex_init(&o->mutex, nullptr);
+     pthread_cond_init(&o->work_ready, nullptr); pthread_cond_init(&o->idle, nullptr);
+-    o->events = xcb_register_for_special_xge(connection, &extension, o->eid, nullptr);
++    o->events = xcb_register_for_special_xge(connection, o->dri3 ? &xcb_present_id : &extension, o->eid, nullptr);
+     if (!o->events) { destroy(&o->base); return -ENOMEM; }
+     int result = select(o, TAWC_DRI_EVENT_MASK_CONFIGURE_NOTIFY | TAWC_DRI_EVENT_MASK_BUFFER_RELEASE);
+     if (result) { destroy(&o->base); return result; }
+--- a/hybris/vulkan/icd/wsi.c	2026-11-02 03:15:40
++++ b/hybris/vulkan/icd/wsi.c	2026-11-02 03:15:52
+@@ -551,7 +551,8 @@
+      * BGRA has no equivalent native backing here, so do not advertise a
+      * format-independent OPAQUE guarantee when BGRA is also offered. */
+     capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+-    if (count == 1 && formats[0].format == VK_FORMAT_R8G8B8A8_UNORM)
++    if ((count == 1 && formats[0].format == VK_FORMAT_R8G8B8A8_UNORM) ||
++        (state->window->ops->opaque && state->window->ops->opaque(state->window)))
+         capabilities->supportedCompositeAlpha |= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+     capabilities->supportedUsageFlags = usage;
+     return VK_SUCCESS;

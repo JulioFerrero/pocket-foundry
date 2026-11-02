@@ -11,8 +11,9 @@ class FactorioConfigTest {
                                     "show-particles", "show-item-shadows", "show-inserter-shadows",
                                     "additional-terrain-effects", "high-quality-terrain", "elevated-rail-shadows")
 
-    private fun update(ini: String, keyboard: Boolean = false, panvk: Boolean = false, effects: Boolean? = null) =
-        FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", panvk, effects)
+    private fun update(ini: String, keyboard: Boolean = false, gpuCompression: Boolean = true,
+                       effects: Boolean? = null) =
+        FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", gpuCompression, effects)
 
     /** [key]'s value in [section], or null. */
     private fun value(ini: String, section: String, key: String) = ini.lines()
@@ -90,8 +91,8 @@ class FactorioConfigTest {
         assertEquals("keyboard-and-mouse", value(update("", keyboard = true), "input", "input-method"))
     }
 
-    @Test fun `PanVK turns GPU texture compression off`() {
-        val config = update("", panvk = true)
+    @Test fun `a driver without GPU compression turns it off`() {
+        val config = update("", gpuCompression = false)
         assertEquals("false", value(config, "graphics", "gpu-accelerated-compression"))
         assertEquals("false", value(config, "graphics", "gpu-accelerated-mipmap-compression"))
     }

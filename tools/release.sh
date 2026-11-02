@@ -66,7 +66,7 @@ notes=$out/notes.md
 {
     echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, run without emulation on the phone's GPU."
     echo
-    echo "**Install:** open \`$name\` on the phone (Android 10 or later; Adreno 6xx or newer, another GPU with an imported driver, or any phone on the CPU, slowly), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
+    echo "**Install:** open \`$name\` on the phone (Android 10 or later; Adreno 6xx or newer, other GPUs through the phone's own driver (experimental) or an imported one, or any phone on the CPU, slowly), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
     echo
     echo "**Signing certificate (SHA-256):** \`$ours\`"
     echo
@@ -77,7 +77,7 @@ notes=$out/notes.md
         echo "**First release.** What's in it: see the [README](https://github.com/JulioFerrero/pocket-foundry#readme)."
     fi
     echo
-    echo "**Source:** this release is built from [$tag](https://github.com/JulioFerrero/pocket-foundry/tree/$tag), GPL-3.0. The runtime inside (glibc, Mesa, SDL, Termux:X11's X server) comes from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
+    echo "**Source:** this release is built from [$tag](https://github.com/JulioFerrero/pocket-foundry/tree/$tag), GPL-3.0. The runtime inside (glibc, Mesa, libhybris, SDL, Termux:X11's X server) comes from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
 } > "$notes"
 
 gh release create "$tag" $draft --title "Pocket Foundry $version" --notes-file "$notes" "$out/$name" "$out/$name.sha256"

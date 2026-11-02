@@ -14,13 +14,27 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.updates.Updates
 import app.pocketfoundry.LauncherActivity
-import app.pocketfoundry.ui.kit.*
+import app.pocketfoundry.ui.*
+import app.pocketfoundry.ui.kit.Arrow
+import app.pocketfoundry.ui.kit.Factorio
+import app.pocketfoundry.ui.kit.Frame
+import app.pocketfoundry.ui.kit.MaxHeightScrollView
+import app.pocketfoundry.ui.kit.Tone
+import app.pocketfoundry.ui.kit.add
+import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.ui.kit.button
+import app.pocketfoundry.ui.kit.capped
+import app.pocketfoundry.ui.kit.dpi
+import app.pocketfoundry.ui.kit.heading
+import app.pocketfoundry.ui.kit.label
+import app.pocketfoundry.ui.kit.shown
+import app.pocketfoundry.ui.kit.stack
 import java.io.File
 
 /** Release notes since this version, newest first, and an Update button. Shown on start once per release, and from Settings. */
 class UpdateDialog(private val launcher: LauncherActivity, private val release: Updates.Release) {
     private val updateButton = button(launcher, "Update", Tone.GREEN, Arrow.RIGHT) { launcher.updates.start() }
-    private val status = label(launcher, "", 14f, Factorio.ERROR)
+    private val status = label(launcher, "", 14f, Factorio.ERROR).capped(2)
 
     fun show(onClose: () -> Unit) {
         Settings(launcher).updateShown = release.version

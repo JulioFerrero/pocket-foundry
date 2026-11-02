@@ -59,4 +59,16 @@ class DriversTest {
         for (name in listOf("Mali-G610", "PowerVR B-Series BXM-8-256", "llvmpipe (LLVM 19.1.0, 128 bits)", ""))
             assertFalse(name, Gpu.isSupported(name))
     }
+
+    @Test fun `Turnip on Adreno, the phone's own driver on other GPUs, the CPU without Vulkan`() {
+        assertEquals("zink", Drivers.recommend(adreno = true, vulkan = true) { false })
+        assertEquals("phone", Drivers.recommend(adreno = false, vulkan = true) { false })
+        assertEquals("cpu", Drivers.recommend(adreno = false, vulkan = false) { false })
+    }
+
+    @Test fun `a driver that didn't start is passed over`() {
+        assertEquals("phone", Drivers.recommend(adreno = true, vulkan = true) { it == "zink" })
+        assertEquals("cpu", Drivers.recommend(adreno = false, vulkan = true) { it == "phone" })
+        assertEquals("cpu", Drivers.recommend(adreno = true, vulkan = true) { true })
+    }
 }

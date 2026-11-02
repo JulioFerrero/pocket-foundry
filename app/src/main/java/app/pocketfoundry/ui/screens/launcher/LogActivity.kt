@@ -15,13 +15,12 @@ import android.text.style.StyleSpan
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
-import app.pocketfoundry.core.system.*
+import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
-import app.pocketfoundry.core.system.Paths
-import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.ui.kit.*
 import java.io.File
 
@@ -79,12 +78,12 @@ class LogActivity : Activity() {
     /** What a report needs besides the logs. */
     private val phone by lazy {
         // Imported drivers also show their file name: PanVK builds all report the same Mesa version.
-        val driver = Drivers.all(this).firstOrNull { it.id == Drivers.chosen(this) }
-            ?.let { if (Drivers.imported(this)) "${it.name} (${it.detail.substringAfter(" · ")})" else it.name }
+        val driver = Drivers.find(this, Drivers.chosen(this))
+            ?.let { if (it.imported) "${it.name} (${it.detail.substringAfter(" · ")})" else it.name }
         val facts = listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
-        val options = Settings(this).driverOptions
+        val options = Drivers.options(this, Drivers.chosen(this))
         "── phone ──\n" + facts.joinToString(" · ") + "\n" +
             (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +
             (if (options.isNotEmpty()) "Driver options: $options\n" else "")
