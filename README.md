@@ -28,20 +28,21 @@ Releases are signed with the certificate whose SHA-256 is
 
 ## Phones
 
-Pocket Foundry ships one GPU driver, Turnip, and tests it on Adreno 6xx and newer. Other GPUs can use a community
-driver, made and tested by others, or run the game on the phone's CPU.
+Pocket Foundry picks the driver for the phone's GPU by itself. If it doesn't start, the next game uses the next one.
 
 | GPU | Found in | Runs with |
 |---|---|---|
-| Adreno 6xx and newer | Snapdragon | The bundled driver, tested |
-| Xclipse | Exynos (Galaxy S24, S25) | A community driver |
-| Mali | MediaTek, Google Tensor, older Exynos | A community driver on some, the CPU on the rest |
-| PowerVR | Pixel 10 | The CPU |
+| Adreno 6xx and newer | Snapdragon | Turnip, bundled and tested |
+| Mali | MediaTek, Google Tensor, older Exynos | The phone's own driver (experimental), or a community driver |
+| Xclipse | Exynos (Galaxy S24, S25) | The phone's own driver (experimental), or a community driver |
+| PowerVR | Pixel 10 | The phone's own driver (experimental) |
 | Adreno 5xx and older | Older Snapdragon | The CPU |
 
-**Loads, but slow?** It's probably on the CPU, because the phone has no GPU driver yet. **Settings -> Driver** shows
-which one is in use. [Phones and drivers](docs/phones.md) has the community drivers and the phones people report
-working.
+The phone's own driver is new and only tested on an Adreno so far: reports from Mali, Xclipse and PowerVR phones help.
+
+**Loads, but slow?** It may be on the CPU, where the game ends up when no GPU driver starts. **Settings -> Driver**
+shows which one is in use and how the last game with each went. [Phones and drivers](docs/phones.md) has the
+community drivers and the phones people report working.
 
 ## More
 
@@ -55,7 +56,9 @@ what the Logs screen shows (its Copy button takes it all).
 ## Licence
 
 GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD),
-Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0).
+Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0). The Phone's driver loads through
+[libhybris](https://github.com/taowen/libhybris) (Apache-2.0), whose Vulkan libraries (GPL-3.0) include
+[MaliBridge by ASEbrahim](https://github.com/ASEbrahim/MaliBridge).
 
 Factorio is © Wube Software. Pocket Foundry isn't affiliated with Wube and includes none of its files; the game
 screenshots, the launcher's panels and buttons and the Home screen show art from the player's own copy.

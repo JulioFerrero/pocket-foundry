@@ -1,14 +1,18 @@
 # Phones and drivers
 
-Pocket Foundry draws the game with Mesa's Zink, which runs OpenGL on a Vulkan driver.
+Pocket Foundry draws the game with Mesa's Zink, which runs OpenGL on a Vulkan driver. It picks the driver for the
+phone's GPU by itself, marked Recommended in **Settings -> Driver**:
 
-- **Adreno 6xx and newer:** the bundled driver, Turnip. It's the one Pocket Foundry tests.
-- **Other GPUs:** a community driver, imported in **Settings -> Driver -> Import**. Others make and test them; what's
-  here comes from players' reports, and a driver's bugs belong to its developers.
-- **No driver:** the [CPU](#any-other-phone-the-cpu). It needs no driver, but it's slow.
+- **Adreno 6xx and newer:** the bundled Turnip. It's the one Pocket Foundry tests.
+- **Other GPUs with Vulkan 1.2:** the [Phone's driver](#the-phones-driver-any-gpu), experimental.
+- **A driver that doesn't start:** the next game uses the next one, down to the [CPU](#any-other-phone-the-cpu).
 
-**Loads, but slow?** Check **Settings -> Driver**: CPU there means the phone has no GPU driver yet. That's expected,
-not a bug.
+Picking another driver there keeps it; picking the Recommended one hands the choice back. Community drivers can be
+imported too (**Settings -> Driver -> Import**). Others make and test them; what's here comes from players' reports,
+and a driver's bugs belong to its developers.
+
+**Loads, but slow?** Check **Settings -> Driver**: CPU there means no GPU driver started on the phone. Its Last game
+line says how each driver did.
 
 ## Adreno 6xx and newer (Snapdragon)
 
@@ -18,17 +22,24 @@ A newer Turnip can be imported, such as the `turnip_*_arm64.tar.gz` builds from
 [lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases). Freedreno
 (OpenGL straight on the GPU) is in the same list. If text looks garbled, try Freedreno.
 
+## The Phone's driver (any GPU)
+
+Zink on the Vulkan driver the phone already has, loaded through [libhybris](https://github.com/taowen/libhybris)
+with [MaliBridge](https://github.com/ASEbrahim/MaliBridge)'s fixes for Mali. Mali, PowerVR and Xclipse phones start
+with it. It's experimental: tested only on an Adreno 830 so far, at 60 FPS. If it doesn't start, the next game runs on
+the CPU. How it runs on yours: [open an issue](https://github.com/JulioFerrero/pocket-foundry/issues).
+
 ## Xclipse (Samsung Exynos)
 
-Import `RADV-Xclipse-upstream-Linux.zip` from
+The [Phone's driver](#the-phones-driver-any-gpu) first. Or import `RADV-Xclipse-upstream-Linux.zip` from
 [The412Banner/droiddeck-nonadreno-drivers](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/tag/radv-xclipse-upstream).
 It's a community build of [JimVulkan/radv-xclipse](https://github.com/JimVulkan/radv-xclipse), not made by Pocket
 Foundry.
 
 ## Mali (MediaTek, Google Tensor, older Exynos)
 
-Malis need a community driver, PanVK, imported in **Settings -> Driver -> Import**. Which one depends on the Mali.
-Set **Sprite quality** to Medium.
+Malis start on the [Phone's driver](#the-phones-driver-any-gpu). The community driver, PanVK, can be imported in
+**Settings -> Driver -> Import**; which one depends on the Mali. Set **Sprite quality** to Medium.
 
 | Mali | Driver | |
 |---|---|---|
@@ -46,13 +57,13 @@ Status and reports: [Mali GPUs](https://github.com/JulioFerrero/pocket-foundry/i
 
 ## PowerVR and Adreno 5xx
 
-PowerVR (Pixel 10) has no driver that works here yet. Adreno 5xx and older can't run Turnip, and their kernels lack
-what freedreno needs. Both can use the [CPU](#any-other-phone-the-cpu).
+PowerVR (Pixel 10) starts on the [Phone's driver](#the-phones-driver-any-gpu), untested there so far. Adreno 5xx and
+older can't run Turnip, and their kernels lack what freedreno needs: they use the [CPU](#any-other-phone-the-cpu).
 
 ## Any other phone: the CPU
 
 **CPU** in **Settings -> Driver** draws the game on the phone's processor with Mesa's llvmpipe, no GPU driver
-needed. Phones without a GPU driver start with it. It's experimental: slow, and it uses a lot of battery. How fast it
+needed. Phones where no GPU driver starts end up on it. It's experimental: slow, and it uses a lot of battery. How fast it
 runs depends on the processor, not on Pocket Foundry.
 
 Choosing it also sets Medium sprites, **Graphics: Light** (Factorio's smoke, clouds, decoratives, shadows and terrain
@@ -90,6 +101,6 @@ screen's Copy.
 - Linux (glibc) builds only. Android builds (AdrenoTools, Winlator, emulator packages) can't load in the game.
 - A `.tar.gz`, `.tar.xz`, `.zip` or the `.so` alone. Libraries in the package come along.
 - Pocket Foundry checks that the driver loads before keeping it.
-- **Options** passes `NAME=value` settings to the driver (`PANVK_DEBUG=…`, `TU_DEBUG=…`). Logs shows them.
+- Each driver's **Options** pass `NAME=value` settings to it (`PANVK_DEBUG=…`, `TU_DEBUG=…`). Logs shows them.
 
 ![Choosing the graphics driver](screenshots/driver.jpg)

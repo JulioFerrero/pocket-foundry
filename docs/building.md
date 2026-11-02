@@ -17,10 +17,10 @@
 ## Building
 
 ```sh
-tools/setup.sh                               # Termux:X11 with Pocket Foundry's patches
-runtime/build.sh glibc mesa sdl wm assemble  # the Linux runtime, built in Docker
-tools/build.sh                               # the debug APK
-tools/build.sh :app:assembleRelease          # the release APK
+tools/setup.sh                                       # Termux:X11 with Pocket Foundry's patches
+runtime/build.sh glibc mesa sdl wm hybris assemble   # the Linux runtime, built in Docker
+tools/build.sh                                       # the debug APK
+tools/build.sh :app:assembleRelease                  # the release APK
 ```
 
 Builds are signed with Pocket Foundry's key when `../pocketfoundry-keys/keystore.properties` exists (or
@@ -31,8 +31,8 @@ key. `tools/icon_png.py` regenerates the icon.
 
 Open fronts, beyond testing on your phone:
 
-- **Mali, PowerVR and Xclipse GPUs.** The likeliest path for all three is a wrapper over the phone's own Vulkan
-  driver, which DroidDeck is building for the same kind of Linux-on-Android setup.
+- **Mali, PowerVR and Xclipse GPUs.** The Phone's driver (Zink on the phone's own Vulkan driver, through libhybris)
+  is how all three start now. It needs testing on them.
 - **Other Adreno generations:** which Turnip works on each.
 - **Other screens:** foldables, 4:3, tablets, and the on-screen controls on them.
 - **Other Android skins:** how each treats a game running in the background.
