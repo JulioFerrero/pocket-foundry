@@ -7,9 +7,9 @@ import android.graphics.Path
 import android.graphics.PathEffect
 import android.graphics.PathMeasure
 import android.graphics.RectF
+import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.PI
 import kotlin.math.sin
 
 /**

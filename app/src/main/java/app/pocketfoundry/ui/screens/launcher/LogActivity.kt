@@ -1,8 +1,8 @@
 package app.pocketfoundry.ui.screens.launcher
 
 import android.app.Activity
-import android.content.ClipboardManager
 import android.content.ClipData
+import android.content.ClipboardManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
