@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android's game modes (Android 13+): no downscaling or frame rate override from the system. Settings has the
+     game's resolution and frame rate, and Termux:X11's surface keeps the size the game draws at. -->
+<game-mode-config xmlns:android="http://schemas.android.com/apk/res/android"
+    android:allowGameDownscaling="false"
+    android:allowGameFpsOverride="false" />

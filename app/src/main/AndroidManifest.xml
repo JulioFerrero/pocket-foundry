@@ -13,12 +13,18 @@
     <!-- Settings' Update: a newer release from GitHub, through Android's installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- A game to Android and to the phone makers' game modes and launchers. -->
     <application
         android:name=".PocketFoundryApp"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
+        android:appCategory="game"
         tools:replace="android:name">
+
+        <meta-data
+            android:name="android.game_mode_config"
+            android:resource="@xml/game_mode_config" />
 
         <activity
             android:name=".LauncherActivity"
