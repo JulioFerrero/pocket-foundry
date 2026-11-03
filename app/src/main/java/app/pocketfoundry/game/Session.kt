@@ -41,6 +41,9 @@ object Session {
                                    "Factorio crashed")
     /** Exit statuses above this are 128 plus the signal that killed the process. */
     private const val SIGNALLED = 128
+    private val SIGNALS = mapOf(OsConstants.SIGILL to "SIGILL", OsConstants.SIGABRT to "SIGABRT",
+                                OsConstants.SIGBUS to "SIGBUS", OsConstants.SIGKILL to "SIGKILL",
+                                OsConstants.SIGSEGV to "SIGSEGV", OsConstants.SIGTERM to "SIGTERM")
 
     @Volatile var state = State.STOPPED
         private set
@@ -90,6 +93,7 @@ object Session {
     fun pause() {
         if (state != State.RUNNING) return
         Os.kill(gamePid, OsConstants.SIGSTOP)
+        ScreenLog.add("game paused: the app is in the background")
         setState(State.PAUSED)
     }
 
@@ -97,6 +101,7 @@ object Session {
     fun resume() {
         if (state != State.PAUSED) return
         Os.kill(gamePid, OsConstants.SIGCONT)
+        ScreenLog.add("game resumed")
         setState(State.RUNNING)
     }
 
@@ -141,6 +146,7 @@ object Session {
         game = started
         gamePid = Glibc.childPid(command.first())
         ScreenLog.add("game started")
+        if (Settings(context).detailedLogs) DetailedLogs.watchMemory(started, gamePid)
         lastFailure = null
         noWindow = false
         windowOpened = false
@@ -156,8 +162,11 @@ object Session {
         // Mesa's own counter, drawn into the game's frames, whichever driver draws them.
         val fpsCounter = if (Settings(context).fpsCounter) mapOf("GALLIUM_HUD" to "simple,fps") else emptyMap()
         return Drivers.environment(paths, driver) + ("SDL_VIDEO_X11_SCALING_FACTOR" to uiScale) + fpsCounter +
-               Drivers.options(context) + DebugEnv.read(context, "game")
+               detailedLogs(context) + Drivers.options(context) + DebugEnv.read(context, "game")
     }
+
+    private fun detailedLogs(context: Context) =
+        if (Settings(context).detailedLogs) DetailedLogs.environment else emptyMap()
 
     /** Termux:X11's X server, which the game screen (Termux:X11's activity) connects to. Returns once it listens. */
     private fun startXServer(context: Context, paths: Paths) {
@@ -172,10 +181,12 @@ object Session {
             put("TMPDIR", paths.tmp.path)
             put("XKB_CONFIG_ROOT", File(paths.prefix, "share/X11/xkb").path)
             put("XLORIE_LIB", paths.xlorie.path)
+            putAll(detailedLogs(context))
             putAll(DebugEnv.read(context, "x11"))
         }
-        val server = pb.redirectErrorStream(true).redirectOutput(paths.x11Log).start()
+        val server = pb.redirectErrorStream(true).start()
         xServer = server
+        keepXServerLog(server, paths.x11Log)
         val deadline = System.currentTimeMillis() + X_START_TIMEOUT_MS
         while (!paths.xSocket.exists()) {
             if (!server.isAlive) throw IOException("The X server exited; see logs/x11.log")
@@ -185,10 +196,25 @@ object Session {
         ScreenLog.add("X server started")
     }
 
+    /** The X server's output into x11.log, but its frame lines (Detailed logs) into screen.log beside the screen's. */
+    private fun keepXServerLog(server: Process, log: File) = thread(name = "pocketfoundry-x11-log", isDaemon = true) {
+        log.printWriter().use { out ->
+            server.inputStream.bufferedReader().forEachLine {
+                if (it.startsWith("frames: ")) ScreenLog.add(it)
+                else {
+                    out.println(it)
+                    out.flush()
+                }
+            }
+        }
+    }
+
     @Synchronized
     private fun onGameExit(context: Context, driver: String, process: Process, status: Int) {
         if (process !== game) return
-        ScreenLog.add("game exited ($status)")
+        val signal = SIGNALS[status - SIGNALLED]?.let { ", killed by $it" + if (noWindow) " as it opened no window" else "" } ?: ""
+        val memory = DetailedLogs.takeLastMemory()?.takeIf { status != 0 }?.let { "; last memory: $it" } ?: ""
+        ScreenLog.add("game exited ($status$signal)$memory")
         val quitting = state == State.QUITTING
         wm?.destroy()
         xServer?.destroy()
@@ -298,14 +324,19 @@ object ScreenLog {
     @Volatile var announced = false
         private set
 
-    /** Termux:X11's screen writes to the app's stderr whether it can show each buffer it gets (third_party patch 0010). */
+    /**
+     * Termux:X11's screen writes to the app's stderr whether it can show each buffer it gets (third_party patch 0010)
+     * and, with detailed logs, what it draws (0011).
+     */
     init {
         runCatching {
             val (read, write) = Os.pipe()
             Os.dup2(write, OsConstants.STDERR_FILENO)
             Os.close(write)
             thread(isDaemon = true, name = "screen stderr") {
-                FileInputStream(read).bufferedReader().forEachLine { if (it.startsWith("buffer ")) add(it) }
+                FileInputStream(read).bufferedReader().forEachLine {
+                    if (it.startsWith("buffer ") || it.startsWith("screen: ")) add(it)
+                }
             }
         }
     }

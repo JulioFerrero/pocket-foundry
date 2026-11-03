@@ -1,0 +1,93 @@
+--- a/src/gallium/drivers/zink/zink_kopper.c
++++ b/src/gallium/drivers/zink/zink_kopper.c
+@@ -30,7 +30,67 @@
+ #include "zink_resource.h"
+ #include "zink_kopper.h"
+ 
++#include <inttypes.h>
++#include "util/os_time.h"
++
++/* Pocket Foundry's Detailed logs, from POCKETFOUNDRY_DETAILED_LOGS in the environment. */
++static bool
++detailed_logs(void)
++{
++   static int enabled = -1;
++   if (enabled < 0)
++      enabled = getenv("POCKETFOUNDRY_DETAILED_LOGS") != NULL;
++   return enabled;
++}
++
++/* Detailed logs: every 5 s while the game presents, its frame rate and the GPU memory in use against the driver's
++ * budget, when either moved. A pause starts a new count. */
+ static void
++log_presents(struct zink_screen *screen)
++{
++   static int64_t since, last_present;
++   static unsigned frames, last_rate = UINT_MAX;
++   static uint64_t last_used = UINT64_MAX;
++   int64_t now = os_time_get_nano();
++   if (now - last_present > 1000000000ll) {
++      since = now;
++      frames = 0;
++   }
++   last_present = now;
++   frames++;
++   if (now - since < 5000000000ll)
++      return;
++   unsigned rate = (frames * 1000000000ull + (now - since) / 2) / (now - since);
++   uint64_t used = 0, budget = 0;
++   if (screen->info.have_EXT_memory_budget && VKSCR(GetPhysicalDeviceMemoryProperties2)) {
++      VkPhysicalDeviceMemoryBudgetPropertiesEXT heaps = {
++         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT,
++      };
++      VkPhysicalDeviceMemoryProperties2 props = {
++         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
++         .pNext = &heaps,
++      };
++      VKSCR(GetPhysicalDeviceMemoryProperties2)(screen->pdev, &props);
++      for (unsigned i = 0; i < props.memoryProperties.memoryHeapCount; i++) {
++         used += heaps.heapUsage[i] >> 20;
++         budget += heaps.heapBudget[i] >> 20;
++      }
++   }
++   if (abs((int)rate - (int)last_rate) >= 3 || last_used == UINT64_MAX ||
++       (used > last_used ? used - last_used : last_used - used) >= 64) {
++      if (budget)
++         fprintf(stderr, "zink: %u frames/s presented, GPU memory %" PRIu64 " of %" PRIu64 " MB budget\n",
++                 rate, used, budget);
++      else
++         fprintf(stderr, "zink: %u frames/s presented\n", rate);
++      last_rate = rate;
++      last_used = used;
++   }
++   frames = 0;
++   since = now;
++}
++
++static void
+ zink_kopper_set_present_mode_for_interval(struct kopper_displaytarget *cdt, int interval)
+ {
+ #if DETECT_OS_WINDOWS
+@@ -384,6 +444,10 @@
+        return NULL;
+    }
+    cswap->last_present = UINT32_MAX;
++   if (detailed_logs())
++      fprintf(stderr, "zink: swapchain %ux%u, %u images or more, %s\n", cswap->scci.imageExtent.width,
++              cswap->scci.imageExtent.height, cswap->scci.minImageCount,
++              vk_PresentModeKHR_to_str(cswap->scci.presentMode));
+ 
+    *result = VK_SUCCESS;
+    return cswap;
+@@ -841,6 +905,11 @@
+       p_atomic_dec(&swapchain->num_acquires);
+    if (error2 == VK_SUBOPTIMAL_KHR && cdt->swapchain == swapchain)
+       cpi->res->obj->new_dt = true;
++   /* Pocket Foundry: a frame that doesn't reach the screen says why. */
++   if (error2 != VK_SUCCESS && error2 != VK_SUBOPTIMAL_KHR)
++      mesa_loge("zink: vkQueuePresentKHR failed with %s", vk_Result_to_str(error2));
++   else if (detailed_logs())
++      log_presents(screen);
+ 
+    /* with implicit sync, the submit above already waited on the semaphore */
+    if (!cpi->info.waitSemaphoreCount)
