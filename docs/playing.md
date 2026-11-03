@@ -59,6 +59,9 @@ still works as the mouse too.
   roughly halves what the phone draws. Full puts them back.
 - **Driver:** see [Phones and drivers](phones.md).
 - **FPS counter** in the game's top-left corner.
+- **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen, the game's
+  memory and every graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
+  the problem shows, then copy the Logs.
 - **Check for updates:** see below.
 - Pausing in the background, and vibration.
 

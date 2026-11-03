@@ -90,6 +90,7 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
     override fun onActivityResumed(activity: Activity) {
         if (activity !is MainActivity) return
         resumed = activity
+        ScreenLog.add("game screen shown")
         applyRefreshRate(activity)
         val screen = screens[activity]
         screen?.border?.apply()
@@ -107,6 +108,7 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityPaused(activity: Activity) {
+        if (activity is MainActivity) ScreenLog.add("game screen hidden")
         if (resumed === activity) resumed = null
         screens[activity]?.pause()
     }

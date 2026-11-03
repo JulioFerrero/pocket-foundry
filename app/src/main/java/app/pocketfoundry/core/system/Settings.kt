@@ -17,6 +17,8 @@ class Settings(private val context: Context) {
     var vibration by prefs.bool("vibration", true)
     var checkForUpdates by prefs.bool("checkForUpdates", true)
     var fpsCounter by prefs.bool("fpsCounter", false)
+    /** Every layer between the game and the screen logs what happens to the frames, and the game's memory is watched. */
+    var detailedLogs by prefs.bool("detailedLogs", false)
     /** The release whose What's new already showed on start: it shows once. */
     var updateShown by prefs.string("updateShown", "")
     var border by prefs.int("border", 0)

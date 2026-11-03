@@ -4,6 +4,7 @@ import android.content.Intent
 import app.pocketfoundry.core.game.DebugPad
 import app.pocketfoundry.ui.screens.game.GameScreens
 import app.pocketfoundry.core.game.ScreenLog
+import app.pocketfoundry.core.game.Session
 import com.termux.x11.CmdEntryPoint
 import com.termux.x11.LorieApp
 import com.termux.x11.MainActivity
@@ -14,6 +15,12 @@ class PocketFoundryApp : LorieApp() {
         super.onCreate()
         GameScreens.install(this)
         DebugPad.registerIfDebuggable(this)
+    }
+
+    /** Android's memory warnings during a game: next to how the game ended, they say whether memory ended it. */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (Session.inGame && level != TRIM_MEMORY_UI_HIDDEN) ScreenLog.add("Android asks to free memory (trim level $level)")
     }
 
     // Keeps Termux:X11 from posting its own notification: GameService shows ours.

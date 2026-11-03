@@ -1,0 +1,225 @@
+--- a/lorie/src/main/cpp/lorie/InitOutput.c
++++ b/lorie/src/main/cpp/lorie/InitOutput.c
+@@ -25,6 +25,8 @@
+ #include <dri3.h>
+ #include <sys/stat.h>
+ #include <dlfcn.h>
++#include <stdarg.h>
++#include <stdio.h>
+ #include "fb.h"
+ #include "inputstr.h"
+ #include "mipointer.h"
+@@ -48,7 +50,25 @@
+ extern void android_shmem_sysv_shm_force(uint8_t enable);
+ 
+ #define unused __attribute__((unused))
+-#define log(prio, ...) __android_log_print(ANDROID_LOG_ ## prio, "LorieNative", __VA_ARGS__)
++#define log(prio, ...) lorieLog(ANDROID_LOG_ ## prio, __VA_ARGS__)
++
++/* Pocket Foundry's Detailed logs: the log goes to stderr too, which the app keeps in x11.log. */
++static Bool lorieDetailedLogs = FALSE;
++/* Detailed logs' frames: the game's that the X server passed to the renderer, and how many of them were flips. */
++static int lorieUpdatedFrames = 0, lorieFlippedFrames = 0;
++
++static void lorieLog(int prio, const char *format, ...) {
++    va_list args;
++    va_start(args, format);
++    __android_log_vprint(prio, "LorieNative", format, args);
++    va_end(args);
++    if (lorieDetailedLogs) {
++        va_start(args, format);
++        vfprintf(stderr, format, args);
++        va_end(args);
++        fputc('\n', stderr);
++    }
++}
+ 
+ extern DeviceIntPtr lorieMouse, lorieKeyboard;
+ 
+@@ -151,6 +171,7 @@
+         return;
+ 
+     lorieServerDebugEnabled = getenv("TERMUX_X11_DEBUG") != NULL;
++    lorieDetailedLogs = getenv("POCKETFOUNDRY_DETAILED_LOGS") != NULL;
+ 
+     if (-1 == (lorieScreen.stateFd = LorieBuffer_createRegion("xserver", sizeof(*lorieScreen.state)))) {
+         dprintf(2, "FATAL: Failed to allocate server state.\n");
+@@ -169,6 +190,7 @@
+     pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
+     // Hidden until a real mouse moves: touch never shows it (Pocket Foundry).
+     lorieScreen.state->cursor.visible = FALSE;
++    lorieScreen.state->detailedLogs = lorieDetailedLogs;
+ 
+     lorieListenForKnocks(documentTag ? DOCUMENT_PORT_BASE + atoi(display) : PORT, documentTag);
+ }
+@@ -313,7 +335,7 @@
+ }
+ 
+ void OsVendorFatalError(unused const char *f, unused va_list args) {
+-    log(ERROR, f, args);
++    __android_log_vprint(ANDROID_LOG_ERROR, "LorieNative", f, args);
+ }
+ 
+ #if defined(DDXBEFORERESET)
+@@ -595,6 +617,7 @@
+ 
+         DamageEmpty(pvfb->damage);
+         pvfb->state->drawRequested = TRUE;
++        lorieUpdatedFrames++;
+     }
+ 
+     if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
+@@ -613,14 +636,31 @@
+ static uint64_t gpuCopyAttempts = 0, gpuCopyOffloads = 0;
+ static uint64_t gpuCopyFallbackRects = 0, gpuCopyFallbackQueueFull = 0, gpuCopyFallbackOther = 0;
+ 
++/* Each frame's way to the screen, a line whenever a rate moves: the game's frames that reached the X server (flips
++ * among them) and the frames the renderer drew. The app copies these lines into screen.log. */
++static void lorieLogFrames(int updated, int flipped, int drawn, Bool surface) {
++    static int lastUpdated = -1, lastFlipped = -1, lastDrawn = -1, lastSurface = -1;
++#define MOVED(now, last) (abs((now) - (last)) >= 3 || ((now) == 0) != ((last) == 0))
++    if (!MOVED(updated, lastUpdated) && !MOVED(flipped, lastFlipped) && !MOVED(drawn, lastDrawn) && surface == lastSurface)
++        return;
++#undef MOVED
++    lastUpdated = updated, lastFlipped = flipped, lastDrawn = drawn, lastSurface = surface;
++    fprintf(stderr, "frames: %d/s from the game (%d/s flipped), %d/s drawn on screen%s\n", updated, flipped, drawn,
++            surface ? "" : ", no screen surface");
++}
++
+ static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
+     if (pvfb->state->renderedFrames || gpuCopyAttempts)
+-        log(INFO, gpuCopyAttempts ? "%d frames in 5.0 seconds = %.1f FPS, %llu/%llu present copies offloaded to GPU (CPU fallback: %llu too many rects, %llu queue full, %llu other)"
++        __android_log_print(ANDROID_LOG_INFO, "LorieNative", gpuCopyAttempts ? "%d frames in 5.0 seconds = %.1f FPS, %llu/%llu present copies offloaded to GPU (CPU fallback: %llu too many rects, %llu queue full, %llu other)"
+                                    : "%d frames in 5.0 seconds = %.1f FPS",
+             pvfb->state->renderedFrames, ((float) pvfb->state->renderedFrames) / 5,
+             (unsigned long long) gpuCopyOffloads, (unsigned long long) gpuCopyAttempts,
+             (unsigned long long) gpuCopyFallbackRects, (unsigned long long) gpuCopyFallbackQueueFull,
+             (unsigned long long) gpuCopyFallbackOther);
++    if (lorieDetailedLogs)
++        lorieLogFrames((lorieUpdatedFrames + 2) / 5, (lorieFlippedFrames + 2) / 5, (pvfb->state->renderedFrames + 2) / 5,
++                       pvfb->state->surfaceAvailable);
++    lorieUpdatedFrames = lorieFlippedFrames = 0;
+     pvfb->state->renderedFrames = 0;
+     gpuCopyAttempts = gpuCopyOffloads = 0;
+     gpuCopyFallbackRects = gpuCopyFallbackQueueFull = gpuCopyFallbackOther = 0;
+@@ -1120,6 +1160,7 @@
+         return FALSE;
+ 
+     lorieRegisterBuffer(priv->buffer);
++    lorieFlippedFrames++;
+     return TRUE;
+ }
+ 
+@@ -1283,7 +1324,7 @@
+     if (modifier == DRM_FORMAT_MOD_INVALID || modifier == DRM_FORMAT_MOD_LINEAR || modifier == RAW_MMAPPABLE_FD) {
+         check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, strides[0]/4, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
+         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], NULL);
+-        if (lorieServerDebugEnabled)
++        if (lorieServerDebugEnabled || lorieDetailedLogs)
+             log(INFO, "DRI3: imported raw fd, modifier %llu, %ux%u stride %u", (unsigned long long) modifier, width, height, strides[0]);
+         return pixmap;
+     }
+@@ -1315,7 +1356,7 @@
+         LorieBuffer_unlock(priv->buffer);
+ 
+         screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, desc.stride * 4, NULL);
+-        if (lorieServerDebugEnabled)
++        if (lorieServerDebugEnabled || lorieDetailedLogs)
+             log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u%s", (unsigned long long) modifier, desc.width, desc.height, desc.stride, priv->gpuOnly ? ", not lockable" : "");
+     }
+ 
+--- a/lorie/src/main/cpp/lorie/lorie.h
++++ b/lorie/src/main/cpp/lorie/lorie.h
+@@ -266,6 +266,10 @@
+         // Signals to renderer to update cursor's texture or its coordinates
+         volatile uint8_t updated, moved, visible;
+     } cursor;
++
++    /* Pocket Foundry's Detailed logs, from POCKETFOUNDRY_DETAILED_LOGS in the X server's environment: the renderer
++     * then writes its log to stderr too. */
++    volatile uint8_t detailedLogs;
+ };
+ 
+ #ifdef __cplusplus
+--- a/lorie/src/main/cpp/lorie/renderer.cpp
++++ b/lorie/src/main/cpp/lorie/renderer.cpp
+@@ -36,14 +36,51 @@
+ #include <sys/syscall.h>
+ #include <linux/futex.h>
+ #include <unistd.h>
++#include <pthread.h>
++#include <stdarg.h>
++#include <stdio.h>
+ #include "list.h"
+ #include "lorie.h"
+ 
+ // libEGL exports this only since API 26, weak so the library still loads below that.
+ __attribute__((weak)) EGLClientBuffer eglGetNativeClientBufferANDROID(const struct AHardwareBuffer* buffer);
+ 
+-#define log(...) __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__)
+-#define loge(...) __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__)
++#define log(...) do { \
++    __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", __VA_ARGS__); \
++    if (detailedLogs) screenLog(__VA_ARGS__); \
++} while (0)
++#define loge(...) do { \
++    __android_log_print(ANDROID_LOG_ERROR, "gles-renderer", __VA_ARGS__); \
++    if (detailedLogs) screenLog(__VA_ARGS__); \
++} while (0)
++
++/* Pocket Foundry's Detailed logs, which the X server turns on through the shared state: the log goes to stderr too,
++ * where the app keeps "screen: " lines in screen.log. A line that repeats the one before is counted, not written. */
++static volatile bool detailedLogs = false;
++
++static void screenLog(const char* format, ...) {
++    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
++    static char last[256];
++    static int repeats;
++    char line[256];
++    va_list args;
++    va_start(args, format);
++    vsnprintf(line, sizeof(line), format, args);
++    va_end(args);
++    line[strcspn(line, "\n")] = 0;
++
++    pthread_mutex_lock(&lock);
++    if (!strcmp(line, last))
++        repeats++;
++    else {
++        if (repeats)
++            fprintf(stderr, "screen: (the line before %d more times)\n", repeats);
++        fprintf(stderr, "screen: %s\n", line);
++        strcpy(last, line);
++        repeats = 0;
++    }
++    pthread_mutex_unlock(&lock);
++}
+ 
+ static constexpr EGLTimeKHR FENCE_TIMEOUT_NANOS = 100000000;
+ 
+@@ -971,7 +1008,7 @@
+                 float v1 = (float) r.y2 / (float) srcDesc->height;
+                 // Only swap channels if src/dst storage formats actually differ.
+                 uint8_t needsSwizzle = LorieBuffer_isRgba(src) != LorieBuffer_isRgba(dst);
+-                log("rendererApplyPendingGpuCopies: rect (%d,%d)-(%d,%d) off=(%d,%d) -> ndc=(%.3f,%.3f)-(%.3f,%.3f) uv=(%.3f,%.3f)-(%.3f,%.3f) srcTex=%u dstTex=%u swizzle=%d\n",
++                __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", "rendererApplyPendingGpuCopies: rect (%d,%d)-(%d,%d) off=(%d,%d) -> ndc=(%.3f,%.3f)-(%.3f,%.3f) uv=(%.3f,%.3f)-(%.3f,%.3f) srcTex=%u dstTex=%u swizzle=%d\n",
+                     r.x1, r.y1, r.x2, r.y2, entry.xOff, entry.yOff, x0, y0, x1, y1, u0, v0, u1, v1,
+                     LorieBuffer_getGLTextureId(src), LorieBuffer_getGLTextureId(dst), needsSwizzle);
+                 drawRegion(0, x0, y0, x1, y1, u0, v0, u1, v1, needsSwizzle);
+@@ -1188,7 +1225,7 @@
+     glFlush();
+ 
+     if (state->cursor.updated) {
+-        log("Xlorie: updating cursor\n");
++        __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", "Xlorie: updating cursor\n");
+         lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid, connFd());
+         state->cursor.updated = false;
+         bindTexture(cursor.id);
+@@ -1275,6 +1312,7 @@
+             state = pendingState;
+             pendingState = nullptr;
+             stateChanged = false;
++            detailedLogs = state && state->detailedLogs;
+             waitingForBuffers = false;
+ 
+             if (state)
