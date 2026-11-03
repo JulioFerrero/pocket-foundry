@@ -99,7 +99,7 @@ class LogActivity : Activity() {
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
         val options = Drivers.options(this, played)
-        val checked = DriverCheck.summary(DriverCheck.off(this, played), DriverCheck.transcodes(this, played))
+        val checked = DriverCheck.summary(this, played)
         val formats = Gpu.textureFormats.joinToString(", ").ifEmpty { "none" }
         val settings = Settings(this)
         fun onOff(on: Boolean) = if (on) "on" else "off"

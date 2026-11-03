@@ -2,6 +2,7 @@ package app.pocketfoundry.core.drivers
 
 import app.pocketfoundry.core.drivers.DriverCheck.Found
 import app.pocketfoundry.core.drivers.DriverCheck.Result
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -44,5 +45,19 @@ class DriverCheckTest {
         val tried = mutableListOf<List<String>>()
         assertEquals(Found.Failed, DriverCheck.search { tried += it; if (it.isEmpty()) Result.WRONG else Result.FAILED })
         assertEquals(2, tried.size)
+    }
+
+    @Test fun `a driver that draws right as it is changes nothing`() {
+        assertEquals("", DriverCheck.summary(JSONObject().put("off", "").put("transcode", false)))
+    }
+
+    @Test fun `the summary names what's off and whether textures stay compressed`() {
+        val saved = JSONObject().put("off", "$eds2,$eds1").put("transcode", true).put("failed", false)
+        assertEquals("$eds2, $eds1 off · compressed textures kept compressed", DriverCheck.summary(saved))
+    }
+
+    @Test fun `a check that couldn't draw is remembered as that`() {
+        val saved = JSONObject().put("off", "").put("transcode", false).put("failed", true)
+        assertEquals("the test couldn't draw", DriverCheck.summary(saved))
     }
 }

@@ -48,7 +48,10 @@ object DriverCheck {
         data class Right(val off: List<String>) : Found
         /** Wrong whatever was off. */
         data object Wrong : Found
-        /** Didn't draw at all, and neither will the game: that's for the driver's game outcome to tell. */
+        /**
+         * Didn't draw at all, and the game likely won't either: that's for the driver's game outcome to tell. Games run
+         * with everything on, without checking again first.
+         */
         data object Failed : Found
     }
 
@@ -70,24 +73,22 @@ object DriverCheck {
         if (!Drivers.usesZink(driver) || HIDE in environment) return environment
         val version = version(driver)
         val saved = saved(context, driver)?.takeIf { it.optString("version") == version }
-        val found = saved ?: check(context, paths, driver, environment, version) ?: return environment
-        val off = offIn(found)
+        val found = saved ?: check(context, paths, driver, environment, version)
+        if (saved != null) summary(saved).takeIf { it.isNotEmpty() }?.let { ScreenLog.add("driver check: $it") }
         val transcoded = found.optBoolean("transcode")
-        if (saved != null && (off.isNotEmpty() || transcoded))
-            ScreenLog.add("driver check: " + summary(off, transcoded))
-        return hiding(environment, off) + if (transcoded) mapOf(TRANSCODER to "1") else emptyMap()
+        return hiding(environment, offIn(found)) + if (transcoded) mapOf(TRANSCODER to "1") else emptyMap()
     }
-
-    /** What the last check turned off for [driver]. */
-    fun off(context: Context, driver: String): List<String> = saved(context, driver)?.let(::offIn).orEmpty()
 
     /** Whether the last check found [driver] draws the game's compressed textures right through the transcoder. */
     fun transcodes(context: Context, driver: String) = saved(context, driver)?.optBoolean("transcode") == true
 
-    /** What the check changes for games on a driver, in a line. */
-    fun summary(off: List<String>, transcoded: Boolean) = listOfNotNull(
-        off.takeIf { it.isNotEmpty() }?.let { it.joinToString(", ") + " off" },
-        "compressed textures kept compressed".takeIf { transcoded },
+    /** What the last check of [driver] changes for its games, in a line: empty when nothing. */
+    fun summary(context: Context, driver: String) = saved(context, driver)?.let(::summary).orEmpty()
+
+    internal fun summary(saved: JSONObject) = listOfNotNull(
+        "the test couldn't draw".takeIf { saved.optBoolean("failed") },
+        offIn(saved).takeIf { it.isNotEmpty() }?.let { it.joinToString(", ") + " off" },
+        "compressed textures kept compressed".takeIf { saved.optBoolean("transcode") },
     ).joinToString(" · ")
 
     private fun offIn(saved: JSONObject) = saved.optString("off").split(',').filter { it.isNotEmpty() }
@@ -100,9 +101,9 @@ object DriverCheck {
         Settings(context).driverChecks = "{}"
     }
 
-    /** Checks [driver] and remembers what it found, or returns null when the check couldn't draw. */
+    /** Checks [driver] and remembers what it found. */
     private fun check(context: Context, paths: Paths, driver: String, environment: Map<String, String>,
-                      version: String): JSONObject? {
+                      version: String): JSONObject {
         ScreenLog.add("driver check: drawing a test picture")
         paths.driverCheckLog.writeText("")
         val found = search { step ->
@@ -114,17 +115,13 @@ object DriverCheck {
                               else "the test picture is right only with ${found.off.joinToString(", ")} off: " +
                                    "games on this driver run that way"
             Found.Wrong -> "the test picture is wrong whatever is off: games run with everything on"
-            Found.Failed -> "the test couldn't draw (drivercheck.log)"
+            Found.Failed -> "the test couldn't draw (drivercheck.log): games on this driver run with everything on"
         })
-        // A driver that's wrong whatever is off is remembered too, so it isn't checked before every game.
-        val off = when (found) {
-            is Found.Right -> found.off
-            Found.Wrong -> emptyList()
-            Found.Failed -> return null
-        }
+        // Wrong or failed is remembered too, so a driver isn't checked before every game, nor waited on when it hangs.
+        val off = (found as? Found.Right)?.off.orEmpty()
         val transcoded = found is Found.Right && Drivers.transcodable(driver) &&
                          transcoderDraws(paths, driver, hiding(environment, off))
-        return save(context, driver, version, off, transcoded)
+        return save(context, driver, version, off, transcoded, failed = found == Found.Failed)
     }
 
     /** Whether the game's compressed textures draw right through the transcoder, on top of what's off. */
@@ -161,10 +158,11 @@ object DriverCheck {
     private fun saved(context: Context, driver: String): JSONObject? =
         json(Settings(context).driverChecks).optJSONObject(driver)
 
-    private fun save(context: Context, driver: String, version: String, off: List<String>,
-                     transcoded: Boolean): JSONObject {
+    private fun save(context: Context, driver: String, version: String, off: List<String>, transcoded: Boolean,
+                     failed: Boolean): JSONObject {
         val settings = Settings(context)
         val result = JSONObject().put("version", version).put("off", off.joinToString(",")).put("transcode", transcoded)
+            .put("failed", failed)
         settings.driverChecks = json(settings.driverChecks).put(driver, result).toString()
         return result
     }
