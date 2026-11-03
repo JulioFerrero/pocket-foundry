@@ -1,7 +1,6 @@
-package app.pocketfoundry.game
+package app.pocketfoundry.core.game
 
 import app.pocketfoundry.core.drivers.Drivers.Compression
-import app.pocketfoundry.core.game.FactorioConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

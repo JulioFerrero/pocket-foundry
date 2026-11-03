@@ -1,4 +1,4 @@
-package app.pocketfoundry.saves
+package app.pocketfoundry.core.saves
 
 import app.pocketfoundry.core.saves.GameFilesProvider.Companion.isPlainName
 import app.pocketfoundry.core.saves.GameFilesProvider.Companion.numberedName

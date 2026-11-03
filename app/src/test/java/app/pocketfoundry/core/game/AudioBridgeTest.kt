@@ -1,6 +1,5 @@
-package app.pocketfoundry.game
+package app.pocketfoundry.core.game
 
-import app.pocketfoundry.core.game.AudioBridge
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test

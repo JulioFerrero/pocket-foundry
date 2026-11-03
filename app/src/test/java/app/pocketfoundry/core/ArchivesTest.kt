@@ -1,4 +1,4 @@
-package app.pocketfoundry
+package app.pocketfoundry.core
 
 import app.pocketfoundry.core.system.MIB
 import app.pocketfoundry.core.system.NativeXzInputStream

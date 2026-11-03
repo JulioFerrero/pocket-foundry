@@ -1,4 +1,4 @@
-package app.pocketfoundry
+package app.pocketfoundry.core
 
 import app.pocketfoundry.core.system.ResolutionScale
 import org.junit.Assert.assertEquals

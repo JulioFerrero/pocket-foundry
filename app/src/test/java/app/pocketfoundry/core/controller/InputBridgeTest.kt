@@ -1,8 +1,6 @@
-package app.pocketfoundry.controller
+package app.pocketfoundry.core.controller
 
-import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.InputBridge.AXIS_MAX
-import app.pocketfoundry.core.controller.PadAxis
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

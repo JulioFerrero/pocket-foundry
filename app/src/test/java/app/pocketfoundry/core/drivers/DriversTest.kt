@@ -1,7 +1,5 @@
-package app.pocketfoundry.drivers
+package app.pocketfoundry.core.drivers
 
-import app.pocketfoundry.core.drivers.Drivers
-import app.pocketfoundry.core.drivers.Gpu
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
