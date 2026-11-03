@@ -100,6 +100,9 @@ object Drivers {
     /** Whether [id] is the phone's own driver, which MaliBridge's credit goes with. */
     fun isPhone(id: String) = id == PHONE
 
+    /** Whether the game draws through Zink on [id]: all but Freedreno and the CPU. */
+    fun usesZink(id: String) = id != FREEDRENO && id != CPU
+
     /** How Factorio compresses its textures: on the GPU, on the CPU, or not at all. */
     enum class Compression { GPU, CPU, NONE }
 
@@ -204,10 +207,15 @@ object Drivers {
 
 /** The phone's GPU, as Android's own OpenGL ES driver names it. */
 object Gpu {
-    /** Null if Android's driver couldn't be asked. */
-    val name: String? by lazy {
-        runCatching { renderer() }.onFailure { Log.w(TAG, "Couldn't ask the GPU's name", it) }.getOrNull()
+    /** Android's own OpenGL ES driver's renderer and version strings, null if it couldn't be asked. */
+    private val strings: Pair<String?, String?>? by lazy {
+        runCatching { query() }.onFailure { Log.w(TAG, "Couldn't ask the GPU's name", it) }.getOrNull()
     }
+
+    val name: String? get() = strings?.first
+
+    /** As Android's OpenGL ES driver gives it ("OpenGL ES 3.2 v1.r38p1-…"): a phone update can change it. */
+    val driverVersion: String? get() = strings?.second
 
     /**
      * Turnip starts at Adreno 6xx (older ones also lack the kernel's dma-buf heaps freedreno needs). A GPU that
@@ -234,7 +242,7 @@ object Gpu {
     private val ADRENO = Regex("""Adreno \(TM\) (\d{3})""")
 
     /** No eglTerminate: the display is shared with the rest of the app, which draws with it. */
-    private fun renderer(): String? {
+    private fun query(): Pair<String?, String?> {
         val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         check(EGL14.eglInitialize(display, null, 0, null, 0))
         val configs = arrayOfNulls<EGLConfig>(1)
@@ -247,7 +255,8 @@ object Gpu {
         val surface = EGL14.eglCreatePbufferSurface(display, configs[0], intArrayOf(EGL14.EGL_WIDTH, 1, EGL14.EGL_HEIGHT, 1, EGL14.EGL_NONE), 0)
         try {
             check(EGL14.eglMakeCurrent(display, surface, surface, context))
-            return GLES20.glGetString(GLES20.GL_RENDERER)?.trim()?.takeIf { it.isNotEmpty() }
+            fun string(name: Int) = GLES20.glGetString(name)?.trim()?.takeIf { it.isNotEmpty() }
+            return string(GLES20.GL_RENDERER) to string(GLES20.GL_VERSION)
         } finally {
             EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
             EGL14.eglDestroySurface(display, surface)

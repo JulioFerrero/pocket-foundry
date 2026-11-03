@@ -31,6 +31,7 @@ class Paths(context: Context) {
     val wmLog = File(logs, "wm.log")
     val screenLog = File(logs, "screen.log")
     val x11Log = File(logs, "x11.log")
+    val driverCheckLog = File(logs, "drivercheck.log")
 
     private val nativeLibs = File(context.applicationInfo.nativeLibraryDir)
     val loader = File(nativeLibs, "libld-linux.so")

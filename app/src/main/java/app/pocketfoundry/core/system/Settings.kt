@@ -41,6 +41,8 @@ class Settings(private val context: Context) {
     var driverOptionsById by prefs.string("driverOptionsById", "{}")
     /** How the last game ended with each driver: Drivers.Outcome names by driver id, as JSON. */
     var driverGames by prefs.string("driverGames", "{}")
+    /** What DriverCheck found for each driver: Android's driver version and the features turned off, as JSON. */
+    var driverChecks by prefs.string("driverChecks", "{}")
     /** Android is asked once for notifications, which carry Quit. */
     var askedNotifications by prefs.bool("askedNotifications", false)
     /** Settings' Edit layout asks the game screen to open the editor. */

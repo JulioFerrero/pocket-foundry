@@ -16,7 +16,7 @@ cp -a $MESA/lib/. $OUT/lib/
 rm -rf $OUT/lib/pkgconfig
 cp -a $MESA/share/. $OUT/share/
 
-cp /out/wm/pocketfoundry-wm $OUT/bin/
+cp /out/wm/pocketfoundry-wm /out/wm/pocketfoundry-drivercheck $OUT/bin/
 cp -a /out/hybris$PREFIX/lib/hybris $OUT/lib/
 
 # Stand-ins for two libraries that Vulkan drivers link but never use here (see the .c files).

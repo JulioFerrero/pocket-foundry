@@ -18,6 +18,7 @@ import android.widget.TextView
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.controller.gamepads
+import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.Session
@@ -98,6 +99,7 @@ class LogActivity : Activity() {
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
         val options = Drivers.options(this, played)
+        val checked = DriverCheck.off(this, played)
         val settings = Settings(this)
         fun onOff(on: Boolean) = if (on) "on" else "off"
         val chosen = listOf("${settings.frameRate} FPS", "sprites ${settings.spriteQuality}",
@@ -108,7 +110,8 @@ class LogActivity : Activity() {
         "── phone ──\n" + facts.joinToString(" · ") + "\n" +
             "Settings: ${chosen.joinToString(" · ")}\n" +
             (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +
-            (if (options.isNotEmpty()) "Driver options: $options\n" else "")
+            (if (options.isNotEmpty()) "Driver options: $options\n" else "") +
+            (if (checked.isNotEmpty()) "Driver check turned off: ${checked.joinToString(", ")}\n" else "")
     }
 
     private fun load() {
@@ -154,7 +157,8 @@ class LogActivity : Activity() {
 
     companion object {
         /** Each log with how many of its last lines to show. */
-        private val LOG_TAILS = listOf(Paths::gameLog to 400, Paths::wmLog to 20, Paths::screenLog to 120, Paths::x11Log to 120)
+        private val LOG_TAILS = listOf(Paths::gameLog to 400, Paths::wmLog to 20, Paths::screenLog to 120,
+                                       Paths::x11Log to 120, Paths::driverCheckLog to 40)
         private val TEXT = Color.rgb(0xD5, 0xD9, 0xE0)
         private val DIM = Color.rgb(0x7A, 0x78, 0x76)
         private val AMBER = Color.rgb(0xE6, 0xB4, 0x50)

@@ -6,6 +6,9 @@ phone's GPU by itself, marked Recommended in **Settings -> Driver**:
 - **Adreno 6xx and newer:** the bundled Turnip. It's the one Pocket Foundry tests.
 - **Other GPUs with Vulkan 1.2:** the [Phone's driver](#the-phones-driver-any-gpu), experimental.
 - **A driver that doesn't start:** the next game uses the next one, down to the [CPU](#any-other-phone-the-cpu).
+- **A driver that draws wrong:** before the first game on a driver, Pocket Foundry draws a small test picture with
+  it. If the picture comes out wrong, the newer driver features it gets wrong are turned off for every game on it,
+  and Logs says which.
 
 Picking another driver there keeps it; picking the Recommended one hands the choice back. Community drivers can be
 imported too (**Settings -> Driver -> Import**). Others make and test them; what's here comes from players' reports,

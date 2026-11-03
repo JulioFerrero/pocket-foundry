@@ -8,6 +8,7 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.ProgressInputStream
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.Uris
+import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.system.untarXz
 import org.json.JSONObject
@@ -34,6 +35,7 @@ object Runtime {
         paths.tmp.mkdirs()
         stamp(paths).writeText(assetVersion(context))
         Drivers.forgetGames(context)
+        DriverCheck.forget(context)
     }
 
     /** glibc reads files/usr/etc/resolv.conf, which Android doesn't have. */

@@ -13,6 +13,7 @@ import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.gamepadConnected
 import app.pocketfoundry.core.controller.gamepadVibrator
 import app.pocketfoundry.core.controller.keyboardConnected
+import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.core.saves.Saves
@@ -141,7 +142,10 @@ object Session {
         val testProgram = DebugEnv.read(context, "test")["program"]?.takeIf { it.matches(TOOL_NAME) }
         val command = if (testProgram != null) listOf(File(paths.prefix, "bin/$testProgram").path)
                       else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
-        val started = Glibc.start(paths, command, paths.gameLog, gameEnvironment(context, paths, driver),
+        val environment = gameEnvironment(context, paths, driver)
+        val started = Glibc.start(paths, command, paths.gameLog,
+                                  if (testProgram != null) environment
+                                  else DriverCheck.environment(context, paths, driver, environment),
                                   Drivers.libraries(paths, driver))
         game = started
         gamePid = Glibc.childPid(command.first())
@@ -262,7 +266,7 @@ object Session {
 /** Runs the runtime's Linux programs through its glibc loader, outside Android's own libc. */
 object Glibc {
     fun start(paths: Paths, command: List<String>, log: File, extra: Map<String, String> = emptyMap(),
-              libraries: File? = null): Process {
+              libraries: File? = null, append: Boolean = false): Process {
         val libraryPath = listOfNotNull(paths.lib, libraries).joinToString(":") { it.path }
         val pb = ProcessBuilder(listOf(paths.loader.path, "--library-path", libraryPath) + command)
         pb.environment().apply {
@@ -292,7 +296,8 @@ object Glibc {
             put("GLIBC_LD_LIBRARY_PATH", libraryPath)
             putAll(extra)
         }
-        return pb.redirectErrorStream(true).redirectOutput(log).start()
+        val output = if (append) ProcessBuilder.Redirect.appendTo(log) else ProcessBuilder.Redirect.to(log)
+        return pb.redirectErrorStream(true).redirectOutput(output).start()
     }
 
     /** Android's Process doesn't expose its pid: the child of ours whose command line has [needle]. */
