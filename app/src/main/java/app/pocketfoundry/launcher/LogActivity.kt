@@ -16,10 +16,12 @@ import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import app.pocketfoundry.Paths
+import app.pocketfoundry.Settings
 import app.pocketfoundry.appVersion
 import app.pocketfoundry.controller.gamepads
 import app.pocketfoundry.drivers.Drivers
 import app.pocketfoundry.drivers.Gpu
+import app.pocketfoundry.game.Session
 import app.pocketfoundry.mainHandler
 import app.pocketfoundry.ui.FButton
 import app.pocketfoundry.ui.Factorio
@@ -87,14 +89,24 @@ class LogActivity : Activity() {
 
     /** What a report needs besides the logs. */
     private val phone by lazy {
-        // Imported drivers also show their file name: PanVK builds all report the same Mesa version.
-        val driver = Drivers.find(this, Drivers.chosen(this))
+        // The last game's driver: the logs are its. Imported drivers also show their file name: PanVK builds all report
+        // the same Mesa version.
+        val played = Session.driver ?: Drivers.chosen(this)
+        val driver = Drivers.find(this, played)
             ?.let { if (it.imported) "${it.name} (${it.detail.substringAfter(" · ")})" else it.name }
         val facts = listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
-        val options = Drivers.options(this, Drivers.chosen(this))
+        val options = Drivers.options(this, played)
+        val settings = Settings(this)
+        fun onOff(on: Boolean) = if (on) "on" else "off"
+        val chosen = listOf("${settings.frameRate} FPS", "sprites ${settings.spriteQuality}",
+                            "graphics " + if (settings.lightGraphics) "light" else "full",
+                            "FPS counter ${onOff(settings.fpsCounter)}",
+                            "pause in background ${onOff(settings.pauseInBackground)}",
+                            "detailed logs ${onOff(settings.detailedLogs)}")
         "── phone ──\n" + facts.joinToString(" · ") + "\n" +
+            "Settings: ${chosen.joinToString(" · ")}\n" +
             (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +
             (if (options.isNotEmpty()) "Driver options: $options\n" else "")
     }
@@ -142,7 +154,7 @@ class LogActivity : Activity() {
 
     companion object {
         /** Each log with how many of its last lines to show. */
-        private val LOG_TAILS = listOf(Paths::gameLog to 400, Paths::wmLog to 20, Paths::screenLog to 40, Paths::x11Log to 120)
+        private val LOG_TAILS = listOf(Paths::gameLog to 400, Paths::wmLog to 20, Paths::screenLog to 120, Paths::x11Log to 120)
         private val TEXT = Color.rgb(0xD5, 0xD9, 0xE0)
         private val DIM = Color.rgb(0x7A, 0x78, 0x76)
         private val AMBER = Color.rgb(0xE6, 0xB4, 0x50)
