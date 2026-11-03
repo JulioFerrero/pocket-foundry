@@ -1,8 +1,5 @@
-package app.pocketfoundry.core
+package app.pocketfoundry.core.system
 
-import app.pocketfoundry.core.system.MIB
-import app.pocketfoundry.core.system.NativeXzInputStream
-import app.pocketfoundry.core.system.entryTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
