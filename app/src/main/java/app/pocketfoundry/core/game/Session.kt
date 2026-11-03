@@ -138,15 +138,14 @@ object Session {
         Saves.deleteInterrupted(paths)
         keyboard = keyboardConnected(context) && !gamepadConnected(context)
         val driver = Drivers.chosen(context).also { this.driver = it }
-        FactorioConfig.write(context, paths, keyboard, Drivers.compression(driver))
         val testProgram = DebugEnv.read(context, "test")["program"]?.takeIf { it.matches(TOOL_NAME) }
         val command = if (testProgram != null) listOf(File(paths.prefix, "bin/$testProgram").path)
                       else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
+        // The driver check first: how the game's textures are compressed follows what it found.
         val environment = gameEnvironment(context, paths, driver)
-        val started = Glibc.start(paths, command, paths.gameLog,
-                                  if (testProgram != null) environment
-                                  else DriverCheck.environment(context, paths, driver, environment),
-                                  Drivers.libraries(paths, driver))
+            .let { if (testProgram != null) it else DriverCheck.environment(context, paths, driver, it) }
+        FactorioConfig.write(context, paths, keyboard, Drivers.compression(driver, DriverCheck.transcodes(context, driver)))
+        val started = Glibc.start(paths, command, paths.gameLog, environment, Drivers.libraries(paths, driver))
         game = started
         gamePid = Glibc.childPid(command.first())
         ScreenLog.add("game started")

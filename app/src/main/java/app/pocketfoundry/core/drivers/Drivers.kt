@@ -108,14 +108,18 @@ object Drivers {
 
     /**
      * Factorio's GPU compressor fails its self-test on PanVK, whose BC emulation skips the compressor's copies (a G610
-     * faulted right after): the CPU compresses instead. Malis have no BC formats, so on their own driver Mesa would
-     * only unpack what the CPU packed: textures load uncompressed there, for no more memory.
+     * faulted right after), and through the compat layer's transcoder: the CPU compresses instead. Malis have no BC
+     * formats: on their own driver the transcoder keeps the textures compressed where the driver check found it draws
+     * them right ([transcoded]), else Mesa would only unpack what the CPU packed, so they load uncompressed.
      */
-    fun compression(id: String) = when {
+    fun compression(id: String, transcoded: Boolean) = when {
         id.startsWith("panvk-") -> Compression.CPU
-        id == PHONE && Gpu.mali -> Compression.NONE
+        transcodable(id) -> if (transcoded) Compression.CPU else Compression.NONE
         else -> Compression.GPU
     }
+
+    /** Whether the game's BC textures on [id] go through the compat layer's transcoder, if the driver check allows. */
+    fun transcodable(id: String) = id == PHONE && Gpu.mali
 
     /** The player picked Turnip or Freedreno for a GPU that isn't an Adreno they run on. */
     fun missingForGpu(context: Context) = !fits(chosen(context))
@@ -207,15 +211,25 @@ object Drivers {
 
 /** The phone's GPU, as Android's own OpenGL ES driver names it. */
 object Gpu {
-    /** Android's own OpenGL ES driver's renderer and version strings, null if it couldn't be asked. */
-    private val strings: Pair<String?, String?>? by lazy {
+    /** What Android's own OpenGL ES driver says about itself. */
+    private class Info(val renderer: String?, val version: String?, val extensions: Set<String>)
+
+    /** Null if Android's driver couldn't be asked. */
+    private val info: Info? by lazy {
         runCatching { query() }.onFailure { Log.w(TAG, "Couldn't ask the GPU's name", it) }.getOrNull()
     }
 
-    val name: String? get() = strings?.first
+    val name: String? get() = info?.renderer
 
     /** As Android's OpenGL ES driver gives it ("OpenGL ES 3.2 v1.r38p1-…"): a phone update can change it. */
-    val driverVersion: String? get() = strings?.second
+    val driverVersion: String? get() = info?.version
+
+    /** The compressed texture formats the GPU has, by family: the game's BC, and Android's own ETC2 and ASTC. */
+    val textureFormats: List<String> get() = info?.let {
+        listOfNotNull("BC".takeIf { _ -> "GL_EXT_texture_compression_s3tc" in it.extensions },
+                      "ETC2".takeIf { _ -> it.version?.startsWith("OpenGL ES 3") == true },
+                      "ASTC".takeIf { _ -> "GL_KHR_texture_compression_astc_ldr" in it.extensions })
+    }.orEmpty()
 
     /**
      * Turnip starts at Adreno 6xx (older ones also lack the kernel's dma-buf heaps freedreno needs). A GPU that
@@ -242,7 +256,7 @@ object Gpu {
     private val ADRENO = Regex("""Adreno \(TM\) (\d{3})""")
 
     /** No eglTerminate: the display is shared with the rest of the app, which draws with it. */
-    private fun query(): Pair<String?, String?> {
+    private fun query(): Info {
         val display = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
         check(EGL14.eglInitialize(display, null, 0, null, 0))
         val configs = arrayOfNulls<EGLConfig>(1)
@@ -256,7 +270,8 @@ object Gpu {
         try {
             check(EGL14.eglMakeCurrent(display, surface, surface, context))
             fun string(name: Int) = GLES20.glGetString(name)?.trim()?.takeIf { it.isNotEmpty() }
-            return string(GLES20.GL_RENDERER) to string(GLES20.GL_VERSION)
+            return Info(string(GLES20.GL_RENDERER), string(GLES20.GL_VERSION),
+                        string(GLES20.GL_EXTENSIONS)?.split(' ')?.toSet().orEmpty())
         } finally {
             EGL14.eglMakeCurrent(display, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)
             EGL14.eglDestroySurface(display, surface)

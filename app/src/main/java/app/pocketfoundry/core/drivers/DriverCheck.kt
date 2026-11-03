@@ -17,10 +17,16 @@ import java.util.concurrent.TimeUnit
  * features turned off, newest first, until it draws them right (Arm's r38p1 driver on a Mali-G610 draws only black
  * with extended dynamic state). Games on that driver then run without what it gets wrong; drivers that draw right
  * keep everything.
+ *
+ * On a Mali the check then tries the compat layer's transcoder, which keeps the game's BC textures compressed as ASTC
+ * and EAC: if its squares come out right too, games use it; if they're wrong, or the check crashes, games load the
+ * textures unpacked as before. Either way the game itself never runs into it.
  */
 object DriverCheck {
     /** Our Mesa patch 0005: the Vulkan extensions Zink treats as missing. */
     const val HIDE = "ZINK_HIDE_EXTENSIONS"
+    /** The compat layer's BC transcoder: 1 (on where the driver lacks BC) or 0 (Mesa unpacks the textures). */
+    private const val TRANSCODER = "HYBRIS_BC_TEXTURES"
     private const val TIMEOUT_S = 20L
 
     /** The features the check can turn off, newest first. Zink drops the newer ones with an older one anyway. */
@@ -64,31 +70,44 @@ object DriverCheck {
         if (!Drivers.usesZink(driver) || HIDE in environment) return environment
         val version = version(driver)
         val saved = saved(context, driver)?.takeIf { it.optString("version") == version }
-        val off = if (saved != null) offIn(saved)
-                  else check(context, paths, driver, environment, version) ?: return environment
-        if (off.isEmpty()) return environment
-        if (saved != null) ScreenLog.add("driver check: ${off.joinToString(", ")} off on this driver")
-        return environment + (HIDE to off.joinToString(","))
+        val found = saved ?: check(context, paths, driver, environment, version) ?: return environment
+        val off = offIn(found)
+        val transcoded = found.optBoolean("transcode")
+        if (saved != null && (off.isNotEmpty() || transcoded))
+            ScreenLog.add("driver check: " + summary(off, transcoded))
+        return hiding(environment, off) + if (transcoded) mapOf(TRANSCODER to "1") else emptyMap()
     }
 
     /** What the last check turned off for [driver]. */
     fun off(context: Context, driver: String): List<String> = saved(context, driver)?.let(::offIn).orEmpty()
 
+    /** Whether the last check found [driver] draws the game's compressed textures right through the transcoder. */
+    fun transcodes(context: Context, driver: String) = saved(context, driver)?.optBoolean("transcode") == true
+
+    /** What the check changes for games on a driver, in a line. */
+    fun summary(off: List<String>, transcoded: Boolean) = listOfNotNull(
+        off.takeIf { it.isNotEmpty() }?.let { it.joinToString(", ") + " off" },
+        "compressed textures kept compressed".takeIf { transcoded },
+    ).joinToString(" · ")
+
     private fun offIn(saved: JSONObject) = saved.optString("off").split(',').filter { it.isNotEmpty() }
+
+    private fun hiding(environment: Map<String, String>, off: List<String>) =
+        if (off.isEmpty()) environment else environment + (HIDE to off.joinToString(","))
 
     /** A new runtime brings a new Mesa: every driver is checked again. */
     fun forget(context: Context) {
         Settings(context).driverChecks = "{}"
     }
 
-    /** Checks [driver] and remembers what it found: what to turn off, or null when the check couldn't draw. */
+    /** Checks [driver] and remembers what it found, or returns null when the check couldn't draw. */
     private fun check(context: Context, paths: Paths, driver: String, environment: Map<String, String>,
-                      version: String): List<String>? {
+                      version: String): JSONObject? {
         ScreenLog.add("driver check: drawing a test picture")
         paths.driverCheckLog.writeText("")
         val found = search { step ->
             paths.driverCheckLog.appendText("── off: ${step.joinToString(", ").ifEmpty { "nothing" }}\n")
-            draw(paths, driver, if (step.isEmpty()) environment else environment + (HIDE to step.joinToString(",")))
+            draw(paths, driver, hiding(environment, step))
         }
         ScreenLog.add("driver check: " + when (found) {
             is Found.Right -> if (found.off.isEmpty()) "the test picture is right"
@@ -103,8 +122,19 @@ object DriverCheck {
             Found.Wrong -> emptyList()
             Found.Failed -> return null
         }
-        save(context, driver, version, off)
-        return off
+        val transcoded = found is Found.Right && Drivers.transcodable(driver) &&
+                         transcoderDraws(paths, driver, hiding(environment, off))
+        return save(context, driver, version, off, transcoded)
+    }
+
+    /** Whether the game's compressed textures draw right through the transcoder, on top of what's off. */
+    private fun transcoderDraws(paths: Paths, driver: String, environment: Map<String, String>): Boolean {
+        paths.driverCheckLog.appendText("── compressed textures through the transcoder\n")
+        val right = draw(paths, driver, environment + (TRANSCODER to "1")) == Result.RIGHT
+        ScreenLog.add("driver check: " +
+                      if (right) "compressed textures stay compressed on this driver"
+                      else "compressed textures come out wrong through the transcoder: they load unpacked")
+        return right
     }
 
     private fun draw(paths: Paths, driver: String, environment: Map<String, String>): Result {
@@ -131,10 +161,12 @@ object DriverCheck {
     private fun saved(context: Context, driver: String): JSONObject? =
         json(Settings(context).driverChecks).optJSONObject(driver)
 
-    private fun save(context: Context, driver: String, version: String, off: List<String>) {
+    private fun save(context: Context, driver: String, version: String, off: List<String>,
+                     transcoded: Boolean): JSONObject {
         val settings = Settings(context)
-        val result = JSONObject().put("version", version).put("off", off.joinToString(","))
+        val result = JSONObject().put("version", version).put("off", off.joinToString(",")).put("transcode", transcoded)
         settings.driverChecks = json(settings.driverChecks).put(driver, result).toString()
+        return result
     }
 
     private fun json(text: String) = runCatching { JSONObject(text) }.getOrElse { JSONObject() }

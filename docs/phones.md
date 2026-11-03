@@ -8,7 +8,8 @@ phone's GPU by itself, marked Recommended in **Settings -> Driver**:
 - **A driver that doesn't start:** the next game uses the next one, down to the [CPU](#any-other-phone-the-cpu).
 - **A driver that draws wrong:** before the first game on a driver, Pocket Foundry draws a small test picture with
   it. If the picture comes out wrong, the newer driver features it gets wrong are turned off for every game on it,
-  and Logs says which.
+  and Logs says which. On a Mali it also tries keeping the game's compressed textures compressed (Malis lack the
+  game's format); if they draw right, games use about a third of the texture memory.
 
 Picking another driver there keeps it; picking the Recommended one hands the choice back. Community drivers can be
 imported too (**Settings -> Driver -> Import**). Others make and test them; what's here comes from players' reports,
