@@ -1,0 +1,53 @@
+--- a/src/gallium/drivers/zink/zink_device_info.py
++++ b/src/gallium/drivers/zink/zink_device_info.py
+@@ -503,6 +503,37 @@
+ #include "vk_enum_to_str.h"
+ #include "zink_device_info.h"
+ #include "zink_screen.h"
++
++#include <stdio.h>
++#include <stdlib.h>
++
++/* Pocket Foundry: ZINK_HIDE_EXTENSIONS=VK_EXT_a,VK_EXT_b treats those device extensions as missing, to find which one
++ * a driver gets wrong. */
++static bool
++hidden_extension(const char *name)
++{
++   const char *list = getenv("ZINK_HIDE_EXTENSIONS");
++   size_t len = strlen(name);
++   for (const char *p = list; p && (p = strstr(p, name)); p += len) {
++      if ((p == list || p[-1] == ',') && (p[len] == ',' || !p[len]))
++         return true;
++   }
++   return false;
++}
++
++/* Pocket Foundry's Detailed logs: the driver's extensions, once, to tell what a phone's driver offers. */
++static void
++log_extensions(const VkExtensionProperties *extensions, uint32_t count)
++{
++   static bool logged;
++   if (logged || !getenv("POCKETFOUNDRY_DETAILED_LOGS"))
++      return;
++   logged = true;
++   fprintf(stderr, "zink: the driver's extensions:");
++   for (uint32_t i = 0; i < count; ++i)
++      fprintf(stderr, " %s", extensions[i].extensionName);
++   fprintf(stderr, "\\n");
++}
+ 
+ bool
+ zink_get_physical_device_info(struct zink_screen *screen) 
+@@ -536,7 +567,12 @@
+                mesa_loge("ZINK: vkEnumerateDeviceExtensionProperties failed (%s)", vk_Result_to_str(result));
+          }
+ 
++         log_extensions(extensions, num_extensions);
+          for (uint32_t i = 0; i < num_extensions; ++i) {
++            if (hidden_extension(extensions[i].extensionName)) {
++               fprintf(stderr, "zink: %s hidden\\n", extensions[i].extensionName);
++               continue;
++            }
+          %for ext in extensions:
+             <%helpers:guard ext="${ext}">
+                %if ext.is_promoted_to_khr:
