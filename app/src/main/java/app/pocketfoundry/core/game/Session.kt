@@ -202,12 +202,16 @@ object Session {
     /** The X server's output into x11.log, but its frame lines (Detailed logs) into screen.log beside the screen's. */
     private fun keepXServerLog(server: Process, log: File) = thread(name = "pocketfoundry-x11-log", isDaemon = true) {
         log.printWriter().use { out ->
-            server.inputStream.bufferedReader().forEachLine {
-                if (it.startsWith("frames: ")) ScreenLog.add(it)
-                else {
-                    out.println(it)
-                    out.flush()
+            try {
+                server.inputStream.bufferedReader().forEachLine {
+                    if (it.startsWith("frames: ")) ScreenLog.add(it)
+                    else {
+                        out.println(it)
+                        out.flush()
+                    }
                 }
+            } catch (e: IOException) {
+                // The game exited: destroy() closed the X server's output while this read it.
             }
         }
     }
