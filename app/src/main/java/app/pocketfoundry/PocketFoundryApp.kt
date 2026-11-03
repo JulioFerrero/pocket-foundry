@@ -1,13 +1,13 @@
 package app.pocketfoundry
 
 import android.content.Intent
+import app.pocketfoundry.core.game.DebugPad
+import app.pocketfoundry.ui.screens.game.GameScreens
+import app.pocketfoundry.core.game.ScreenLog
+import app.pocketfoundry.core.game.Session
 import com.termux.x11.CmdEntryPoint
 import com.termux.x11.LorieApp
 import com.termux.x11.MainActivity
-import app.pocketfoundry.game.DebugPad
-import app.pocketfoundry.game.GameScreens
-import app.pocketfoundry.game.ScreenLog
-import app.pocketfoundry.game.Session
 
 /** Termux:X11's activity and receivers expect their Application class. */
 class PocketFoundryApp : LorieApp() {

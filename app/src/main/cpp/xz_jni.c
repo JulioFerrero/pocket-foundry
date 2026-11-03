@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 JNIEXPORT jlong JNICALL
-Java_app_pocketfoundry_NativeXz_open(JNIEnv *env, jclass cls) {
+Java_app_pocketfoundry_core_system_NativeXz_open(JNIEnv *env, jclass cls) {
     lzma_stream *s = malloc(sizeof *s);
     if (!s)
         return 0;
@@ -21,7 +21,7 @@ Java_app_pocketfoundry_NativeXz_open(JNIEnv *env, jclass cls) {
 // Returns consumed << 32 | produced, with bit 62 set at the end of the data,
 // or -(liblzma error code) on failure.
 JNIEXPORT jlong JNICALL
-Java_app_pocketfoundry_NativeXz_decode(JNIEnv *env, jclass cls, jlong handle,
+Java_app_pocketfoundry_core_system_NativeXz_decode(JNIEnv *env, jclass cls, jlong handle,
                                        jbyteArray in, jint inOff, jint inLen,
                                        jbyteArray out, jint outOff, jint outLen,
                                        jboolean inputEnded) {
@@ -44,7 +44,7 @@ Java_app_pocketfoundry_NativeXz_decode(JNIEnv *env, jclass cls, jlong handle,
 }
 
 JNIEXPORT void JNICALL
-Java_app_pocketfoundry_NativeXz_close(JNIEnv *env, jclass cls, jlong handle) {
+Java_app_pocketfoundry_core_system_NativeXz_close(JNIEnv *env, jclass cls, jlong handle) {
     lzma_stream *s = (lzma_stream *) (intptr_t) handle;
     lzma_end(s);
     free(s);
