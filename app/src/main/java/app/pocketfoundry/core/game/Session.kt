@@ -6,22 +6,22 @@ import android.os.SystemClock
 import android.os.Vibrator
 import android.system.Os
 import android.system.OsConstants
-import app.pocketfoundry.core.controller.gamepadConnected
-import app.pocketfoundry.core.controller.gamepadVibrator
-import app.pocketfoundry.core.controller.InputBridge
-import app.pocketfoundry.core.controller.keyboardConnected
-import app.pocketfoundry.core.drivers.Drivers
-import app.pocketfoundry.core.saves.Saves
-import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.X11Prefs
+import app.pocketfoundry.core.controller.InputBridge
+import app.pocketfoundry.core.controller.gamepadConnected
+import app.pocketfoundry.core.controller.gamepadVibrator
+import app.pocketfoundry.core.controller.keyboardConnected
+import app.pocketfoundry.core.drivers.Drivers
+import app.pocketfoundry.core.system.mainHandler
+import app.pocketfoundry.core.saves.Saves
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 
 /** Runs a game: Termux:X11's X server, our window manager and Factorio, each a process of its own. */

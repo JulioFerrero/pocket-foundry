@@ -1,6 +1,5 @@
 package app.pocketfoundry.core.updates
 
-import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -12,11 +11,11 @@ import app.pocketfoundry.core.system.ProgressInputStream
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.objects
 import app.pocketfoundry.core.system.sha256
+import org.json.JSONArray
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
-import org.json.JSONArray
 
 /** Pocket Foundry's own releases on GitHub: whether a newer one is out, and its APK handed to Android's installer. */
 object Updates {

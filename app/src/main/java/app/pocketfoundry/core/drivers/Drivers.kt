@@ -10,8 +10,8 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.X11Prefs
-import java.io.File
 import org.json.JSONObject
+import java.io.File
 
 /** The bundled graphics drivers (Zink on Turnip, Freedreno, the phone's own, the CPU) and the imported ones. */
 object Drivers {

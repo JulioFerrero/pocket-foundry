@@ -7,8 +7,8 @@ import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.dp
-import com.termux.x11.input.InputStub
 import com.termux.x11.MainActivity
+import com.termux.x11.input.InputStub
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.ln

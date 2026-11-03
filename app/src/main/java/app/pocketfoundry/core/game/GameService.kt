@@ -8,9 +8,9 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import com.termux.x11.MainActivity
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.R
-import com.termux.x11.MainActivity
 
 /** In the foreground while a game runs, so Android doesn't reclaim a paused game. */
 class GameService : Service() {

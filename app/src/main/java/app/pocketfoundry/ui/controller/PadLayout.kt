@@ -4,10 +4,10 @@ import android.content.Context
 import app.pocketfoundry.core.system.floats
 import app.pocketfoundry.core.system.strings
 import app.pocketfoundry.ui.kit.dp
-import kotlin.math.abs
-import kotlin.math.hypot
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
+import kotlin.math.hypot
 
 /** The controls and where they sit on this screen: the layout the player saved, in a phone-shaped frame. */
 class PadLayout(private val context: Context) {

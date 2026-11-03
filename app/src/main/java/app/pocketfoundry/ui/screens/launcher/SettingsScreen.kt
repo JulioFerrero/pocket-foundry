@@ -12,7 +12,6 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.updates.Updates
 import app.pocketfoundry.LauncherActivity
-import app.pocketfoundry.core.game.ScreenLog.add
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
 import app.pocketfoundry.ui.kit.Choice
