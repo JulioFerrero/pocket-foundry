@@ -1,0 +1,30 @@
+--- a/hybris/vulkan/compat/bc_image.c
++++ b/hybris/vulkan/compat/bc_image.c
+@@ -110,7 +110,11 @@
+         (info->initialLayout != VK_IMAGE_LAYOUT_UNDEFINED && info->initialLayout != VK_IMAGE_LAYOUT_PREINITIALIZED) ||
+         (info->flags & ~(VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT | VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
+                         VK_IMAGE_CREATE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_BIT_EXT |
+-                        VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT | VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT)) ||
++                        VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT | VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT |
++                        /* Pocket Foundry: Zink sets it on every texture whose format can switch (linear and
++                         * sRGB). It lets the usage name what only a view format supports; the usage is still
++                         * checked against what the stand-in can do. */
++                        VK_IMAGE_CREATE_EXTENDED_USAGE_BIT)) ||
+         ((info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) && !hybris_bc_mutable_format(info->format)) ||
+         !info->usage ||
+         (info->usage & ~(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)) ||
+--- a/hybris/vulkan/compat/bc_policy.c
++++ b/hybris/vulkan/compat/bc_policy.c
+@@ -369,7 +369,11 @@
+         !(usage & ~(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)) &&
+         !(flags & ~(VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT | VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
+                     VK_IMAGE_CREATE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_BIT_EXT |
+-                    VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT | VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT)) &&
++                    VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT | VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT |
++                    /* Pocket Foundry: Zink sets it on every texture whose format can switch (linear and
++                     * sRGB). It lets the usage name what only a view format supports; the usage is still
++                     * checked against what the stand-in can do. */
++                    VK_IMAGE_CREATE_EXTENDED_USAGE_BIT)) &&
+         (!(flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) || hybris_bc_mutable_format(format));
+ }
+ static void trace_image_query(VkFormat format, VkImageType type, VkImageTiling tiling,
