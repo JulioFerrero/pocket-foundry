@@ -41,9 +41,25 @@ class DriverCheckTest {
         assertEquals(DriverCheck.steps, tried)
     }
 
-    @Test fun `a check that can't draw stops there`() {
+    @Test fun `a driver that crashes until extended dynamic state is off runs with it off`() {
+        // Like a Mali-G72's driver: the check crashes with extended dynamic state 1 and 2 on.
+        val found = DriverCheck.search { if (eds1 in it) Result.RIGHT else Result.FAILED }
+        assertEquals(Found.Right(DriverCheck.steps.last()), found)
+    }
+
+    @Test fun `a check that crashes whatever is off couldn't draw`() {
         val tried = mutableListOf<List<String>>()
-        assertEquals(Found.Failed, DriverCheck.search { tried += it; if (it.isEmpty()) Result.WRONG else Result.FAILED })
+        assertEquals(Found.Failed, DriverCheck.search { tried += it; Result.FAILED })
+        assertEquals(DriverCheck.steps, tried)
+    }
+
+    @Test fun `a check that drew wrong once and crashed after is wrong`() {
+        assertEquals(Found.Wrong, DriverCheck.search { if (it.isEmpty()) Result.WRONG else Result.FAILED })
+    }
+
+    @Test fun `a check that hangs stops there`() {
+        val tried = mutableListOf<List<String>>()
+        assertEquals(Found.Failed, DriverCheck.search { tried += it; if (it.isEmpty()) Result.WRONG else Result.HUNG })
         assertEquals(2, tried.size)
     }
 

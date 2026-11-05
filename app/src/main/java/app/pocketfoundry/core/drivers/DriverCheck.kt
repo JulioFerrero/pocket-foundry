@@ -13,10 +13,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Before the first game on a driver, and again when Android's driver or its Options change: runtime/wm's check draws a
- * few squares through the game's own OpenGL and reads them back. A driver that draws them wrong gets Zink's newer
- * features turned off, newest first, until it draws them right (Arm's r38p1 driver on a Mali-G610 draws only black
- * with extended dynamic state). Games on that driver then run without what it gets wrong; drivers that draw right
- * keep everything.
+ * few squares through the game's own OpenGL and reads them back. A driver that draws them wrong, or crashes, gets
+ * Zink's newer features turned off, newest first, until it draws them right (Arm's r38p1 driver on a Mali-G610 draws
+ * only black with extended dynamic state; a Mali-G72's crashes with it). Games on that driver then run without what it
+ * gets wrong; drivers that draw right keep everything.
  *
  * On a Mali the check then tries the compat layer's transcoder, which keeps the game's BC textures compressed as ASTC
  * and EAC: if its squares come out right too, games use it; if they're wrong, or the check crashes, games load the
@@ -32,6 +32,8 @@ object DriverCheck {
     /** What Zink says on such a driver. */
     private const val NO_TIMELINES = "KHR_timeline_semaphore is required"
     private const val TIMEOUT_S = 20L
+    /** How the check searches: a new one checks every driver again, those an older one gave up on too. */
+    private const val REVISION = 2
 
     /** The features the check can turn off, newest first. Zink drops the newer ones with an older one anyway. */
     private val SUSPECTS = listOf(
@@ -43,8 +45,8 @@ object DriverCheck {
     /** What each try turns off: nothing first, then more each time. */
     internal val steps = SUSPECTS.runningFold(emptyList<String>()) { off, step -> off + step }
 
-    /** How one drawing came out. */
-    enum class Result { RIGHT, WRONG, FAILED }
+    /** How one drawing came out: FAILED when the check crashed or OpenGL didn't start, HUNG when it never finished. */
+    enum class Result { RIGHT, WRONG, FAILED, HUNG }
 
     /** What the steps found. */
     sealed interface Found {
@@ -53,19 +55,22 @@ object DriverCheck {
         /** Wrong whatever was off. */
         data object Wrong : Found
         /**
-         * Didn't draw at all, and the game likely won't either: that's for the driver's game outcome to tell. Games run
-         * with everything on, without checking again first.
+         * Didn't draw at all whatever was off, or hung, and the game likely won't either: that's for the driver's game
+         * outcome to tell. Games run with everything on, without checking again first.
          */
         data object Failed : Found
     }
 
+    /** A crash goes on to the next step like a wrong picture, since what's off may be what crashed; a hang stops. */
     internal fun search(draw: (List<String>) -> Result): Found {
+        var drew = false
         for (step in steps) when (draw(step)) {
             Result.RIGHT -> return Found.Right(step)
-            Result.WRONG -> {}
-            Result.FAILED -> return Found.Failed
+            Result.WRONG -> drew = true
+            Result.FAILED -> {}
+            Result.HUNG -> return Found.Failed
         }
-        return Found.Wrong
+        return if (drew) Found.Wrong else Found.Failed
     }
 
     /**
@@ -172,7 +177,7 @@ object DriverCheck {
             runCatching { Os.kill(Glibc.childPid(program), OsConstants.SIGKILL) }
             process.waitFor()
             paths.driverCheckLog.appendText("drivercheck: still drawing after $TIMEOUT_S s\n")
-            return Result.FAILED
+            return Result.HUNG
         }
         return when (val status = process.exitValue()) {
             0 -> Result.RIGHT
@@ -183,10 +188,10 @@ object DriverCheck {
     }
 
     /**
-     * What a check holds for: Android's own driver changes with phone updates, the others only with a runtime, which
-     * forgets every check; and a driver's Options change what it draws.
+     * What a check holds for: the way it searches; Android's own driver, which changes with phone updates, the others
+     * only with a runtime, which forgets every check; and a driver's Options, which change what it draws.
      */
-    private fun version(context: Context, driver: String) =
+    private fun version(context: Context, driver: String) = "$REVISION · " +
         (if (Drivers.isPhone(driver)) Gpu.driverVersion.orEmpty() else "") + " · " + Drivers.options(context, driver)
 
     private fun saved(context: Context, driver: String): JSONObject? =
