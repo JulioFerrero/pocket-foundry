@@ -38,6 +38,26 @@ object Runtime {
         DriverCheck.forget(context)
     }
 
+    /** Android's properties, from getprop, read once: those that matter here (ro.) don't change. */
+    val properties: Map<String, String> by lazy {
+        val property = Regex("""\[([^\]]*)]: \[(.*)]""")
+        runCatching {
+            ProcessBuilder("/system/bin/getprop").start().inputStream.bufferedReader().useLines { output ->
+                output.mapNotNull { property.matchEntire(it)?.destructured }
+                    .associate { (name, value) -> name to value }
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    /**
+     * Android's properties as name=value lines, which libhybris reads (HYBRIS_PROPERTY_FILE): on its own it sees only
+     * /system/build.prop's, and Android's Vulkan loader, which it runs, finds the phone's driver by properties that can
+     * be elsewhere (ro.board.platform on a Huawei P40).
+     */
+    fun writeProperties(context: Context) {
+        Paths(context).androidProperties.writeText(properties.entries.joinToString("") { "${it.key}=${it.value}\n" })
+    }
+
     /** glibc reads files/usr/etc/resolv.conf, which Android doesn't have. */
     fun writeResolvConf(context: Context) {
         val servers = runCatching {

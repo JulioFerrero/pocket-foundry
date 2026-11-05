@@ -60,7 +60,7 @@ object Session {
     /** Whether that failure was Factorio not opening its window: the graphics driver didn't start. */
     @Volatile var noWindow = false
         private set
-    /** The graphics driver of the running or last game. */
+    /** The graphics driver of the running or last game, or of the last check (Settings -> Driver -> Check). */
     @Volatile var driver: String? = null
         private set
     @Volatile private var windowOpened = false
@@ -83,11 +83,35 @@ object Session {
         if (newGame) ScreenLog.begin(context)
         paths.home.mkdirs()
         Runtime.writeResolvConf(context)
+        Runtime.writeProperties(context)
         Settings(context).writeFrameRate()
         startBridges(context, paths)
         if (xServer?.isAlive != true) startXServer(context, paths)
         if (wm?.isAlive != true) wm = Glibc.start(paths, listOf(File(paths.prefix, "bin/pocketfoundry-wm").path), paths.wmLog)
         if (newGame) launchGame(context, paths, gameArgs)
+    }
+
+    /**
+     * Settings -> Driver -> Check, out of a game: draws [driver]'s test picture with an X server of its own, then stops
+     * it. What the check finds applies to the next game, and Logs shows it.
+     */
+    @Synchronized
+    fun checkDriver(context: Context, driver: String) {
+        check(!inGame) { "Quit the game first." }
+        val paths = Paths(context)
+        Runtime.install(context)
+        Runtime.writeProperties(context)
+        paths.logs.mkdirs()
+        paths.home.mkdirs()
+        ScreenLog.begin(context)
+        this.driver = driver
+        startXServer(context, paths)
+        try {
+            DriverCheck.recheck(context, paths, driver, gameEnvironment(context, paths, driver))
+        } finally {
+            xServer?.destroy()
+            xServer = null
+        }
     }
 
     @Synchronized

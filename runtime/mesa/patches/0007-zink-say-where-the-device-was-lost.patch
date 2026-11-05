@@ -1,0 +1,24 @@
+--- a/src/gallium/drivers/zink/zink_screen.h
++++ b/src/gallium/drivers/zink/zink_screen.h
+@@ -79,8 +79,11 @@
+ bool
+ zink_screen_init_semaphore(struct zink_screen *screen);
+ 
++/* Pocket Foundry: says which call saw the device lost; many can, and the driver's log doesn't tell. */
++#define zink_screen_handle_vkresult(screen, ret) zink_screen_handle_vkresult_at(screen, ret, __FILE__, __LINE__)
++
+ static inline bool
+-zink_screen_handle_vkresult(struct zink_screen *screen, VkResult ret)
++zink_screen_handle_vkresult_at(struct zink_screen *screen, VkResult ret, const char *file, int line)
+ {
+    bool success = false;
+    switch (ret) {
+@@ -89,7 +92,7 @@
+       break;
+    case VK_ERROR_DEVICE_LOST:
+       screen->device_lost = true;
+-      mesa_loge("zink: DEVICE LOST!\n");
++      mesa_loge("zink: DEVICE LOST! (%s:%d)\n", file, line);
+       /* if nothing can save us, abort */
+       if (screen->abort_on_hang && !screen->robust_ctx_count)
+          abort();

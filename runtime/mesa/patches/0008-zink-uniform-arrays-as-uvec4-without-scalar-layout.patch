@@ -1,0 +1,110 @@
+diff --color -ru --color=never a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c a8b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c
+--- a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c	2026-10-29 17:57:15
++++ a8b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.c	2026-11-04 23:37:08
+@@ -82,6 +82,7 @@
+    SpvId *defs;
+    nir_alu_type *def_types;
+    SpvId *resident_defs;
++   SpvId *ubo_components; /* by def index: which component of its uvec4 a uniform block deref loads */
+    size_t num_defs;
+ 
+    struct hash_table *vars; /* nir_variable -> SpvId */
+@@ -1408,6 +1409,13 @@
+    return array_type;
+ }
+ 
++/* a 32-bit uniform block array that must be declared as uvec4s, its elements found by index / 4 and index % 4 */
++static bool
++bo_is_vec4(struct ntv_context *ctx, struct nir_variable *var, unsigned bitsize)
++{
++   return ctx->sinfo->ubo_vec4 && !ctx->sinfo->is_native_vulkan && var->data.mode == nir_var_mem_ubo && bitsize == 32;
++}
++
+ /* get array<struct(array_type <--this one)> */
+ static SpvId
+ get_bo_array_type(struct ntv_context *ctx, struct nir_variable *var)
+@@ -1423,6 +1431,12 @@
+    if (!glsl_type_is_unsized_array(first_type)) {
+       uint32_t array_size = glsl_get_length(first_type);
+       assert(array_size);
++      if (bo_is_vec4(ctx, var, bitsize)) {
++         array_type = spirv_builder_type_array(&ctx->builder, get_uvec_type(ctx, 32, 4),
++                                               emit_uint_const(ctx, 32, DIV_ROUND_UP(array_size, 4)));
++         spirv_builder_emit_array_stride(&ctx->builder, array_type, 16);
++         return array_type;
++      }
+       return get_sized_uint_array_type(ctx, array_size, bitsize);
+    }
+    SpvId uint_type = spirv_builder_type_uint(&ctx->builder, bitsize);
+@@ -2429,8 +2443,13 @@
+       atype = get_nir_alu_type(deref->type);
+    }
+    SpvId result;
++   SpvId component = deref->deref_type == nir_deref_type_array ? ctx->ubo_components[deref->def.index] : 0;
+ 
+-   if (nir_intrinsic_access(intr) & (ACCESS_COHERENT | ACCESS_ATOMIC))
++   if (component) {
++      /* a uniform block element declared in a uvec4 */
++      SpvId vector = spirv_builder_emit_load(&ctx->builder, get_uvec_type(ctx, 32, 4), ptr, false);
++      result = emit_binop(ctx, SpvOpVectorExtractDynamic, type, vector, component);
++   } else if (nir_intrinsic_access(intr) & (ACCESS_COHERENT | ACCESS_ATOMIC))
+       result = emit_atomic(ctx, SpvOpAtomicLoad, type, ptr, 0, 0);
+    else
+       result = spirv_builder_emit_load(&ctx->builder, type, ptr, false);
+@@ -4691,6 +4710,20 @@
+    if (itype == nir_type_float)
+       index = emit_bitcast(ctx, get_uvec_type(ctx, 32, 1), index);
+ 
++   /* array<uint> of a uniform block declared as uvec4s: the deref points at the vector, and the load picks the
++    * component from the loaded vector (a dynamic index into a vector inside the access chain draws garbage on some
++    * drivers) */
++   if (var->data.mode == nir_var_mem_ubo && !glsl_type_is_struct_or_ifc(deref->type) &&
++       bo_is_vec4(ctx, var, glsl_get_bit_size(deref->type))) {
++      SpvId uint_type = get_uvec_type(ctx, 32, 1);
++      if (nir_src_bit_size(deref->arr.index) != 32)
++         index = emit_unop(ctx, SpvOpUConvert, uint_type, index);
++      ctx->ubo_components[deref->def.index] = emit_binop(ctx, SpvOpBitwiseAnd, uint_type, index,
++                                                         emit_uint_const(ctx, 32, 3));
++      index = emit_binop(ctx, SpvOpShiftRightLogical, uint_type, index, emit_uint_const(ctx, 32, 2));
++      type = get_uvec_type(ctx, 32, 4);
++   }
++
+    SpvId ptr_type = spirv_builder_type_pointer(&ctx->builder,
+                                                storage_class,
+                                                type);
+@@ -5531,7 +5564,8 @@
+                                  sizeof(SpvId), entry->ssa_alloc);
+    ctx.def_types = ralloc_array_size(ctx.mem_ctx,
+                                      sizeof(nir_alu_type), entry->ssa_alloc);
+-   if (!ctx.defs || !ctx.def_types)
++   ctx.ubo_components = rzalloc_array_size(ctx.mem_ctx, sizeof(SpvId), entry->ssa_alloc);
++   if (!ctx.defs || !ctx.def_types || !ctx.ubo_components)
+       goto fail;
+ 
+    ctx.num_defs = entry->ssa_alloc;
+diff --color -ru --color=never a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.h a8b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.h
+--- a/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.h	2026-10-29 17:57:15
++++ a8b/src/gallium/drivers/zink/nir_to_spirv/nir_to_spirv.h	2026-11-04 23:36:48
+@@ -54,6 +54,8 @@
+    bool is_native_vulkan; //ignore zink-isms
+    bool have_shader_viewport_index_layer;
+    bool have_shader_output_layer;
++   /* without scalar or std430 uniform layout, arrays in uniform blocks need a stride of 16: 32-bit ones are uvec4s */
++   bool ubo_vec4;
+    struct {
+       uint8_t flush_denorms:3; // 16, 32, 64
+       uint8_t preserve_denorms:3; // 16, 32, 64
+diff --color -ru --color=never a/src/gallium/drivers/zink/zink_compiler.c a8b/src/gallium/drivers/zink/zink_compiler.c
+--- a/src/gallium/drivers/zink/zink_compiler.c	2026-10-29 17:57:15
++++ a8b/src/gallium/drivers/zink/zink_compiler.c	2026-11-04 23:36:48
+@@ -1364,6 +1364,10 @@
+    screen->ntv_info.broken_arbitary_type_const = screen->driver_compiler_workarounds.broken_const;
+    screen->ntv_info.have_shader_viewport_index_layer = screen->info.have_EXT_shader_viewport_index_layer;
+    screen->ntv_info.have_shader_output_layer = screen->info.feats12.shaderOutputLayer;
++   screen->ntv_info.ubo_vec4 = !screen->info.feats12.scalarBlockLayout && !screen->info.have_EXT_scalar_block_layout &&
++                               !screen->info.feats12.uniformBufferStandardLayout;
++   if (screen->ntv_info.ubo_vec4)
++      fprintf(stderr, "zink: uniform blocks as uvec4 arrays: the driver has no scalar or std430 uniform layout\n");
+    screen->ntv_info.spirv_version = screen->spirv_version;
+    if (screen->info.have_KHR_shader_float_controls) {
+       if (screen->info.props12.shaderDenormFlushToZeroFloat16)

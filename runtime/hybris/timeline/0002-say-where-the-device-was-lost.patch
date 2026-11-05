@@ -1,0 +1,118 @@
+--- a/layers/timeline_semaphore.c
++++ b/layers/timeline_semaphore.c
+@@ -388,7 +388,88 @@
+     ENTRY_POINTS
+ #undef ENTRY_POINT
+         }
++
++/* Pocket Foundry: Zink says only that the device was lost. These say in which call into the driver, after how long,
++ * and how long after the last submission and frame: a GPU that hangs takes seconds, one that faults doesn't. A
++ * game has one driver below, so one table of its functions. */
++static struct vulkan_vtable driver;
++static uint64_t last_submit_ns, last_present_ns, submits, presents;
++
++static void watch(const char *call, uint64_t start, VkResult result)
++{
++    static int said, slow;
++    uint64_t now = gettime_ns(), ms = (now - start) / 1000000;
++    if (result == VK_ERROR_DEVICE_LOST && !__atomic_exchange_n(&said, 1, __ATOMIC_RELAXED))
++        fprintf(stderr, "timeline layer: the driver lost the device in vk%s after %llu ms; %llu submissions, the last "
++                "%llu ms before; %llu frames, the last %llu ms before\n", call, (unsigned long long)ms,
++                (unsigned long long)submits, (unsigned long long)(start - last_submit_ns) / 1000000,
++                (unsigned long long)presents, (unsigned long long)(start - last_present_ns) / 1000000);
++    else if (result == VK_SUCCESS && ms >= 1000 && __atomic_fetch_add(&slow, 1, __ATOMIC_RELAXED) < 5)
++        fprintf(stderr, "timeline layer: vk%s took %llu ms\n", call, (unsigned long long)ms);
++}
++
++static VkResult watch_QueueSubmit(VkQueue queue, uint32_t count, const VkSubmitInfo *submits_, VkFence fence)
++{
++    uint64_t start = gettime_ns();
++    VkResult result = driver.QueueSubmit(queue, count, submits_, fence);
++    __atomic_add_fetch(&submits, 1, __ATOMIC_RELAXED);
++    last_submit_ns = start;
++    watch("QueueSubmit", start, result);
++    return result;
++}
++
++static VkResult watch_WaitForFences(VkDevice device, uint32_t count, const VkFence *fences, VkBool32 all,
++                                    uint64_t timeout)
++{
++    uint64_t start = gettime_ns();
++    VkResult result = driver.WaitForFences(device, count, fences, all, timeout);
++    watch("WaitForFences", start, result);
++    return result;
++}
++
++static VkResult watch_GetFenceStatus(VkDevice device, VkFence fence)
++{
++    uint64_t start = gettime_ns();
++    VkResult result = driver.GetFenceStatus(device, fence);
++    watch("GetFenceStatus", start, result);
++    return result;
++}
++
++static VkResult watch_QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *info)
++{
++    uint64_t start = gettime_ns();
++    VkResult result = driver.QueuePresentKHR(queue, info);
++    __atomic_add_fetch(&presents, 1, __ATOMIC_RELAXED);
++    last_present_ns = start;
++    watch("QueuePresentKHR", start, result);
++    return result;
++}
++
++static VkResult watch_AcquireNextImageKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t timeout,
++                                          VkSemaphore semaphore, VkFence fence, uint32_t *index)
++{
++    uint64_t start = gettime_ns();
++    VkResult result = driver.AcquireNextImageKHR(device, swapchain, timeout, semaphore, fence, index);
++    watch("AcquireNextImageKHR", start, result);
++    return result;
++}
++
++static VkResult watch_QueueWaitIdle(VkQueue queue)
++{
++    uint64_t start = gettime_ns();
++    VkResult result = driver.QueueWaitIdle(queue);
++    watch("QueueWaitIdle", start, result);
++    return result;
++}
+ 
++static VkResult watch_DeviceWaitIdle(VkDevice device)
++{
++    uint64_t start = gettime_ns();
++    VkResult result = driver.DeviceWaitIdle(device);
++    watch("DeviceWaitIdle", start, result);
++    return result;
++}
++
+ static void fill_device_vtable(struct vulkan_vtable *vtable, VkDevice device,
+                                PFN_vkGetDeviceProcAddr get_proc_addr)
+ {
+@@ -397,6 +478,15 @@
+ #undef ENTRY_POINT
+     // Fixup the GetDeviceProcAddr as otherwise we replace our own GDPA with the GDPA of the next layer
+     vtable->GetDeviceProcAddr = get_proc_addr;
++    fprintf(stderr, "timeline layer: on, watching the driver for a lost device\n");
++    driver = *vtable;
++    vtable->QueueSubmit = watch_QueueSubmit;
++    vtable->WaitForFences = watch_WaitForFences;
++    vtable->GetFenceStatus = watch_GetFenceStatus;
++    vtable->QueuePresentKHR = watch_QueuePresentKHR;
++    vtable->AcquireNextImageKHR = watch_AcquireNextImageKHR;
++    vtable->QueueWaitIdle = watch_QueueWaitIdle;
++    vtable->DeviceWaitIdle = watch_DeviceWaitIdle;
+ }
+ 
+ /**/
+@@ -2544,6 +2634,10 @@
+     ADD_HOOK(DeviceWaitIdle),
+     ADD_HOOK(QueuePresentKHR),
+     ADD_HOOK(AcquireNextImageKHR),
++
++    /* Pocket Foundry: Zink waits on its own fences too, before each present */
++    {"vkWaitForFences", (void *)watch_WaitForFences},
++    {"vkGetFenceStatus", (void *)watch_GetFenceStatus},
+ };
+ 
+ #undef ADD_HOOK

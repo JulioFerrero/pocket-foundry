@@ -1,0 +1,24 @@
+--- a/hybris/common/q/linker_config.cpp
++++ b/hybris/common/q/linker_config.cpp
+@@ -41,6 +41,7 @@
+ 
+ #include <limits.h>
+ #include <stdlib.h>
++#include <sys/auxv.h>
+ #include <unistd.h>
+ 
+ #include <string>
+@@ -588,6 +589,13 @@
+     //add the delimiter char in front of the string and return it.
+     return version.insert(0, 1, delimiter);
+   }*/
++  /* Pocket Foundry: ro.vndk.version, which Pocket Foundry passes in HYBRIS_VNDK_VERSION. Android 10 has no
++   * /linkerconfig: its config is /system/etc/ld.config.<this>.txt, whose paths also hold it. Without it, there's no
++   * config, and so no sphal namespace, where the phone's Vulkan driver lives. */
++  const char* version = getauxval(AT_SECURE) ? nullptr : getenv("HYBRIS_VNDK_VERSION");
++  if (version != nullptr && *version != '\0' && std::string(version) != "current") {
++    return std::string(1, delimiter) + version;
++  }
+   return "";
+ }
+ 

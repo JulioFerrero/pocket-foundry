@@ -58,7 +58,8 @@ what the Logs screen shows (its Copy button takes it all).
 GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD),
 Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0). The Phone's driver loads through
 [libhybris](https://github.com/taowen/libhybris) (Apache-2.0), whose Vulkan libraries (GPL-3.0) include
-[MaliBridge by ASEbrahim](https://github.com/ASEbrahim/MaliBridge).
+[MaliBridge by ASEbrahim](https://github.com/ASEbrahim/MaliBridge), and older phones' drivers get Khronos's timeline
+semaphore layer from [Vulkan-ExtensionLayer](https://github.com/KhronosGroup/Vulkan-ExtensionLayer) (Apache-2.0).
 
 Factorio is © Wube Software. Pocket Foundry isn't affiliated with Wube and includes none of its files; the game
 screenshots, the launcher's panels and buttons and the Home screen show art from the player's own copy.

@@ -1,5 +1,6 @@
 package app.pocketfoundry.ui.screens.launcher
 
+import android.content.Intent
 import android.net.Uri
 import android.text.TextUtils
 import android.view.Gravity
@@ -16,7 +17,6 @@ import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.GuiSprites
 import app.pocketfoundry.ui.kit.Tone
-import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.background
 import app.pocketfoundry.ui.kit.button
@@ -26,9 +26,14 @@ import app.pocketfoundry.ui.kit.link
 import app.pocketfoundry.ui.kit.panel
 import app.pocketfoundry.ui.kit.row
 import app.pocketfoundry.ui.kit.shown
+import app.pocketfoundry.ui.kit.spacer
 import app.pocketfoundry.ui.kit.stack
+import app.pocketfoundry.ui.screens.drivers.DriverDialog
 
-/** Before the game is imported: what to import and where to get it. */
+/**
+ * Before the game is imported: what to import and where to get it. Driver and Logs are here too, to try the phone's
+ * drivers (Check) before there's a game.
+ */
 class WelcomeScreen(private val launcher: LauncherActivity) {
     private val error = label(launcher, "", 14f, Factorio.ERROR).capped(3)
     private val importButton = button(launcher, "Import Factorio", Tone.GREEN, Arrow.RIGHT, onClick = launcher::pickGame)
@@ -48,7 +53,14 @@ class WelcomeScreen(private val launcher: LauncherActivity) {
             }
             add(error)
         })
-        add(importButton, WRAP, BUTTON_HEIGHT, gravity = Gravity.END)
+        add(row(launcher) {
+            add(button(launcher, "Driver", size = 15f) { DriverDialog(launcher).show() }, height = BUTTON_HEIGHT)
+            add(button(launcher, "Logs", size = 15f) {
+                launcher.startActivity(Intent(launcher, LogActivity::class.java))
+            }, height = BUTTON_HEIGHT, start = 4)
+            spacer()
+            add(importButton, height = BUTTON_HEIGHT, start = 12)
+        })
     }
 
     fun focus() = importButton.requestFocus()

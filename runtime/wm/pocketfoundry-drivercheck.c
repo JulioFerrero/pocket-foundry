@@ -9,10 +9,14 @@
 #include <GL/glext.h>
 #include <GL/glx.h>
 #include <X11/Xlib.h>
+#include <execinfo.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ucontext.h>
+#include <unistd.h>
 
 /* A grid of 4 x 3 cells. */
 #define CELL 32
@@ -47,6 +51,40 @@ static const char *FRAGMENT_SHADER =
 
 /* The picture, read back once: [y][x], from the bottom. */
 static unsigned char picture[HEIGHT][WIDTH][4];
+
+/* Which file [address] is in, and where in it: Android's libraries, which libhybris loads, glibc can't name. */
+static void where(const char *what, uintptr_t address)
+{
+    FILE *maps = fopen("/proc/self/maps", "r");
+    char line[512], path[400];
+    unsigned long start, end, offset;
+    while (maps && fgets(line, sizeof(line), maps)) {
+        path[0] = 0;
+        if (sscanf(line, "%lx-%lx %*s %lx %*s %*s %399s", &start, &end, &offset, path) >= 3 &&
+            address >= start && address < end) {
+            printf("drivercheck: %s %s+0x%lx\n", what, path[0] ? path : "(anonymous)", address - start + offset);
+            fclose(maps);
+            return;
+        }
+    }
+    printf("drivercheck: %s 0x%lx, mapped nowhere\n", what, (unsigned long)address);
+    if (maps) fclose(maps);
+}
+
+/* A driver that crashes the check: the signal, where, and the libraries on the way there, into drivercheck.log. */
+static void crashed(int signal, siginfo_t *info, void *context)
+{
+    printf("drivercheck: crashed with signal %d, touching 0x%lx\n", signal, (unsigned long)info->si_addr);
+#if defined(__aarch64__)
+    const ucontext_t *state = context;
+    where("in", state->uc_mcontext.pc);
+    where("called from", state->uc_mcontext.regs[30]);
+#endif
+    fflush(stdout);
+    void *frames[32];
+    backtrace_symbols_fd(frames, backtrace(frames, 32), STDOUT_FILENO);
+    _exit(128 + signal);
+}
 
 static GLuint shader(GLenum type, const char *source)
 {
@@ -217,6 +255,12 @@ int main(void)
 {
     // Line by line, so a driver that crashes still leaves what it got to.
     setvbuf(stdout, NULL, _IOLBF, 0);
+    // backtrace() loads its unwinder on first use: here, rather than inside the handler.
+    void *first[1];
+    backtrace(first, 1);
+    static const int fatal[] = { SIGSEGV, SIGBUS, SIGILL, SIGABRT, SIGFPE };
+    struct sigaction on_crash = { .sa_sigaction = crashed, .sa_flags = SA_SIGINFO };
+    for (size_t i = 0; i < sizeof(fatal) / sizeof(fatal[0]); i++) sigaction(fatal[i], &on_crash, NULL);
     Display *display = XOpenDisplay(NULL);
     if (!display) {
         printf("drivercheck: no X display\n");

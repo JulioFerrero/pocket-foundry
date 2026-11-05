@@ -9,6 +9,8 @@ class Paths(context: Context) {
     val prefix = File(files, "usr")
     val lib = File(prefix, "lib")
     val tmp = File(prefix, "tmp")
+    /** Android's properties for libhybris, which can't read them itself (Runtime.writeProperties). */
+    val androidProperties = File(prefix, "etc/android.prop")
     val xSocket = File(tmp, ".X11-unix/X0")
     val audioSocket = File(tmp, "pocketfoundry-audio")
     val inputSocket = File(tmp, "pocketfoundry-input")

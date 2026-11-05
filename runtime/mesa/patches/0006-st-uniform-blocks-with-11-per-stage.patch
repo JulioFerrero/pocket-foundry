@@ -1,0 +1,16 @@
+--- a/src/mesa/state_tracker/st_extensions.c
++++ b/src/mesa/state_tracker/st_extensions.c
+@@ -336,9 +336,12 @@
+          pc->MediumFloat = pc->LowFloat;
+       }
+ 
++      /* Pocket Foundry: a Vulkan driver with the minimum 12 uniform buffers per stage leaves Zink 11 for blocks,
++       * beside the default uniforms' (a Huawei P40's Mali-G76 r18p0). OpenGL asks for 12, but games use far fewer:
++       * rather 11 than none. */
+       if (pc->MaxInstructions &&
+           (!screen->shader_caps[sh].indirect_const_addr ||
+-           pc->MaxUniformBlocks < 12)) {
++           pc->MaxUniformBlocks < 11)) {
+          can_ubo = false;
+       }
+    }

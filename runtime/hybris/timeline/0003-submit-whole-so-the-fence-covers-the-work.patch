@@ -1,0 +1,121 @@
+--- a/layers/timeline_semaphore.c	2026-11-04 15:45:28
++++ b/layers/timeline_semaphore.c	2026-11-04 15:46:16
+@@ -1794,6 +1794,104 @@
+     return result;
+ }
+ 
++/* Pocket Foundry: Zink's vkQueueSubmit has its command buffers in one batch and its timeline signal in a later one
++ * with no work. Taken a batch at a time, the work went to the driver alone and the signal after it, as an empty
++ * submit carrying the fence the layer then waits on for Zink; a Mali-G76 r18p0 lost the device a few frames after
++ * Zink started reusing memory. A call without timeline waits now reaches the driver whole, its timeline signals
++ * swapped for the points' semaphores, so the fence is on the work itself.
++ */
++static bool
++submit_goes_whole_locked(struct device_data *device, uint32_t count, const VkSubmitInfo *submits)
++{
++    bool signals = false;
++    for (uint32_t i = 0; i < count; i++) {
++        for (const VkBaseInStructure *item = submits[i].pNext; item; item = item->pNext)
++            if (item->sType != VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO)
++                return false;
++        for (uint32_t w = 0; w < submits[i].waitSemaphoreCount; w++)
++            if (object_find(&device->semaphores, (void *)(uintptr_t)submits[i].pWaitSemaphores[w]))
++                return false;
++        const VkTimelineSemaphoreSubmitInfo *timeline =
++            vk_find_struct_const(submits[i].pNext, TIMELINE_SEMAPHORE_SUBMIT_INFO);
++        for (uint32_t s = 0; s < submits[i].signalSemaphoreCount; s++) {
++            if (!object_find(&device->semaphores, (void *)(uintptr_t)submits[i].pSignalSemaphores[s]))
++                continue;
++            if (!timeline || timeline->signalSemaphoreValueCount <= s)
++                return false;
++            signals = true;
++        }
++    }
++    return signals;
++}
++
++static VkResult
++queue_submit_whole_locked(struct queue_data *queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence)
++{
++    struct device_data *device = queue->device;
++    uint32_t n_waits = 0, n_signals = 0;
++    for (uint32_t i = 0; i < count; i++) {
++        n_waits += submits[i].waitSemaphoreCount;
++        n_signals += submits[i].signalSemaphoreCount;
++    }
++
++    VkSubmitInfo *infos;
++    VkSemaphore *waits, *signals;
++    VK_MULTIALLOC(ma);
++    vk_multialloc_add(&ma, &infos, count);
++    vk_multialloc_add(&ma, &waits, n_waits);
++    vk_multialloc_add(&ma, &signals, n_signals);
++    void *alloc = vk_multialloc_alloc(&ma, &device->alloc, VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
++    if (!alloc)
++        return VK_ERROR_OUT_OF_HOST_MEMORY;
++
++    struct timeline_point_fence *point_fence = NULL;
++    VkResult result = device_get_point_fence_locked(device, &point_fence);
++    uint32_t n_points = 0;
++    for (uint32_t i = 0; result == VK_SUCCESS && i < count; i++) {
++        const VkTimelineSemaphoreSubmitInfo *timeline =
++            vk_find_struct_const(submits[i].pNext, TIMELINE_SEMAPHORE_SUBMIT_INFO);
++        infos[i] = submits[i];
++        infos[i].pNext = NULL;
++        infos[i].pWaitSemaphores = waits;
++        for (uint32_t w = 0; result == VK_SUCCESS && w < submits[i].waitSemaphoreCount; w++)
++            result = maybe_clone_semaphore(queue, submits[i].pWaitSemaphores[w], waits++);
++        infos[i].pSignalSemaphores = signals;
++        for (uint32_t s = 0; result == VK_SUCCESS && s < submits[i].signalSemaphoreCount; s++) {
++            VkSemaphore semaphore = submits[i].pSignalSemaphores[s];
++            struct timeline_semaphore *timeline_semaphore =
++                object_find(&device->semaphores, (void *)(uintptr_t)semaphore);
++            if (timeline_semaphore) {
++                struct timeline_point *point = NULL;
++                result = timeline_create_point_locked(queue, timeline_semaphore, timeline->pSignalSemaphoreValues[s],
++                                                      point_fence, &point);
++                if (result == VK_SUCCESS) {
++                    semaphore = point->semaphore->semaphore;
++                    point->semaphore->device_signaled = true;
++                    n_points++;
++                }
++            }
++            *signals++ = semaphore;
++        }
++    }
++
++    if (result == VK_SUCCESS) {
++        static bool said;
++        if (!said) {
++            said = true;
++            fprintf(stderr, "timeline layer: each submit reaches the driver whole, its fence on the work\n");
++        }
++        result = device->vtable.QueueSubmit(queue->queue, count, infos, n_points ? point_fence->fence : fence);
++        pthread_cond_broadcast(&device->queue_submit);
++    }
++    /* The app's own fence, after the work */
++    if (result == VK_SUCCESS && n_points && fence != VK_NULL_HANDLE)
++        result = device->vtable.QueueSubmit(queue->queue, 0, NULL, fence);
++
++    point_fence_unref_locked(device, point_fence);
++    vk_free(&device->alloc, alloc);
++    return result;
++}
++
+ static VkResult timeline_QueueSubmit(
+     VkQueue                                     _queue,
+     uint32_t                                    submitCount,
+@@ -1808,6 +1906,13 @@
+ 
+     /* Garbage collect temporary semaphore payload "clones". */
+     result = gc_wait_point_list_locked(device, &queue->wait_points);
++
++    if (result == VK_SUCCESS && list_empty(&queue->waiting_submissions) &&
++        submit_goes_whole_locked(device, submitCount, pSubmits)) {
++        result = queue_submit_whole_locked(queue, submitCount, pSubmits, fence);
++        pthread_mutex_unlock(&device->lock);
++        return result;
++    }
+ 
+     for (uint32_t i = 0; i < submitCount && result == VK_SUCCESS; i++) {
+         const VkTimelineSemaphoreSubmitInfo *timeline_submit_info =

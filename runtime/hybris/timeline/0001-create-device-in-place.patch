@@ -1,0 +1,52 @@
+--- a/layers/timeline_semaphore.c
++++ b/layers/timeline_semaphore.c
+@@ -2359,32 +2359,27 @@
+ 
+     /* Clear timelineSemaphore before calling icd CreateDevice since icd possibly doesn't support it.
+      * Even icd supports it, do not enable it when this layer is enabled.
++     *
++     * Pocket Foundry: in place, and back after, rather than in a copy of the chain, which needs every structure's
++     * size: Zink chains more than this layer lists (robustness2's, which libhybris adds on a Mali).
+      */
+-    const VkPhysicalDeviceVulkan12Features *vulkan12_features =
+-        vk_find_struct_const(pCreateInfo->pNext, PHYSICAL_DEVICE_VULKAN_1_2_FEATURES);
+-    const VkPhysicalDeviceTimelineSemaphoreFeaturesKHR *timeline_features =
++    VkPhysicalDeviceVulkan12Features *vulkan12_features = (VkPhysicalDeviceVulkan12Features *)
++        vk_find_struct_const(pCreateInfo->pNext, PHYSICAL_DEVICE_VULKAN_1_2_FEATURES);
++    VkPhysicalDeviceTimelineSemaphoreFeaturesKHR *timeline_features = (VkPhysicalDeviceTimelineSemaphoreFeaturesKHR *)
+         vk_find_struct_const(pCreateInfo->pNext, PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES_KHR);
++    VkBool32 vulkan12_timeline = vulkan12_features ? vulkan12_features->timelineSemaphore : VK_FALSE;
++    VkBool32 timeline = timeline_features ? timeline_features->timelineSemaphore : VK_FALSE;
++    if (vulkan12_features)
++        vulkan12_features->timelineSemaphore = VK_FALSE;
++    if (timeline_features)
++        timeline_features->timelineSemaphore = VK_FALSE;
+ 
+-    VkDeviceCreateInfo *pNewCreateInfo = NULL;
++    VkResult result = fpCreateDevice(physicalDevice, pCreateInfo, pAllocator, pDevice);
+ 
+-    if (vulkan12_features || timeline_features) {
+-        pNewCreateInfo = clone_device_create_info_pnext(pAllocator ? pAllocator : &instance->alloc,
+-                                                        pCreateInfo);
+-
+-        if (pNewCreateInfo == NULL)
+-            return VK_ERROR_OUT_OF_HOST_MEMORY;
+-    }
+-
+-    VkResult result = fpCreateDevice(physicalDevice,
+-                                     pNewCreateInfo ? pNewCreateInfo : pCreateInfo,
+-                                     pAllocator,
+-                                     pDevice);
+-
+-    /* Free the cloned CreateInfo */
+-    if (pNewCreateInfo) {
+-        free_device_create_info_pnext(pAllocator ? pAllocator : &instance->alloc,
+-                                      pNewCreateInfo);
+-    }
++    if (vulkan12_features)
++        vulkan12_features->timelineSemaphore = vulkan12_timeline;
++    if (timeline_features)
++        timeline_features->timelineSemaphore = timeline;
+ 
+     if (result != VK_SUCCESS)
+         return result;

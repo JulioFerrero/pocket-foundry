@@ -12,7 +12,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Before the first game on a driver, and again when Android's own driver changes: runtime/wm's driver check draws a
+ * Before the first game on a driver, and again when Android's driver or its Options change: runtime/wm's check draws a
  * few squares through the game's own OpenGL and reads them back. A driver that draws them wrong gets Zink's newer
  * features turned off, newest first, until it draws them right (Arm's r38p1 driver on a Mali-G610 draws only black
  * with extended dynamic state). Games on that driver then run without what it gets wrong; drivers that draw right
@@ -27,6 +27,10 @@ object DriverCheck {
     const val HIDE = "ZINK_HIDE_EXTENSIONS"
     /** The compat layer's BC transcoder: 1 (on where the driver lacks BC) or 0 (Mesa unpacks the textures). */
     private const val TRANSCODER = "HYBRIS_BC_TEXTURES"
+    /** Khronos's timeline semaphore layer (runtime/hybris), for Android drivers without the ones Zink needs. */
+    private const val TIMELINE_LAYER = "VK_LAYER_KHRONOS_timeline_semaphore"
+    /** What Zink says on such a driver. */
+    private const val NO_TIMELINES = "KHR_timeline_semaphore is required"
     private const val TIMEOUT_S = 20L
 
     /** The features the check can turn off, newest first. Zink drops the newer ones with an older one anyway. */
@@ -66,27 +70,39 @@ object DriverCheck {
 
     /**
      * The game's [environment] plus what the check turned off for [driver], checking first if it hasn't since the
-     * driver last changed. Options with their own list of extensions to hide skip the check.
+     * driver or its Options last changed. Options with their own list of extensions to hide skip the check.
      */
     fun environment(context: Context, paths: Paths, driver: String,
                     environment: Map<String, String>): Map<String, String> {
         if (!Drivers.usesZink(driver) || HIDE in environment) return environment
-        val version = version(driver)
+        val version = version(context, driver)
         val saved = saved(context, driver)?.takeIf { it.optString("version") == version }
         val found = saved ?: check(context, paths, driver, environment, version)
         if (saved != null) summary(saved).takeIf { it.isNotEmpty() }?.let { ScreenLog.add("driver check: $it") }
         val transcoded = found.optBoolean("transcode")
-        return hiding(environment, offIn(found)) + if (transcoded) mapOf(TRANSCODER to "1") else emptyMap()
+        val base = if (found.optBoolean("timelines")) withTimelines(environment) else environment
+        return hiding(base, offIn(found)) + if (transcoded) mapOf(TRANSCODER to "1") else emptyMap()
+    }
+
+    /** Checks [driver] again now, out of a game and whatever it found before (Settings -> Driver -> Check). */
+    fun recheck(context: Context, paths: Paths, driver: String, environment: Map<String, String>) {
+        check(context, paths, driver, environment, version(context, driver))
     }
 
     /** Whether the last check found [driver] draws the game's compressed textures right through the transcoder. */
     fun transcodes(context: Context, driver: String) = saved(context, driver)?.optBoolean("transcode") == true
+
+    /** What the last check of [driver] found, in a line, or null before its first. */
+    fun result(context: Context, driver: String) =
+        saved(context, driver)?.let { summary(it).ifEmpty { "the test picture is right" } }
 
     /** What the last check of [driver] changes for its games, in a line: empty when nothing. */
     fun summary(context: Context, driver: String) = saved(context, driver)?.let(::summary).orEmpty()
 
     internal fun summary(saved: JSONObject) = listOfNotNull(
         "the test couldn't draw".takeIf { saved.optBoolean("failed") },
+        "the test picture is wrong whatever is off".takeIf { saved.optBoolean("wrong") },
+        "timeline semaphores from Khronos's layer".takeIf { saved.optBoolean("timelines") },
         offIn(saved).takeIf { it.isNotEmpty() }?.let { it.joinToString(", ") + " off" },
         "compressed textures kept compressed".takeIf { saved.optBoolean("transcode") },
     ).joinToString(" · ")
@@ -95,6 +111,10 @@ object DriverCheck {
 
     private fun hiding(environment: Map<String, String>, off: List<String>) =
         if (off.isEmpty()) environment else environment + (HIDE to off.joinToString(","))
+
+    /** [environment] with Khronos's timeline semaphore layer above libhybris's own. */
+    private fun withTimelines(environment: Map<String, String>) = environment +
+        ("VK_INSTANCE_LAYERS" to listOfNotNull(TIMELINE_LAYER, environment["VK_INSTANCE_LAYERS"]).joinToString(":"))
 
     /** A new runtime brings a new Mesa: every driver is checked again. */
     fun forget(context: Context) {
@@ -106,10 +126,20 @@ object DriverCheck {
                       version: String): JSONObject {
         ScreenLog.add("driver check: drawing a test picture")
         paths.driverCheckLog.writeText("")
+        var base = environment
         val found = search { step ->
             paths.driverCheckLog.appendText("── off: ${step.joinToString(", ").ifEmpty { "nothing" }}\n")
-            draw(paths, driver, hiding(environment, step))
+            val result = draw(paths, driver, hiding(base, step))
+            // A driver from before Vulkan 1.2 without timeline semaphores (a Huawei P40's Mali-G76 r18p0): Khronos's
+            // layer adds them, for this try and every one after.
+            if (result != Result.FAILED || base !== environment || !Drivers.isPhone(driver) ||
+                NO_TIMELINES !in paths.driverCheckLog.readText()) return@search result
+            base = withTimelines(environment)
+            paths.driverCheckLog.appendText("── with Khronos's timeline semaphore layer\n")
+            draw(paths, driver, hiding(base, step))
         }
+        val timelines = base !== environment
+        if (timelines) ScreenLog.add("driver check: the driver has no timeline semaphores: Khronos's layer adds them")
         ScreenLog.add("driver check: " + when (found) {
             is Found.Right -> if (found.off.isEmpty()) "the test picture is right"
                               else "the test picture is right only with ${found.off.joinToString(", ")} off: " +
@@ -118,10 +148,9 @@ object DriverCheck {
             Found.Failed -> "the test couldn't draw (drivercheck.log): games on this driver run with everything on"
         })
         // Wrong or failed is remembered too, so a driver isn't checked before every game, nor waited on when it hangs.
-        val off = (found as? Found.Right)?.off.orEmpty()
         val transcoded = found is Found.Right && Drivers.transcodable(driver) &&
-                         transcoderDraws(paths, driver, hiding(environment, off))
-        return save(context, driver, version, off, transcoded, failed = found == Found.Failed)
+                         transcoderDraws(paths, driver, hiding(base, found.off))
+        return save(context, driver, version, found, transcoded, timelines)
     }
 
     /** Whether the game's compressed textures draw right through the transcoder, on top of what's off. */
@@ -145,24 +174,30 @@ object DriverCheck {
             paths.driverCheckLog.appendText("drivercheck: still drawing after $TIMEOUT_S s\n")
             return Result.FAILED
         }
-        return when (process.exitValue()) {
+        return when (val status = process.exitValue()) {
             0 -> Result.RIGHT
             1 -> Result.WRONG
-            else -> Result.FAILED
+            // 2 when OpenGL didn't start, above 128 when a signal killed it (139: SIGSEGV).
+            else -> Result.FAILED.also { paths.driverCheckLog.appendText("drivercheck: exited with $status\n") }
         }
     }
 
-    /** Android's own driver changes with phone updates; the others only with a runtime, which forgets every check. */
-    private fun version(driver: String) = if (Drivers.isPhone(driver)) Gpu.driverVersion.orEmpty() else ""
+    /**
+     * What a check holds for: Android's own driver changes with phone updates, the others only with a runtime, which
+     * forgets every check; and a driver's Options change what it draws.
+     */
+    private fun version(context: Context, driver: String) =
+        (if (Drivers.isPhone(driver)) Gpu.driverVersion.orEmpty() else "") + " · " + Drivers.options(context, driver)
 
     private fun saved(context: Context, driver: String): JSONObject? =
         json(Settings(context).driverChecks).optJSONObject(driver)
 
-    private fun save(context: Context, driver: String, version: String, off: List<String>, transcoded: Boolean,
-                     failed: Boolean): JSONObject {
+    private fun save(context: Context, driver: String, version: String, found: Found, transcoded: Boolean,
+                     timelines: Boolean): JSONObject {
         val settings = Settings(context)
+        val off = (found as? Found.Right)?.off.orEmpty()
         val result = JSONObject().put("version", version).put("off", off.joinToString(",")).put("transcode", transcoded)
-            .put("failed", failed)
+            .put("failed", found == Found.Failed).put("wrong", found == Found.Wrong).put("timelines", timelines)
         settings.driverChecks = json(settings.driverChecks).put(driver, result).toString()
         return result
     }

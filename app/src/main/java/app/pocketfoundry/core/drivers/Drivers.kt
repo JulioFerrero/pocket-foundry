@@ -6,6 +6,7 @@ import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES20
 import android.util.Log
+import app.pocketfoundry.core.game.Runtime
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
@@ -42,7 +43,7 @@ object Drivers {
                    "Mesa's OpenGL driver for Adreno. Slower than Turnip: try it if Turnip shows glitches.", ADRENO),
             Driver(PHONE, "Phone's driver", "Experimental · Android's own, through libhybris",
                    "Zink on the Vulkan driver your phone already has, loaded through libhybris. The way in for Mali, " +
-                   "PowerVR and Xclipse.", "GPUs with Vulkan 1.2"),
+                   "PowerVR and Xclipse.", "GPUs with Vulkan 1.1"),
             Driver(CPU, "CPU", "Experimental · slow, uses a lot of battery",
                    "Mesa draws on the processor, without the GPU. Slow and hard on the battery.", "Any phone"),
         )
@@ -155,6 +156,9 @@ object Drivers {
         // needs and the driver may lack, like null descriptors on Mali.
         PHONE -> mapOf("VK_DRIVER_FILES" to File(paths.lib, "hybris/hybris_icd.json").path,
                        "VK_LAYER_PATH" to File(paths.lib, "hybris").path,
+                       "HYBRIS_PROPERTY_FILE" to paths.androidProperties.path,
+                       // Android 10's linker config is named by it: libhybris's linker can't read properties.
+                       "HYBRIS_VNDK_VERSION" to Runtime.properties["ro.vndk.version"].orEmpty(),
                        "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") + if (Gpu.mali) MALI else emptyMap()
         // llvmpipe: Mesa on the CPU. Software GLX still follows MESA_LOADER_DRIVER_OVERRIDE, so it must name llvmpipe too.
         // 256-bit code (two NEON registers at a time) and bilinear filtering were the fastest that still looked right.
@@ -240,11 +244,14 @@ object Gpu {
     /** Arm's Mali, which the phone's driver sets up for OpenGL 3.3 and uncompressed textures. */
     val mali: Boolean get() = name?.contains("Mali") == true
 
-    /** Android's Vulkan is 1.2 or newer, with the timeline semaphores Zink needs: worth trying the phone's driver. */
+    /**
+     * Android's Vulkan is 1.1 or newer: worth trying the phone's driver. One without the timeline semaphores Zink
+     * needs, which came with 1.2, gets them from Khronos's layer (DriverCheck).
+     */
     fun hasVulkan(context: Context) =
-        context.packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, VULKAN_1_2)
+        context.packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, VULKAN_1_1)
 
-    private const val VULKAN_1_2 = 0x402000
+    private const val VULKAN_1_1 = 0x401000
 
     internal fun isSupported(renderer: String?): Boolean {
         val name = renderer ?: return true

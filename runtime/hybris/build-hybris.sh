@@ -65,4 +65,41 @@ cat > hybris_icd.json <<EOF
     "ICD": { "library_path": "$LIB/libhybris-vulkan-icd.so.0", "api_version": "1.3.0" }
 }
 EOF
+
+# Khronos's timeline semaphore layer (Vulkan-ExtensionLayer, Apache-2.0): the timeline semaphores Zink needs, on Android
+# drivers from before Vulkan 1.2 without them (a Huawei P40's Mali-G76 r18p0). It takes them over even where the driver
+# has its own, so the app turns it on only where the driver check finds Zink stopping for them (DriverCheck.kt).
+EXTENSION_LAYER=38ced57f063a288ecd4f401523638b7bdb3ac9d2
+LAYER_SRC=/work/vulkan-extensionlayer
+cd /cache
+[ -f Vulkan-ExtensionLayer-$EXTENSION_LAYER.tar.gz ] || curl -fL -o Vulkan-ExtensionLayer-$EXTENSION_LAYER.tar.gz \
+    https://codeload.github.com/KhronosGroup/Vulkan-ExtensionLayer/tar.gz/$EXTENSION_LAYER
+rm -rf "$LAYER_SRC" && mkdir -p "$LAYER_SRC"
+tar -xzf Vulkan-ExtensionLayer-$EXTENSION_LAYER.tar.gz -C "$LAYER_SRC" --strip-components=1
+cd "$LAYER_SRC"
+for p in /runtime/hybris/timeline/*.patch; do patch -p1 --silent < "$p"; done
+cd layers
+flags="-O2 -fPIC -DNDEBUG -I. -I../utils -I$SRC/headers/include"
+gcc $flags -c timeline_semaphore.c
+g++ $flags -c hash_table.cpp
+layer=libVkLayer_khronos_timeline_semaphore.so
+g++ -shared -o /out/hybris$LIB/$layer timeline_semaphore.o hash_table.o \
+    -Wl,--version-script=libVkLayer_khronos_timeline_semaphore.map -lpthread
+strip --strip-unneeded /out/hybris$LIB/$layer
+mkdir -p /out/hybris$LIB/licenses/vulkan-extensionlayer
+cp "$LAYER_SRC/LICENSES/Apache-2.0.txt" /out/hybris$LIB/licenses/vulkan-extensionlayer/
+cat > /out/hybris$LIB/VkLayer_khronos_timeline_semaphore.json <<EOF
+{
+    "file_format_version": "1.0.0",
+    "layer": {
+        "name": "VK_LAYER_KHRONOS_timeline_semaphore",
+        "type": "GLOBAL",
+        "library_path": "$LIB/$layer",
+        "api_version": "1.4.0",
+        "implementation_version": "1",
+        "description": "Khronos timeline semaphore layer",
+        "device_extensions": [{ "name": "VK_KHR_timeline_semaphore", "spec_version": "2" }]
+    }
+}
+EOF
 du -sh /out/hybris$LIB

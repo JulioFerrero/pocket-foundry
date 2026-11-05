@@ -1,0 +1,29 @@
+--- a/hybris/common/legacy_properties/cache.c
++++ b/hybris/common/legacy_properties/cache.c
+@@ -35,7 +35,8 @@
+ };
+ 
+ /* surely enough for anyone */
+-#define MAX_PROPS 1000
++/* Pocket Foundry: Android's whole list (HYBRIS_PROPERTY_FILE, below) runs past a thousand, and running out exits. */
++#define MAX_PROPS 4000
+ 
+ /* the sorted prop array */
+ static struct hybris_prop_value prop_array[MAX_PROPS];
+@@ -121,6 +122,16 @@
+ 
+ 		/* cache is stale. fill it back up with fresh data first. */
+ 		cache_empty_internal();
++		/* Pocket Foundry: Android's own values first, which Pocket Foundry writes for us, as name=value lines, to
++		 * HYBRIS_PROPERTY_FILE: build.prop has only some. ro.board.platform, which Android's Vulkan loader and ours
++		 * find the driver by, can be elsewhere (a Huawei P40's): without it, the loader falls back to its empty
++		 * stand-in. */
++		const char *android = getenv("HYBRIS_PROPERTY_FILE");
++		FILE *live = android ? fopen(android, "r") : NULL;
++		if (live) {
++			cache_repopulate_internal(live);
++			fclose(live);
++		}
+ 		cache_repopulate_internal(f);
+ 		cache_repopulate_cmdline_internal();
+ 

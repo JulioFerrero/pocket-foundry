@@ -56,6 +56,17 @@ class DriverCheckTest {
         assertEquals("$eds2, $eds1 off · compressed textures kept compressed", DriverCheck.summary(saved))
     }
 
+    @Test fun `a driver wrong whatever is off says so`() {
+        val saved = JSONObject().put("off", "").put("transcode", false).put("failed", false).put("wrong", true)
+        assertEquals("the test picture is wrong whatever is off", DriverCheck.summary(saved))
+    }
+
+    @Test fun `a driver that needed Khronos's timeline semaphores says so`() {
+        val saved = JSONObject().put("off", "").put("transcode", true).put("timelines", true)
+        assertEquals("timeline semaphores from Khronos's layer · compressed textures kept compressed",
+                     DriverCheck.summary(saved))
+    }
+
     @Test fun `a check that couldn't draw is remembered as that`() {
         val saved = JSONObject().put("off", "").put("transcode", false).put("failed", true)
         assertEquals("the test couldn't draw", DriverCheck.summary(saved))
