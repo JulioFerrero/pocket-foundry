@@ -12,11 +12,13 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.LeadingMarginSpan
 import android.text.style.StyleSpan
+import android.util.Log
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.Drivers
@@ -36,6 +38,7 @@ import app.pocketfoundry.ui.kit.pad
 import app.pocketfoundry.ui.kit.panel
 import app.pocketfoundry.ui.kit.stack
 import java.io.File
+import kotlin.concurrent.thread
 
 /** The phone's facts and the ends of the game's logs, every 2 s, to read or copy into a report. */
 class LogActivity : Activity() {
@@ -63,6 +66,7 @@ class LogActivity : Activity() {
         val copied = Runnable { copy.text = "Copy" }
         copy.setOnClickListener {
             getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Pocket Foundry logs", shown))
+            toLogcat(shown)
             copy.text = "Copied"
             mainHandler.removeCallbacks(copied)
             mainHandler.postDelayed(copied, 2000)
@@ -117,9 +121,9 @@ class LogActivity : Activity() {
     }
 
     private fun load() {
-        val raw = phone + LOG_TAILS.joinToString("\n") { (log, lines) ->
-            val file = log(paths)
-            "── ${file.name} ──\n" + tail(file, lines)
+        val raw = phone + LOGS.joinToString("\n") { excerpt ->
+            val file = excerpt.log(paths)
+            "── ${file.name} ──\n" + excerpt.of(file)
         }
         if (raw == shown) return
         val atBottom = !scroll.canScrollVertically(1)
@@ -128,10 +132,28 @@ class LogActivity : Activity() {
         if (atBottom) scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
     }
 
-    private fun tail(file: File, lines: Int): String = when {
-        !file.exists() -> "(none yet)"
-        file.length() == 0L -> "(empty)"
-        else -> file.readLines().takeLast(lines).joinToString("\n")
+    /**
+     * The Logs into Android's own log too: on a phone in a cloud lab, whose clipboard doesn't reach the tester's, its
+     * log panel shows them, and copies. Logcat cuts entries at about 4 KB, so longer lines go in pieces, and drops
+     * lines that come faster than a few hundred a second, so they go in bursts.
+     */
+    private fun toLogcat(text: String) = thread {
+        text.lines().flatMap { it.chunked(LOGCAT_PIECE).ifEmpty { listOf("") } }.forEachIndexed { i, line ->
+            if (i > 0 && i % LOGCAT_BURST == 0) Thread.sleep(LOGCAT_PAUSE_MS)
+            Log.i(TAG, line)
+        }
+    }
+
+    /** Of a [log], its [last] lines, and its [first] too when there's more between them. */
+    private class Excerpt(val log: (Paths) -> File, val last: Int, val first: Int = 0) {
+        fun of(file: File): String = when {
+            !file.exists() -> "(none yet)"
+            file.length() == 0L -> "(empty)"
+            else -> file.readLines().let { lines ->
+                val between = lines.size - first - last
+                if (between <= 0) lines else lines.take(first) + "… $between lines …" + lines.takeLast(last)
+            }.joinToString("\n")
+        }
     }
 
     private fun colorize(raw: String): CharSequence {
@@ -158,9 +180,13 @@ class LogActivity : Activity() {
     }
 
     companion object {
-        /** Each log with how many of its last lines to show. */
-        private val LOG_TAILS = listOf(Paths::gameLog to 400, Paths::wmLog to 20, Paths::screenLog to 120,
-                                       Paths::x11Log to 120, Paths::driverCheckLog to 40)
+        private const val LOGCAT_PIECE = 3000
+        private const val LOGCAT_BURST = 100
+        private const val LOGCAT_PAUSE_MS = 250L
+        /** The logs shown. Factorio's first lines say what it runs on, and a log full of errors can push them out. */
+        private val LOGS = listOf(Excerpt(Paths::gameLog, last = 340, first = 60), Excerpt(Paths::wmLog, 20),
+                                  Excerpt(Paths::screenLog, 120), Excerpt(Paths::x11Log, 120),
+                                  Excerpt(Paths::driverCheckLog, 40))
         private val TEXT = Color.rgb(0xD5, 0xD9, 0xE0)
         private val DIM = Color.rgb(0x7A, 0x78, 0x76)
         private val AMBER = Color.rgb(0xE6, 0xB4, 0x50)
