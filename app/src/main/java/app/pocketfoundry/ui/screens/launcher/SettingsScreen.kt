@@ -40,7 +40,10 @@ import app.pocketfoundry.ui.kit.withNote
 import app.pocketfoundry.ui.screens.drivers.DriverDialog
 import app.pocketfoundry.ui.screens.saves.SavesDialog
 
-/** The display and game settings, and a bar to the update, the driver, saves, the game's files and a new import. */
+/**
+ * The display and game settings, and a bar to the update, the driver, saves, the game's files and a new import. The
+ * version and licence sit by the title, where a game's note goes while one runs.
+ */
 class SettingsScreen(private val launcher: LauncherActivity) {
     private val settings = Settings(launcher)
     private val x11 = X11Prefs(launcher)
@@ -54,6 +57,11 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val graphics = Choice(launcher, listOf("Full", "Light")) { settings.lightGraphics = it == LIGHT }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)
     private val layoutLater = label(launcher, "In a game", 15f, Factorio.FAINT)
+    // Up by the title, out of the bar below: on a narrow phone the bar has no room for it next to the update.
+    private val credit = row(launcher) {
+        add(label(launcher, "Pocket Foundry ${launcher.appVersion()} · GPL-3.0 · ", 13f, Factorio.FAINT))
+        add(link(launcher, "GitHub", GITHUB, 13f))
+    }
     private val updateButton = button(launcher, "", Tone.GREEN, size = 15f) { Updates.available?.let(launcher::showUpdate) }
     private val importAgain = button(launcher, "Import game", size = 15f, onClick = launcher::pickGame)
 
@@ -63,8 +71,6 @@ class SettingsScreen(private val launcher: LauncherActivity) {
             add(game(), 0, MATCH, weight = 1f, start = 10)
         }, height = 0, weight = 1f)
         add(buttonBar(launcher, "Back", { launcher.showSettings(false) }).apply {
-            add(label(launcher, "Pocket Foundry ${launcher.appVersion()} · GPL-3.0 · ", 13f, Factorio.FAINT))
-            add(link(launcher, "GitHub", GITHUB, 13f))
             add(updateButton, height = BUTTON_HEIGHT, start = 8)
             add(button(launcher, "Driver", size = 15f) { DriverDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)
             add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 4)
@@ -76,6 +82,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private fun header() = row(launcher) {
         add(heading(launcher, "Settings"), width = 0, weight = 1f)
         add(note, end = 4)
+        add(credit, end = 4)
     }
 
     private fun display() = section("Display",
@@ -147,6 +154,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         sprites.selected = Settings.SPRITE_QUALITIES.indexOf(settings.spriteQuality).coerceAtLeast(0)
         graphics.selected = if (settings.lightGraphics) LIGHT else FULL
         note.shown = Session.inGame
+        credit.shown = !Session.inGame
         editLayout.shown = Session.live
         layoutLater.shown = !Session.live
         importAgain.isEnabled = !Session.inGame && idle
