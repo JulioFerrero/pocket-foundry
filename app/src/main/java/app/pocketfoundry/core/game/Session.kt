@@ -303,6 +303,7 @@ object Glibc {
             put("XDG_RUNTIME_DIR", paths.tmp.path)
             put("PATH", "/system/bin")
             put("LANG", "C.UTF-8")
+            put("XLOCALEDIR", File(paths.prefix, "share/X11/locale").path)
             put("TZ", posixTimeZone(TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000))
             // No /tmp on Android, so name the socket itself.
             put("DISPLAY", paths.xSocket.path)

@@ -44,9 +44,19 @@ missing=$(LD_LIBRARY_PATH=$OUT/lib:$OUT/lib/hybris ldd $targets 2>/dev/null | gr
 # glibc last: ldd above runs on the container's 2.41 and must not pick up our libc.
 for f in $GLIBC_LIBS; do cp -L $GLIBC/lib/$f $OUT/lib/; done
 cp -r $GLIBC/lib/gconv $OUT/lib/
+# The C.UTF-8 locale that LANG names, made with our glibc's localedef: without it setlocale() falls back to "C".
+gzip -dc $GLIBC/share/i18n/charmaps/UTF-8.gz > /tmp/UTF-8
+mkdir -p $OUT/lib/locale
+I18NPATH=$GLIBC/share/i18n $GLIBC/lib/ld-linux-aarch64.so.1 --library-path $GLIBC/lib $GLIBC/bin/localedef \
+    --no-archive -i C -f /tmp/UTF-8 $OUT/lib/locale/C.utf8
 
 mkdir -p $OUT/share/X11
 cp -r /usr/share/X11/xkb $OUT/share/X11/
+# Xlib's locale files: without them, or without C.UTF-8 above, SDL opens no input method and a key beyond ASCII
+# (ñ, é, Cyrillic) gives the game no text. The input method needs the Compose file too.
+mkdir -p $OUT/share/X11/locale/en_US.UTF-8
+cp /usr/share/X11/locale/{locale.alias,locale.dir,compose.dir} $OUT/share/X11/locale/
+cp /usr/share/X11/locale/en_US.UTF-8/{XLC_LOCALE,Compose} $OUT/share/X11/locale/en_US.UTF-8/
 printf '127.0.0.1 localhost\n::1 localhost\n' > $OUT/etc/hosts
 
 find $OUT -name '*.so*' -type f -exec strip --strip-unneeded {} + 2>/dev/null || true
