@@ -218,7 +218,9 @@ class DriverDialog(private val launcher: LauncherActivity) {
         background("driver-check", { Session.checkDriver(launcher, id) }) { result ->
             say(result.fold({ "Checked. Logs has the details." }, { it.message ?: "The check didn't run. See Logs." }),
                 error = result.isFailure)
-            view(viewing)
+            // A check can bring a new runtime, which forgets past games: the automatic choice may move.
+            listDrivers()
+            launcher.refresh()
         }
     }
 
