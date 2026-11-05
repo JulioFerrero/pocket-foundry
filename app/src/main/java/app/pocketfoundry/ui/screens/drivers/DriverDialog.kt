@@ -19,7 +19,6 @@ import app.pocketfoundry.core.drivers.DriverImport
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.Session
-import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
 import app.pocketfoundry.ui.kit.FButton
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
@@ -37,13 +36,13 @@ import app.pocketfoundry.ui.kit.link
 import app.pocketfoundry.ui.kit.pad
 import app.pocketfoundry.ui.kit.row
 import app.pocketfoundry.ui.kit.shown
-import app.pocketfoundry.ui.kit.spacer
 import app.pocketfoundry.ui.kit.stack
 import app.pocketfoundry.ui.kit.withNote
 
 /**
- * The drivers in sections on the left, the one looked at on the right: Use, what it is, its GPUs, how the last game
- * with it went, what its driver check found (Check runs it again, no game needed), and its Options for testing it.
+ * The drivers in sections on the left, the one looked at on the right: what it is, its GPUs, how the last game with it
+ * went, what its driver check found, and its Options for testing it. The bar below acts on that one: Remove, Check
+ * (the driver check again, no game needed) and Use; on a narrow phone they don't fit beside its name.
  */
 class DriverDialog(private val launcher: LauncherActivity) {
     private val host = launcher.host
@@ -64,7 +63,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
     private val checkedFact = fact("Driver check", checked)
     // MaliBridge's licence asks for this credit wherever the app shows credits.
     private val credit = link(launcher, "Uses MaliBridge by ASEbrahim", MALIBRIDGE, 13f)
-    private val useButton = button(launcher, "Use this driver", Tone.GREEN) { choose(viewing) }
+    private val useButton = button(launcher, "Use", Tone.GREEN) { choose(viewing) }
     private val removeButton = button(launcher, "Remove") { remove(viewing) }
     private val checkButton = button(launcher, "Check") { checkDriver(viewing) }
     private val options = optionsField()
@@ -72,10 +71,6 @@ class DriverDialog(private val launcher: LauncherActivity) {
         add(row(launcher) {
             add(name)
             add(recommended, start = 10)
-            spacer()
-            add(removeButton, height = BUTTON_HEIGHT, start = 8)
-            add(checkButton, height = BUTTON_HEIGHT, start = 4)
-            add(useButton, height = BUTTON_HEIGHT, start = 4)
         })
         add(detail)
         add(about)
@@ -95,7 +90,8 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val screen = launcher.resources.configuration
         val chrome = CHROME + if (status.shown) STATUS else 0
         val title = Gpu.name?.let { withNote(TITLE, it, Factorio.FAINT, 15, gap = "   ") } ?: TITLE
-        host.show(title, minOf(WIDTH, screen.screenWidthDp - MARGIN), "Close", importButton) {
+        host.show(title, minOf(WIDTH, screen.screenWidthDp - MARGIN), "Close", importButton, removeButton, checkButton,
+                  useButton) {
             add(row(launcher, Gravity.TOP) {
                 add(pane(list), LIST_WIDTH, MATCH)
                 add(pane(details), 0, MATCH, weight = 1f, start = 8)
@@ -195,7 +191,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         checked.text = DriverCheck.result(launcher, id)?.replaceFirstChar(Char::uppercase) ?: "Not checked yet"
         credit.shown = Drivers.isPhone(id)
         options.setText(Drivers.options(launcher, id))
-        useButton.text = if (inUse) "In use" else "Use this driver"
+        useButton.text = if (inUse) "In use" else "Use"
         useButton.isEnabled = !inUse
         removeButton.shown = driver.imported
     }
