@@ -88,7 +88,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         return text.measureText(label)
     }
 
-    /** While held, the well stays where the finger landed and the knob follows the finger. */
     private fun drawStick(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float, pressed: Boolean) {
         val active = pressed && !c.originX.isNaN()
         val wellX = if (active) c.originX else x
@@ -142,22 +141,24 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             return letter(canvas, c.label, x, y, r * 0.78f, colour)
         }
         bevelSlot(pressed, y - r, y + r) { canvas.drawCircle(x, y, r, it) }
-        if (c.icon == null) return circled(canvas, c.label, x, y, r, colour)
+        val glyph = c.icon ?: return circled(canvas, c.label, x, y, r, colour)
         ring(canvas, x, y, r, colour)
         icon.strokeWidth = r * 0.09f
-        if (c.icon == Icon.VIEW) {
-            val s = r * 0.24f
-            rect.set(x - s * 1.1f, y - s * 0.9f, x + s * 0.5f, y + s * 0.4f)
-            canvas.drawRect(rect, icon)
-            rect.set(x - s * 0.5f, y - s * 0.4f, x + s * 1.1f, y + s * 0.9f)
-            canvas.drawRect(rect, icon)
-        } else {
-            val s = r * 0.28f
-            for (i in -1..1) canvas.drawLine(x - s, y + i * s * 0.65f, x + s, y + i * s * 0.65f, icon)
+        when (glyph) {
+            Icon.VIEW -> {
+                val s = r * 0.24f
+                rect.set(x - s * 1.1f, y - s * 0.9f, x + s * 0.5f, y + s * 0.4f)
+                canvas.drawRect(rect, icon)
+                rect.set(x - s * 0.5f, y - s * 0.4f, x + s * 1.1f, y + s * 0.9f)
+                canvas.drawRect(rect, icon)
+            }
+            Icon.MENU -> {
+                val s = r * 0.28f
+                for (i in -1..1) canvas.drawLine(x - s, y + i * s * 0.65f, x + s, y + i * s * 0.65f, icon)
+            }
         }
     }
 
-    /** In the game's own GUI sprites: its dark slot button, orange while pressed, with its controller glyph. */
     private fun drawSpriteButton(canvas: Canvas, sheet: GuiSheet, c: Control, x: Float, y: Float, r: Float,
                                  pressed: Boolean) {
         rect.set(x - r, y - r, x + r, y + r)
@@ -166,7 +167,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         drawGlyph(canvas, sheet, c, pressed, x, y, r * if (c.pill) 0.78f else 0.6f)
     }
 
-    /** Four slot buttons round the game's sunken middle, dark right through. */
     private fun drawSpriteDpad(canvas: Canvas, sheet: GuiSheet, c: Control, x: Float, y: Float, r: Float) {
         val arm = r * ARM
         rect.set(x - arm, y - arm, x + arm, y + arm)
@@ -195,7 +195,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         }
     }
 
-    /** [c]'s glyph from the game, or its label if there's none, [half] its size out from (x, y). */
     private fun drawGlyph(canvas: Canvas, sheet: GuiSheet, c: Control, pressed: Boolean, x: Float, y: Float, half: Float) {
         val glyph = (if (pressed) c.pressedGlyph else c.idleGlyph)?.let { sheet.glyph(it) }
         if (glyph == null) return letter(canvas, c.label, x, y, half * 1.3f, glyphColour(pressed))
@@ -206,7 +205,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private fun spriteSlot(canvas: Canvas, sheet: GuiSheet, pressed: Boolean) =
         sheet.slot[if (pressed) GuiSheet.PRESSED else GuiSheet.IDLE].draw(canvas, rect, minOf(rect.width(), rect.height()) / 2, sprite)
 
-    /** A circle of [colour] inside the slot button's darkest edge. */
     private fun edgedCircle(canvas: Canvas, x: Float, y: Float, r: Float, colour: Int) {
         fill.color = colour
         canvas.drawCircle(x, y, r, fill)
@@ -215,13 +213,11 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         canvas.drawCircle(x, y, r - edge() / 2, stroke)
     }
 
-    /** The drawn look's button: [shape] filled with the bevel, then edged. */
     private inline fun bevelSlot(pressed: Boolean, top: Float, bottom: Float, shape: (Paint) -> Unit) {
         if (pressed) shaded(bevelPressed, top, bottom, Tone.ORANGE.dark, edge(), shape)
         else shaded(bevelIdle, top, bottom, BEVEL_EDGE, edge(), shape)
     }
 
-    /** [shape] filled with [gradient] stretched from [top] to [bottom], then edged. */
     private inline fun shaded(gradient: LinearGradient, top: Float, bottom: Float, edgeColour: Int, edgeWidth: Float,
                               shape: (Paint) -> Unit) {
         matrix.setScale(1f, bottom - top)
@@ -239,7 +235,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private fun corner() = context.dp(GuiSheet.CORNER)
     private fun glyphColour(pressed: Boolean) = if (pressed) INK else GLYPH
 
-    /** In [rect]: [dir]'s arm of a cross [arm] wide each side, from [near] to [far] out from its middle (x, y). */
     private fun armRect(dir: DpadDir, x: Float, y: Float, arm: Float, near: Float, far: Float) = when (dir) {
         DpadDir.UP -> rect.set(x - arm, y - far, x + arm, y - near)
         DpadDir.DOWN -> rect.set(x - arm, y + near, x + arm, y + far)
@@ -247,7 +242,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         DpadDir.RIGHT -> rect.set(x + near, y - arm, x + far, y + arm)
     }
 
-    /** [dir]'s arrow, [distance] out from (x, y): a tip, and a base [size] each side across it. */
     private fun arrow(canvas: Canvas, dir: DpadDir, x: Float, y: Float, distance: Float, size: Float, colour: Int) {
         val tip = distance + size * 0.55f
         val base = distance - size * 0.45f
@@ -282,12 +276,10 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         private const val EDGE = 0xFF090909.toInt()
         private const val SLOT = 0xFF2D2D2D.toInt()
         private const val SLOT_PRESSED = 0xFFDC7B00.toInt()
-        // The drawn look's buttons, lit along the top.
         private val BEVEL_IDLE = intArrayOf(0xFF6B6A6B.toInt(), 0xFF6B6A6B.toInt(), 0xFF474647.toInt(), 0xFF2B2A2B.toInt())
         private val BEVEL_PRESSED = intArrayOf(Tone.ORANGE.light, Tone.ORANGE.light, Tone.ORANGE.face, 0xFFC4802C.toInt())
         private val BEVEL_STOPS = floatArrayOf(0f, 0.06f, 0.09f, 1f)
         private const val BEVEL_EDGE = 0xFF121112.toInt()
-        /** The drawn look's stick well, shaded under its top lip. */
         private val WELL_SHADE = intArrayOf(0xE0000000.toInt(), 0xA0242324.toInt(), 0xA0242324.toInt())
         private val WELL_STOPS = floatArrayOf(0f, 0.14f, 1f)
         private const val DPAD_HUB = 0x66000000

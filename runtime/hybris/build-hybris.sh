@@ -52,7 +52,7 @@ rm -rf /out/hybris
 make -C common install-libLTLIBRARIES DESTDIR=/out/hybris
 for dir in $dirs; do make -C $dir install DESTDIR=/out/hybris; done
 
-# Only what the game loads: no development files, nor hybris's own libvulkan (the runtime has Khronos's loader).
+# hybris's own libvulkan goes too: the runtime has Khronos's loader.
 rm -rf /out/hybris$PREFIX/include
 cd /out/hybris$LIB
 rm -rf pkgconfig libvulkan.so*

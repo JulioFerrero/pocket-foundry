@@ -1,6 +1,8 @@
 package app.pocketfoundry.ui.controller
 
 import android.content.Context
+import android.util.Log
+import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.floats
 import app.pocketfoundry.core.system.strings
 import app.pocketfoundry.ui.kit.dp
@@ -48,13 +50,12 @@ class PadLayout(private val context: Context) {
     private fun frameTop(c: Control) = (height - frame) * c.anchor.down
     private fun onScreen(at: Float, half: Float, size: Int) = at.coerceIn(minOf(half, size / 2f), maxOf(size - half, size / 2f))
 
-    /** Puts [c]'s middle at (x, y), kept on screen: the inverse of [cx] and [cy]. */
+    /** The inverse of [cx] and [cy]. */
     fun moveCentre(c: Control, x: Float, y: Float) {
         c.x = (onScreen(x, halfWidth(c), width) - frameLeft(c)) / frameWidth
         c.y = (onScreen(y, radius(c), height) - frameTop(c)) / frame
     }
 
-    /** The topmost shown control under (x, y). */
     fun controlAt(x: Float, y: Float): Control? {
         for (i in shownControls.lastIndex downTo 0) {
             val c = shownControls[i]
@@ -67,7 +68,6 @@ class PadLayout(private val context: Context) {
         return null
     }
 
-    /** Every control shown where it started, at the default opacity. */
     fun reset() {
         allControls.forEach { it.resetPlacement() }
         refreshShown()
@@ -79,27 +79,45 @@ class PadLayout(private val context: Context) {
         opacity = OPACITIES[(i + 1) % OPACITIES.size]
     }
 
+    /** A layout that can't be read is left as it was, whole: the defaults on a first load. */
     fun load() {
-        val saved = prefs.getString(LAYOUT_KEY, null)
-        val json = saved ?: prefs.getString(OLD_LAYOUT_KEY, null)
-        if (json != null) runCatching { read(JSONObject(json), placements = saved != null) }
+        moveOldLayout()
+        val saved = prefs.getString(LAYOUT_KEY, null) ?: return refreshShown()
+        try {
+            val json = JSONObject(saved)
+            val removed = json.optJSONArray("removed")?.strings().orEmpty()
+            val placed = json.getJSONObject("controls")
+            val placements = allControls.associateWith { c ->
+                placed.optJSONArray(c.id)?.floats()?.also { require(it.size == 3) { "${c.id} has ${it.size} numbers" } }
+            }
+            opacity = json.optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat()
+            hidden = json.optBoolean("hidden", false)
+            for ((c, placement) in placements) {
+                c.shown = c.id !in removed
+                placement?.let { (x, y, scale) ->
+                    c.x = x
+                    c.y = y
+                    c.scale = scale
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "The saved controller layout is unreadable: $saved", e)
+        }
         refreshShown()
     }
 
-    private fun read(json: JSONObject, placements: Boolean) {
-        opacity = json.optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat()
-        hidden = json.optBoolean("hidden", false)
-        if (!placements) return
-        val removed = json.optJSONArray("removed")?.strings().orEmpty()
-        val placed = json.getJSONObject("controls")
-        for (c in allControls) {
-            c.shown = c.id !in removed
-            placed.optJSONArray(c.id)?.floats()?.let { (x, y, scale) ->
-                c.x = x
-                c.y = y
-                c.scale = scale
-            }
+    /** From the older layout, which saved every position, only its opacity and hiding carry over. */
+    private fun moveOldLayout() {
+        val old = prefs.getString(OLD_LAYOUT_KEY, null) ?: return
+        if (!prefs.contains(LAYOUT_KEY)) try {
+            val json = JSONObject(old)
+            val carried = JSONObject().put("opacity", json.optDouble("opacity", DEFAULT_OPACITY.toDouble()))
+                .put("hidden", json.optBoolean("hidden", false)).put("controls", JSONObject())
+            prefs.edit().putString(LAYOUT_KEY, carried.toString()).apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "The old controller layout is unreadable: $old", e)
         }
+        prefs.edit().remove(OLD_LAYOUT_KEY).apply()
     }
 
     /** Only what the player changed, so the rest follow the defaults when those change. */
@@ -114,7 +132,6 @@ class PadLayout(private val context: Context) {
 
     private companion object {
         const val LAYOUT_KEY = "layout-edges"
-        /** An older layout that saved every position: only its opacity and hiding carry over. */
         const val OLD_LAYOUT_KEY = "layout-hybrid"
         const val DEFAULT_OPACITY = 0.8f
         val OPACITIES = floatArrayOf(0.35f, 0.55f, 0.8f, 1f)

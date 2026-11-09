@@ -21,7 +21,6 @@ class InputRouter(
     // Sets of pointer ids, a bit each (a HashSet would allocate): the fingers on the controller, and the others.
     private var claimed = 0
     private var forwarded = 0
-    /** Where the controller is in the window. */
     private val location = IntArray(2)
 
     override fun dispatchGenericMotionEvent(event: MotionEvent) =
@@ -53,9 +52,11 @@ class InputRouter(
 
     private fun onDown(event: MotionEvent) {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            // The first finger: any still counted lost their end.
+            if (claimed != 0) controller.releaseAll()
             claimed = 0
             forwarded = 0
-            gestures.cancel()   // in case the last touch's end went missing
+            gestures.cancel()
         }
         val index = event.actionIndex
         val id = event.getPointerId(index)
@@ -87,10 +88,9 @@ class InputRouter(
         }
     }
 
+    /** Android took the touch back: nothing it pressed counts, a tool under it included. */
     private fun onCancel() {
-        for (id in 0 until ControllerView.POINTER_IDS) {
-            if (claimed.has(id)) controller.pointerUp(id)
-        }
+        if (claimed != 0) controller.releaseAll()
         claimed = 0
         forwarded = 0
         gestures.cancel()

@@ -44,7 +44,7 @@ enum class Tone(val face: Int, val light: Int, val dark: Int, val glow: Int) {
     RED(0xFFE8605A.toInt(), 0xFFF5A29E.toInt(), 0xFF4A1514.toInt(), 0xFFFE5A5A.toInt()),
 }
 
-/** The imported game's GUI sheet, read once; null before an import or if the sheet's layout changed. Main thread only. */
+/** The imported game's GUI sheet; null before an import or if the sheet's layout changed. Main thread only. */
 object GuiSprites {
     private var sheet: GuiSheet? = null
     private var read = false
@@ -52,7 +52,7 @@ object GuiSprites {
     fun get(context: Context): GuiSheet? {
         if (!read) {
             read = true
-            sheet = runCatching { GuiSheet(File(Paths(context).game, "data/core/graphics")) }
+            sheet = runCatching { GuiSheet(Paths(context).coreGraphics) }
                 .onFailure { if (it !is FileNotFoundException) Log.w(TAG, "Factorio's GUI sprites unusable, drawing the look instead", it) }
                 .getOrNull()
         }
@@ -100,7 +100,6 @@ class GuiSheet(dir: File) {
     val checkbox = SHEET_ORDER.map { piece(it * 28, 132, 28, 28) }
     val check = piece(112, 132, 28, 28)
 
-    /** The dropdown's arrow; null if missing. */
     val caret = largestMip(File(dir, "icons/mip/dropdown.png"), 32)
 
     // slot_button, the inventory's and quickbar's dark square: idle, clicked, disabled (idle, as the game has none),
@@ -135,7 +134,6 @@ class GuiSheet(dir: File) {
     /** An 8-pixel-wide strip of a button's 17-pixel tile: corner, edge, corner. */
     private fun strip(x: Int) = listOf(piece(x, 17, 8, 8), piece(x, 25, 8, 1), piece(x, 26, 8, 8))
 
-    /** A tile cut [near] | 1 | [far] both ways, 17 pixels by default; the 1-pixel centre can come from another column. */
     private fun nine(x: Int, y: Int, near: Int = 8, far: Int = 8, centerX: Int = x + near): NineSlice {
         val at = intArrayOf(0, near, near + 1)
         val size = intArrayOf(near, 1, far)
@@ -191,7 +189,7 @@ class NineSlice(private val parts: List<Bitmap>) {
     }
 }
 
-/** A back or confirm button's face: a flat end, a stretched middle and a point, on the left or the right. */
+/** A back or confirm button's face. */
 class ArrowSlices(private val pointLeft: Bitmap, private val pointRight: Bitmap, private val middle: Bitmap,
                   private val endLeft: List<Bitmap>, private val endRight: List<Bitmap>) {
     private val cell = RectF()

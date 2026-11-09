@@ -1,15 +1,13 @@
 package app.pocketfoundry.ui.controller
 
 import app.pocketfoundry.core.controller.DpadDir
-import app.pocketfoundry.core.controller.InputBridge
+import app.pocketfoundry.core.controller.VirtualPad
+import app.pocketfoundry.core.controller.VirtualPad.Source.SCREEN
 import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
 import kotlin.math.hypot
 
-/**
- * What a control is and what it sends. [reach]: how far from its middle a touch still lands on it, in radii (pills
- * have their own, in [PadLayout]). [follows]: sticks and the D-pad follow the finger, buttons and triggers don't.
- */
+/** [reach]: how far from its middle a touch still lands on it, in radii. Pills have their own, in [PadLayout]. */
 sealed class Kind(val reach: Float, val follows: Boolean) {
     class Stick(val axisX: PadAxis, val axisY: PadAxis) : Kind(1.3f, true)
     object Dpad : Kind(1.15f, true)
@@ -17,8 +15,7 @@ sealed class Kind(val reach: Float, val follows: Boolean) {
     class Trigger(val axis: PadAxis) : Kind(1.2f, false)
 }
 
-// Where a control's frame sits: the top middle, by the toolbar, or a bottom corner. As parts of the room the frame
-// leaves across and down the screen.
+// Where a control's frame sits, as parts of the room it leaves across and down the screen.
 enum class Anchor(val across: Float, val down: Float) { TOP(0.5f, 0f), LEFT(0f, 1f), RIGHT(1f, 1f) }
 
 /** In the drawn look, in place of letters: Xbox's View (two squares) and Menu (three lines). */
@@ -49,7 +46,6 @@ class Control(
     val idleGlyph = glyph?.replace("*", "color")
     val pressedGlyph = glyph?.replace("*", "black")
 
-    // Where the player put it, saved.
     var shown = true
     var x = defaultX
     var y = defaultY
@@ -62,8 +58,6 @@ class Control(
     var originY = 0f
     var knobX = 0f
     var knobY = 0f
-    private var sentX = 0
-    private var sentY = 0
     /** The D-pad's directions held, as [DpadDir] bits. */
     var dpad = 0
 
@@ -91,8 +85,8 @@ class Control(
                 false
             }
             Kind.Dpad -> aim(touchX, touchY, layout)
-            is Kind.Button -> { InputBridge.button(k.button, true); true }
-            is Kind.Trigger -> { InputBridge.axis(k.axis, InputBridge.AXIS_MAX); true }
+            is Kind.Button -> { VirtualPad.button(SCREEN, k.button, true); true }
+            is Kind.Trigger -> { VirtualPad.axis(SCREEN, k.axis, VirtualPad.AXIS_MAX); true }
         }
     }
 
@@ -109,7 +103,6 @@ class Control(
         pointers -= id
         val handOver = pointers.isNotEmpty() && wasFirst && kind.follows
         if (pointers.isNotEmpty() && !handOver) return false
-        // Let go, or handed over to the resting finger, recentred where it is.
         release()
         originX = Float.NaN
         return true
@@ -118,17 +111,15 @@ class Control(
     fun release() {
         when (val k = kind) {
             is Kind.Stick -> {
-                sentX = 0; sentY = 0
-                InputBridge.axis(k.axisX, 0)
-                InputBridge.axis(k.axisY, 0)
+                VirtualPad.axis(SCREEN, k.axisX, 0)
+                VirtualPad.axis(SCREEN, k.axisY, 0)
             }
             Kind.Dpad -> setDpad(0)
-            is Kind.Button -> InputBridge.button(k.button, false)
-            is Kind.Trigger -> InputBridge.axis(k.axis, 0)
+            is Kind.Button -> VirtualPad.button(SCREEN, k.button, false)
+            is Kind.Trigger -> VirtualPad.axis(SCREEN, k.axis, 0)
         }
     }
 
-    /** Moves the knob to the finger, within reach [r] of the origin. Sends its offset as fractions of the reach. */
     private fun moveKnob(stick: Kind.Stick, touchX: Float, touchY: Float, r: Float) {
         if (originX.isNaN()) { originX = touchX; originY = touchY }
         var dx = touchX - originX
@@ -140,13 +131,10 @@ class Control(
         }
         knobX = originX + dx
         knobY = originY + dy
-        val ax = (dx / r * InputBridge.AXIS_MAX).toInt()
-        val ay = (dy / r * InputBridge.AXIS_MAX).toInt()
-        if (ax != sentX) { sentX = ax; InputBridge.axis(stick.axisX, ax) }
-        if (ay != sentY) { sentY = ay; InputBridge.axis(stick.axisY, ay) }
+        VirtualPad.axis(SCREEN, stick.axisX, (dx / r * VirtualPad.AXIS_MAX).toInt())
+        VirtualPad.axis(SCREEN, stick.axisY, (dy / r * VirtualPad.AXIS_MAX).toInt())
     }
 
-    /** Returns whether a direction went down. */
     private fun aim(touchX: Float, touchY: Float, layout: PadLayout): Boolean {
         val dx = touchX - layout.cx(this)
         val dy = touchY - layout.cy(this)
@@ -155,9 +143,8 @@ class Control(
         return setDpad(if (inMiddle) 0 else DpadDir.state(dx / distance, dy / distance, SIN_22))
     }
 
-    /** Returns whether a direction went down. */
     private fun setDpad(state: Int): Boolean {
-        val pressed = DpadDir.send(dpad, state)
+        val pressed = VirtualPad.dpad(SCREEN, dpad, state)
         dpad = state
         return pressed
     }

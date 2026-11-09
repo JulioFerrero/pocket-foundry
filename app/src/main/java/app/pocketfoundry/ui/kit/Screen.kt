@@ -43,7 +43,6 @@ fun Activity.edgeToEdge() {
     }
 }
 
-/** Keeps the content out of the display cutout. */
 fun View.padForCutout() = setOnApplyWindowInsetsListener { view, insets ->
     val cutout = insets.displayCutout
     view.setPadding(cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)

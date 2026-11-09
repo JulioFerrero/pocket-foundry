@@ -11,16 +11,15 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import com.termux.x11.MainActivity
-import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.GameImport
-import app.pocketfoundry.core.game.Runtime
-import app.pocketfoundry.core.game.ScreenLog
 import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.GITHUB
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
-import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.system.isStock
+import app.pocketfoundry.ui.screens.game.GameScreens
 import app.pocketfoundry.ui.screens.launcher.HomeScreen
 import app.pocketfoundry.ui.screens.launcher.ImportScreen
 import app.pocketfoundry.ui.screens.launcher.SettingsScreen
@@ -37,29 +36,33 @@ import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.label
 import app.pocketfoundry.ui.kit.stack
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.edgeToEdge
 import app.pocketfoundry.ui.kit.immersive
 import app.pocketfoundry.ui.kit.padForCutout
 import app.pocketfoundry.ui.kit.shown
 import app.pocketfoundry.ui.screens.updates.UpdateDialog
-import app.pocketfoundry.ui.screens.updates.UpdateFlow
+import app.pocketfoundry.core.updates.UpdateFlow
 import app.pocketfoundry.core.updates.Updates
 import java.io.File
 
-/** Welcome, Importing, Home and Settings, and their dialogs, which call back into it. In a game, Home is the pause menu. */
+/** Its screens and their dialogs call back into it. In a game, Home is the pause menu. */
 class LauncherActivity : Activity() {
-    val paths by lazy { Paths(this) }
+    private val paths by lazy { Paths(this) }
     private val settings by lazy { Settings(this) }
-    val host = DialogHost(this)
-    val updates = UpdateFlow(this, onChanged = ::refreshUpdates, onFound = { if (!host.isOpen && !importingNow) showUpdate(it) })
+    val host = DialogHost(this, onClosed = {
+        updateDialog = null
+        refresh()
+    })
+    val updates = UpdateFlow(this, onChanged = ::refreshUpdates, onFound = {
+        if (!host.isOpen && !importingNow && !Session.inGame) showUpdate(it)
+    })
     // Only while on screen: onStop frees its sprites for the game.
-    var stage: Stage? = null
-        private set
+    private var stage: Stage? = null
     private val stageHolder by lazy { FrameLayout(this) }
 
     private val welcome by lazy { WelcomeScreen(this) }
-    private val importing by lazy { ImportScreen(this) }
+    private val importing by lazy { ImportScreen(this) { stage?.progress(it) } }
     private val home by lazy { HomeScreen(this) }
     private val settingsScreen by lazy { SettingsScreen(this) }
     private var updateDialog: UpdateDialog? = null
@@ -74,9 +77,6 @@ class LauncherActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        X11Prefs(this).setUp()
-        Drivers.fillDefaults(this)
-        Drivers.moveOldOptions(this)
         updates.check()
         edgeToEdge()
         val overlay = FrameLayout(this).apply {
@@ -168,7 +168,8 @@ class LauncherActivity : Activity() {
             else -> home.view
         }
         for (view in listOf(welcome.view, importing.view, home.view, settingsScreen.view)) view.shown = view === screen
-        // Home and the pause menu are one view with different first buttons (Continue, Resume), so either change moves focus.
+        // Home and the pause menu are one view with different first buttons (Continue, Resume), so either change
+        // moves focus.
         if (screen to inGame != focusedFor) {
             if (screen !== focusedFor?.first) Dropdown.dismissOpen()
             focusedFor = screen to inGame
@@ -191,23 +192,24 @@ class LauncherActivity : Activity() {
 
     /** Settings' Edit layout: the game with the editor open. Home is under it for when the game closes. */
     fun editLayout() {
-        settings.editLayout = true
+        GameScreens.openEditor()
         settingsOpen = false
         showGame()
     }
 
     /** Only the update's views: a download changes them on every percent. */
     private fun refreshUpdates() {
-        settingsScreen.showRelease(Session.inGame, busy == null)
-        updateDialog?.update(Session.inGame, busy == null)
+        // An update closes the app: not during a game or anything else.
+        val canUpdate = busy == null && !Session.inGame && updates.progress == null
+        settingsScreen.showRelease(canUpdate)
+        updateDialog?.update(canUpdate, Session.inGame)
     }
 
     fun showUpdate(release: Updates.Release) {
-        updateDialog = UpdateDialog(this, release).also { it.show { updateDialog = null } }
+        updateDialog = UpdateDialog(this, release).also { it.show() }
         refreshUpdates()
     }
 
-    /** The system's file picker; [onPicked] gets the chosen files, and isn't called if none were. */
     fun pickFiles(mimeTypes: List<String> = emptyList(), multiple: Boolean = false, onPicked: (List<Uri>) -> Unit) {
         this.onPicked = onPicked
         pick(PICK_FILES, mimeTypes, multiple)
@@ -254,10 +256,8 @@ class LauncherActivity : Activity() {
         busy = "Starting…"
         refresh()
         background("start", {
-            if (!Runtime.isInstalled(this)) {
-                runOnUiThread { busy = "Getting ready…"; refresh() }
-                Runtime.install(this)
-            }
+            // The first start after an update unpacks the runtime.
+            if (!Runtime.isInstalled(this)) runOnUiThread { busy = "Getting ready…"; refresh() }
             Session.start(this, if (save != null) listOf("--load-game", save.path) else emptyList())
         }) { result ->
             busy = null
@@ -268,7 +268,7 @@ class LauncherActivity : Activity() {
         }
     }
 
-    /** Asks once: the session's notification carries Quit. True while asking; [then] runs on the answer. */
+    /** The session's notification carries Quit, so it's worth asking for. */
     private fun askForNotifications(then: () -> Unit): Boolean {
         if (Build.VERSION.SDK_INT < 33) return false
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return false

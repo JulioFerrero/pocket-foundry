@@ -4,9 +4,9 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.util.Log
+import app.pocketfoundry.core.runtime.Sdl
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.TAG
-import app.pocketfoundry.core.system.serve
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.IOException
@@ -18,12 +18,12 @@ import java.nio.ByteOrder
  * little-endian 32-bit ints. Then interleaved 32-bit float samples until the game closes its audio device.
  */
 object AudioBridge {
-    private const val MAGIC = "PFA1"
+    internal const val MAGIC = "PFA1"
     /** Two of SDL's 1024-frame chunks: the lag to the speaker. */
     private const val LAG_FRAMES = 2048
     private const val READ_FRAMES = 256
 
-    fun start(paths: Paths) = serve(paths.audioSocket) { client ->
+    fun start(paths: Paths) = Sdl.serve(paths.audioSocket) { client ->
         try {
             play(DataInputStream(client.inputStream))
         } catch (e: IOException) {
@@ -54,7 +54,6 @@ object AudioBridge {
         }
     }
 
-    /** The sample rate and the channel count. */
     internal fun readHeader(input: DataInputStream): Pair<Int, Int> {
         val header = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
         input.readFully(header.array())

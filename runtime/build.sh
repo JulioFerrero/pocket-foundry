@@ -1,43 +1,72 @@
 #!/bin/sh
-# Builds runtime pieces into runtime/out/ in an arm64 Debian container:
-#   runtime/build.sh glibc mesa sdl wm hybris assemble
-#   runtime/build.sh --stale    prints the pieces not built from this commit
+# Builds the runtime into runtime/out/ in an arm64 Debian container, piece by piece, then packs it for the app:
+#   runtime/build.sh all          the pieces whose sources changed since they were built, then the pack
+#   runtime/build.sh mesa sdl     those pieces, then the pack
+#   runtime/build.sh --stale      what `all` would build
 set -e
 cd "$(dirname "$0")"
-[ $# -gt 0 ] || { echo "usage: $0 --stale | glibc|mesa|sdl|wm|hybris|assemble ..."; exit 1; }
-PREFIX=/data/data/app.pocketfoundry/files/usr   # where the app unpacks the runtime
+PREFIX=/data/data/app.pocketfoundry/files/usr   # where the app unpacks the runtime (core/system/Paths.kt)
+# In build order: hybris compiles against Mesa's Vulkan headers.
+PIECES="glibc mesa sdl programs hybris"
 
-# tools/release.sh only ships a runtime whose stamps match the commit.
-stamp() {
-    if [ -n "$(git status --porcelain -- "$1" Dockerfile)" ]; then echo uncommitted
-    else echo "$(git rev-parse "HEAD:./$1") $(git rev-parse HEAD:./Dockerfile)"; fi
+# This script counts as a source because the pieces are built for its PREFIX.
+sources() {
+    from="$1 Dockerfile build.sh"
+    [ "$1" = hybris ] && from="$from mesa"
+    if [ -n "$(git status --porcelain -- $from)" ]; then echo "uncommitted $(date +%s)"
+    else for f in $from; do git rev-parse "HEAD:./$f"; done | tr '\n' ' '; echo; fi
 }
 
-# Stale: a stamp that doesn't match, or a piece rebuilt after assemble packed it. Either means assemble too.
-if [ "$1" = --stale ]; then
-    stale=
-    for piece in glibc mesa sdl wm hybris assemble; do
-        if [ "$(cat "out/$piece.stamp" 2>/dev/null || true)" != "$(stamp "$piece")" ] ||
-           { [ $piece != assemble ] && [ "out/$piece.stamp" -nt out/assemble.stamp ]; }; then
-            stale="$stale $piece"
-        fi
+stale() {
+    for piece in $PIECES; do
+        [ "$(cat "out/$piece.stamp" 2>/dev/null)" = "$(sources $piece)" ] || echo $piece
     done
-    case "$stale" in *assemble*) ;; ?*) stale="$stale assemble" ;; esac
-    echo $stale
-    exit
-fi
+}
+
+named() {
+    for name in "$@"; do
+        case " $PIECES " in *" $name "*) ;; *) echo "unknown piece: $name" >&2; exit 1 ;; esac
+    done
+    for piece in $PIECES; do
+        for name in "$@"; do
+            if [ "$name" = $piece ]; then echo $piece; fi
+        done
+    done
+}
+
+# The app keeps what it knows about the drivers until this version changes.
+version() {
+    { for piece in $PIECES; do cat "out/$piece.stamp"; done; sources assemble; } | shasum -a 256 | cut -c1-16
+}
+
+[ $# -gt 0 ] || { echo "usage: $0 all | --stale | $PIECES ..."; exit 1; }
+case "$1" in
+    --stale)
+        pieces=$(stale)
+        [ -z "$pieces" ] && [ "$(cat out/assemble.stamp 2>/dev/null)" = "$(version)" ] || pieces="$pieces assemble"
+        echo $pieces
+        exit ;;
+    all) pieces=$(stale) ;;
+    *) pieces=$(named "$@") ;;
+esac
 
 mkdir -p out cache
 docker build --platform linux/arm64 -t pocketfoundry-build -f Dockerfile .
-
-for target in "$@"; do
-    case "$target" in
-        glibc|mesa|sdl|wm|hybris|assemble)
-            docker run --rm --platform linux/arm64 -e PREFIX="$PREFIX" \
-                -v "$PWD:/runtime:ro" -v "$PWD/out:/out" -v "$PWD/cache:/cache" \
-                pocketfoundry-build bash "/runtime/$target/build-$target.sh"
-            stamp "$target" > "out/$target.stamp" ;;
-        *)
-            echo "unknown target: $target"; exit 1 ;;
-    esac
+# A piece, built in the container; what follows its name goes to docker run.
+run() {
+    piece=$1
+    shift
+    docker run --rm --platform linux/arm64 -e PREFIX="$PREFIX" "$@" \
+        -v "$PWD:/runtime:ro" -v "$PWD/out:/out" -v "$PWD/cache:/cache" \
+        pocketfoundry-build bash "/runtime/$piece/build-$piece.sh"
+}
+for piece in $pieces; do
+    run $piece
+    sources $piece > "out/$piece.stamp"
 done
+version=$(version)
+if [ "$(cat out/assemble.stamp 2>/dev/null)" != "$version" ]; then
+    # The container writes out/ as root on Linux: the version goes in from there.
+    run assemble -e VERSION="$version"
+    echo "$version" > out/assemble.stamp
+fi

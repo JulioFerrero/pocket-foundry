@@ -21,9 +21,11 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.DriverCheck
+import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
-import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.FButton
@@ -40,7 +42,7 @@ import app.pocketfoundry.ui.kit.stack
 import java.io.File
 import kotlin.concurrent.thread
 
-/** The phone's facts and the ends of the game's logs, every 2 s, to read or copy into a report. */
+/** The phone's facts and the ends of the game's logs, to read or copy into a report. */
 class LogActivity : Activity() {
     private val paths by lazy { Paths(this) }
     private val text by lazy {
@@ -94,15 +96,14 @@ class LogActivity : Activity() {
 
     /** What a report needs besides the logs. */
     private val phone by lazy {
-        // The last game's driver: the logs are its. Imported drivers also show their file name: PanVK builds all report
-        // the same Mesa version.
-        val played = Session.driver ?: Drivers.chosen(this)
-        val driver = Drivers.find(this, played)
-            ?.let { if (it.imported) "${it.name} (${it.detail.substringAfter(" · ")})" else it.name }
+        // The driver the logs are about. Imported drivers also show their file name: PanVK builds all report the same
+        // Mesa version.
+        val played = ScreenLog.driver ?: Drivers.chosen(this)
+        val driver = Drivers.find(this, played)?.let { if (it.imported) "${it.name} (${it.note})" else it.name }
         val facts = listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
-        val options = Drivers.options(this, played)
+        val options = DriverRecords.options(this, played)
         val checked = DriverCheck.summary(this, played)
         val formats = Gpu.textureFormats.joinToString(", ").ifEmpty { "none" }
         val settings = Settings(this)
@@ -117,7 +118,8 @@ class LogActivity : Activity() {
             (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +
             (if (options.isNotEmpty()) "Driver options: $options\n" else "") +
             "GPU's compressed textures: $formats\n" +
-            (if (checked.isNotEmpty()) "Driver check: $checked\n" else "")
+            (Runtime.misplaced(this)?.let { "Runtime: $it\n" } ?: "") +
+            (if (checked != null) "Driver check: $checked\n" else "")
     }
 
     private fun load() {
@@ -144,7 +146,6 @@ class LogActivity : Activity() {
         }
     }
 
-    /** Of a [log], its [last] lines, and its [first] too when there's more between them. */
     private class Excerpt(val log: (Paths) -> File, val last: Int, val first: Int = 0) {
         fun of(file: File): String = when {
             !file.exists() -> "(none yet)"
@@ -183,7 +184,7 @@ class LogActivity : Activity() {
         private const val LOGCAT_PIECE = 3000
         private const val LOGCAT_BURST = 100
         private const val LOGCAT_PAUSE_MS = 250L
-        /** The logs shown. Factorio's first lines say what it runs on, and a log full of errors can push them out. */
+        /** Factorio's first lines say what it runs on, and a log full of errors can push them out. */
         private val LOGS = listOf(Excerpt(Paths::gameLog, last = 340, first = 60), Excerpt(Paths::wmLog, 20),
                                   Excerpt(Paths::screenLog, 120), Excerpt(Paths::x11Log, 120),
                                   Excerpt(Paths::driverCheckLog, 40))

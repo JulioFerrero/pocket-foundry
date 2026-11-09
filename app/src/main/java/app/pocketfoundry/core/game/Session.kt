@@ -2,26 +2,26 @@ package app.pocketfoundry.core.game
 
 import android.content.Context
 import android.content.Intent
-import android.os.SystemClock
-import android.os.Vibrator
-import android.system.Os
 import android.system.OsConstants
-import app.pocketfoundry.core.system.Paths
-import app.pocketfoundry.core.system.Settings
-import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.gamepadConnected
-import app.pocketfoundry.core.controller.gamepadVibrator
 import app.pocketfoundry.core.controller.keyboardConnected
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.Drivers
-import app.pocketfoundry.core.system.mainHandler
+import app.pocketfoundry.core.logs.DetailedLogs
+import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.runtime.DebugEnv
+import app.pocketfoundry.core.runtime.Program
+import app.pocketfoundry.core.runtime.Runtime
+import app.pocketfoundry.core.runtime.Sdl
 import app.pocketfoundry.core.saves.Saves
+import app.pocketfoundry.core.system.Paths
+import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.core.system.X11Prefs
+import app.pocketfoundry.core.system.mainHandler
 import java.io.File
-import java.io.FileInputStream
 import java.io.IOException
 import java.util.Locale
-import java.util.TimeZone
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 
@@ -29,8 +29,14 @@ import kotlin.concurrent.thread
 object Session {
     enum class State { STOPPED, RUNNING, PAUSED, QUITTING }
 
-    /** A files/usr/bin program that DebugPad or debug.env's test.program may run. */
-    val TOOL_NAME = Regex("[a-z0-9-]+")
+    /**
+     * [exit] is Factorio's when it failed, null after a normal quit. [noWindow] says it never opened its window: the
+     * graphics driver didn't start.
+     */
+    class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean)
+
+    /** A files/usr/bin program that DebugPad or debug.env's test.program may run: no paths. */
+    private val TOOL_NAME = Regex("[a-z0-9-]+")
 
     private const val X_START_TIMEOUT_MS = 10_000L
     private const val X_POLL_MS = 50L
@@ -40,84 +46,80 @@ object Session {
     private const val WINDOW_OPENED = "Initialised OpenGL"
     private val NO_WINDOW = listOf("Failed to create an application window", "Failed to create OpenGL context",
                                    "Factorio crashed")
-    /** Exit statuses above this are 128 plus the signal that killed the process. */
-    private const val SIGNALLED = 128
-    private val SIGNALS = mapOf(OsConstants.SIGILL to "SIGILL", OsConstants.SIGABRT to "SIGABRT",
-                                OsConstants.SIGBUS to "SIGBUS", OsConstants.SIGKILL to "SIGKILL",
-                                OsConstants.SIGSEGV to "SIGSEGV", OsConstants.SIGTERM to "SIGTERM")
 
     @Volatile var state = State.STOPPED
         private set
     val inGame get() = state != State.STOPPED
-    /** Running or paused: a game that can be played on. */
     val live get() = state == State.RUNNING || state == State.PAUSED
-    /** Whether the running game started in keyboard-and-mouse mode: its input mode can't change until it restarts. */
+    /** Factorio can't change its input mode until it restarts. */
     @Volatile var keyboard = false
         private set
-    /** Factorio's exit status, or null after a normal quit. */
-    @Volatile var lastFailure: Int? = null
+    @Volatile var lastGame: Ending? = null
         private set
-    /** Whether that failure was Factorio not opening its window: the graphics driver didn't start. */
-    @Volatile var noWindow = false
-        private set
-    /** The graphics driver of the running or last game, or of the last check (Settings -> Driver -> Check). */
-    @Volatile var driver: String? = null
-        private set
-    @Volatile private var windowOpened = false
+
+    /**
+     * A running game, with what its watchers find out. [testing]: debug.env's test.program runs in the game's place,
+     * so its ending says nothing about the driver.
+     */
+    private class Game(val program: Program, val driver: String, val testing: Boolean,
+                       val memory: DetailedLogs.MemoryWatch?) {
+        @Volatile var windowOpened = false
+        @Volatile var noWindow = false
+    }
 
     private var xServer: Process? = null
-    private var wm: Process? = null
-    private var game: Process? = null
-    private var gamePid = 0
+    private var wm: Program? = null
+    private var game: Game? = null
     private val listeners = CopyOnWriteArrayList<() -> Unit>()
 
     /** Listeners run on the main thread. */
     fun addListener(listener: () -> Unit) = listeners.add(listener)
     fun removeListener(listener: () -> Unit) = listeners.remove(listener)
 
+    /** Throws if the game didn't start. */
     @Synchronized
     fun start(context: Context, gameArgs: List<String>) {
+        if (inGame) return
         val paths = Paths(context)
-        val newGame = game?.isAlive != true
-        paths.logs.mkdirs()
-        if (newGame) ScreenLog.begin(context)
-        paths.home.mkdirs()
-        Runtime.writeResolvConf(context)
-        Runtime.writeProperties(context)
-        Settings(context).writeFrameRate()
+        Runtime.prepare(context)
+        val driver = Drivers.chosen(context)
+        ScreenLog.begin(context, driver)
         startBridges(context, paths)
-        if (xServer?.isAlive != true) startXServer(context, paths)
-        if (wm?.isAlive != true) wm = Glibc.start(paths, listOf(File(paths.prefix, "bin/pocketfoundry-wm").path), paths.wmLog)
-        if (newGame) launchGame(context, paths, gameArgs)
+        try {
+            startXServer(context, paths)
+            wm = Program.start(paths, listOf(paths.windowManager.path), paths.wmLog)
+            launchGame(context, paths, driver, gameArgs)
+        } catch (e: Exception) {
+            // A game already launched goes too, unrecorded: its ending says nothing about the driver.
+            game?.let {
+                game = null
+                it.program.kill()
+                setState(State.STOPPED)
+            }
+            stopServers()
+            throw e
+        }
     }
 
-    /**
-     * Settings -> Driver -> Check, out of a game: draws [driver]'s test picture with an X server of its own, then stops
-     * it. What the check finds applies to the next game, and Logs shows it.
-     */
+    /** Settings -> Driver -> Check. What it finds applies to the next game, and Logs shows it. */
     @Synchronized
     fun checkDriver(context: Context, driver: String) {
         check(!inGame) { "Quit the game first." }
         val paths = Paths(context)
-        Runtime.install(context)
-        Runtime.writeProperties(context)
-        paths.logs.mkdirs()
-        paths.home.mkdirs()
-        ScreenLog.begin(context)
-        this.driver = driver
-        startXServer(context, paths)
+        Runtime.prepare(context)
+        ScreenLog.begin(context, driver)
         try {
-            DriverCheck.recheck(context, paths, driver, gameEnvironment(context, paths, driver))
+            startXServer(context, paths)
+            DriverCheck.check(context, paths, driver, gameEnvironment(context, paths, driver))
         } finally {
-            xServer?.destroy()
-            xServer = null
+            stopServers()
         }
     }
 
     @Synchronized
     fun pause() {
         if (state != State.RUNNING) return
-        Os.kill(gamePid, OsConstants.SIGSTOP)
+        game?.program?.signal(OsConstants.SIGSTOP)
         ScreenLog.add("game paused: the app is in the background")
         setState(State.PAUSED)
     }
@@ -125,7 +127,7 @@ object Session {
     @Synchronized
     fun resume() {
         if (state != State.PAUSED) return
-        Os.kill(gamePid, OsConstants.SIGCONT)
+        game?.program?.signal(OsConstants.SIGCONT)
         ScreenLog.add("game resumed")
         setState(State.RUNNING)
     }
@@ -133,54 +135,50 @@ object Session {
     /** Factorio quits cleanly on SIGTERM, in a few seconds, but doesn't save: the last autosave is kept. */
     @Synchronized
     fun quit() {
-        val process = game ?: return
-        if (state == State.QUITTING || !process.isAlive) return
-        val pid = gamePid
-        Os.kill(pid, OsConstants.SIGCONT)
-        Os.kill(pid, OsConstants.SIGTERM)
+        val game = game?.program ?: return
+        if (state == State.QUITTING || !game.isAlive) return
+        game.signal(OsConstants.SIGCONT)
+        game.signal(OsConstants.SIGTERM)
         setState(State.QUITTING)
-        // A game hung in the GPU driver ignores SIGTERM. Not destroyForcibly(): on Android it sends SIGTERM again.
-        mainHandler.postDelayed({ if (process.isAlive) Os.kill(pid, OsConstants.SIGKILL) }, KILL_AFTER_MS)
+        // A game hung in the GPU driver ignores SIGTERM.
+        mainHandler.postDelayed({ if (game.isAlive) game.kill() }, KILL_AFTER_MS)
     }
 
-    fun runTool(context: Context, name: String): Process {
+    fun runTool(context: Context, name: String): Program {
+        require(name.matches(TOOL_NAME)) { "Tool names are plain words" }
         val paths = Paths(context)
-        paths.logs.mkdirs()
+        Runtime.prepare(context)
         startBridges(context, paths)
-        return Glibc.start(paths, listOf(File(paths.prefix, "bin/$name").path), File(paths.logs, "$name.log"))
+        return Program.start(paths, listOf(paths.program(name).path), paths.toolLog(name), Sdl.environment(paths))
     }
 
     private fun startBridges(context: Context, paths: Paths) {
-        val app = context.applicationContext
-        val phoneVibrator = app.getSystemService(Vibrator::class.java)
-        val settings = Settings(app)
         AudioBridge.start(paths)
-        InputBridge.start(paths, rumbleTarget = { gamepadVibrator(app) ?: phoneVibrator }, enabled = { settings.vibration })
+        InputBridge.start(context.applicationContext)
     }
 
-    private fun launchGame(context: Context, paths: Paths, gameArgs: List<String>) {
+    private fun launchGame(context: Context, paths: Paths, driver: String, gameArgs: List<String>) {
         Saves.deleteInterrupted(paths)
         keyboard = keyboardConnected(context) && !gamepadConnected(context)
-        val driver = Drivers.chosen(context).also { this.driver = it }
         val testProgram = DebugEnv.read(context, "test")["program"]?.takeIf { it.matches(TOOL_NAME) }
-        val command = if (testProgram != null) listOf(File(paths.prefix, "bin/$testProgram").path)
+        val testing = testProgram != null
+        val command = if (testProgram != null) listOf(paths.program(testProgram).path)
                       else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
-        // The driver check first: how the game's textures are compressed follows what it found.
         val environment = gameEnvironment(context, paths, driver)
-            .let { if (testProgram != null) it else DriverCheck.environment(context, paths, driver, it) }
-        FactorioConfig.write(context, paths, keyboard, Drivers.compression(driver, DriverCheck.transcodes(context, driver)))
-        val started = Glibc.start(paths, command, paths.gameLog, environment, Drivers.libraries(paths, driver))
-        game = started
-        gamePid = Glibc.childPid(command.first())
+        val applied = if (testing) DriverCheck.Applied(environment, transcodes = false)
+                      else DriverCheck.apply(context, paths, driver, environment)
+        FactorioConfig.write(context, paths, keyboard, Drivers.compression(driver, applied.transcodes))
+        val started = Program.start(paths, command, paths.gameLog, Sdl.environment(paths) + applied.environment,
+                                    Drivers.libraries(paths, driver))
+        val memory = if (DetailedLogs.on(context)) DetailedLogs.watchMemory(started) else null
+        val game = Game(started, driver, testing, memory)
+        this.game = game
+        lastGame = null
         ScreenLog.add("game started")
-        if (Settings(context).detailedLogs) DetailedLogs.watchMemory(started, gamePid)
-        lastFailure = null
-        noWindow = false
-        windowOpened = false
         setState(State.RUNNING)
         val app = context.applicationContext
-        thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(app, driver, started, started.waitFor()) }
-        watchForNoWindow(started, gamePid, paths.gameLog)
+        thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(app, game, started.waitFor()) }
+        watchForNoWindow(game, paths.gameLog)
         context.startForegroundService(Intent(context, GameService::class.java))
     }
 
@@ -189,26 +187,23 @@ object Session {
         // Mesa's own counter, drawn into the game's frames, whichever driver draws them.
         val fpsCounter = if (Settings(context).fpsCounter) mapOf("GALLIUM_HUD" to "simple,fps") else emptyMap()
         return Drivers.environment(paths, driver) + ("SDL_VIDEO_X11_SCALING_FACTOR" to uiScale) + fpsCounter +
-               detailedLogs(context) + Drivers.options(context) + DebugEnv.read(context, "game")
+               DetailedLogs.environment(context) + Drivers.overrides(context, driver)
     }
 
-    private fun detailedLogs(context: Context) =
-        if (Settings(context).detailedLogs) DetailedLogs.environment else emptyMap()
-
-    /** Termux:X11's X server, which the game screen (Termux:X11's activity) connects to. Returns once it listens. */
+    /** Termux:X11's X server, which the game screen (Termux:X11's activity) connects to. */
     private fun startXServer(context: Context, paths: Paths) {
         // Leftovers from a server that died with the app.
         paths.xSocket.delete()
-        File(paths.tmp, ".X0-lock").delete()
+        paths.xLock.delete()
         val pb = ProcessBuilder("/system/bin/app_process", "-Xnoimage-dex2oat", "/",
-                                "com.termux.x11.CmdEntryPoint", ":0", "-ac")
+                                "com.termux.x11.CmdEntryPoint", ":${Paths.DISPLAY}", "-ac")
         pb.environment().apply {
             remove("LD_PRELOAD")
             put("CLASSPATH", context.applicationInfo.sourceDir)
             put("TMPDIR", paths.tmp.path)
-            put("XKB_CONFIG_ROOT", File(paths.prefix, "share/X11/xkb").path)
+            put("XKB_CONFIG_ROOT", paths.xkb.path)
             put("XLORIE_LIB", paths.xlorie.path)
-            putAll(detailedLogs(context))
+            putAll(DetailedLogs.environment(context))
             putAll(DebugEnv.read(context, "x11"))
         }
         val server = pb.redirectErrorStream(true).start()
@@ -216,19 +211,18 @@ object Session {
         keepXServerLog(server, paths.x11Log)
         val deadline = System.currentTimeMillis() + X_START_TIMEOUT_MS
         while (!paths.xSocket.exists()) {
-            if (!server.isAlive) throw IOException("The X server exited; see logs/x11.log")
+            if (!server.isAlive) throw IOException("The X server exited; see ${paths.x11Log.name}")
             if (System.currentTimeMillis() > deadline) throw IOException("The X server didn't start in ${X_START_TIMEOUT_MS / 1000} s")
             Thread.sleep(X_POLL_MS)
         }
         ScreenLog.add("X server started")
     }
 
-    /** The X server's output into x11.log, but its frame lines (Detailed logs) into screen.log beside the screen's. */
     private fun keepXServerLog(server: Process, log: File) = thread(name = "pocketfoundry-x11-log", isDaemon = true) {
         log.printWriter().use { out ->
             try {
                 server.inputStream.bufferedReader().forEachLine {
-                    if (it.startsWith("frames: ")) ScreenLog.add(it)
+                    if (ScreenLog.isScreenLine(it)) ScreenLog.add(it)
                     else {
                         out.println(it)
                         out.flush()
@@ -240,44 +234,52 @@ object Session {
         }
     }
 
-    @Synchronized
-    private fun onGameExit(context: Context, driver: String, process: Process, status: Int) {
-        if (process !== game) return
-        val signal = SIGNALS[status - SIGNALLED]?.let { ", killed by $it" + if (noWindow) " as it opened no window" else "" } ?: ""
-        val memory = DetailedLogs.takeLastMemory()?.takeIf { status != 0 }?.let { "; last memory: $it" } ?: ""
-        ScreenLog.add("game exited ($status$signal)$memory")
-        val quitting = state == State.QUITTING
-        wm?.destroy()
+    private fun stopServers() {
+        wm?.signal(OsConstants.SIGTERM)
         xServer?.destroy()
-        game = null; wm = null; xServer = null
-        lastFailure = if (quitting || status == 0) null else status
+        wm = null
+        xServer = null
+    }
+
+    @Synchronized
+    private fun onGameExit(context: Context, game: Game, exit: Program.Exit) {
+        if (game !== this.game) return
+        val unstarted = if (game.noWindow && exit.signal != null) " as it opened no window" else ""
+        val memory = game.memory?.last?.takeIf { exit.status != 0 }?.let { "; last memory: $it" } ?: ""
+        ScreenLog.add("game exited ($exit$unstarted)$memory")
+        val failed = state != State.QUITTING && exit.status != 0
+        stopServers()
+        this.game = null
         // Killed by a signal before its window opened: the driver crashed starting, like one that opens no window.
-        if (lastFailure != null && !windowOpened && status > SIGNALLED) noWindow = true
+        val noWindow = game.noWindow || failed && !game.windowOpened && exit.signal != null
+        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow)
         val outcome = when {
+            game.testing -> null
             noWindow -> Drivers.Outcome.DIDNT_START
-            lastFailure != null -> Drivers.Outcome.STOPPED
-            windowOpened -> Drivers.Outcome.RAN
-            else -> null   // quit while loading, or a test program
+            failed -> Drivers.Outcome.STOPPED
+            game.windowOpened -> Drivers.Outcome.RAN
+            else -> null   // quit while loading
         }
-        outcome?.let { Drivers.record(context, driver, it) }
+        outcome?.let { Drivers.record(context, game.driver, it) }
         setState(State.STOPPED)
     }
 
     /**
-     * Without a window or GL context Factorio doesn't exit: it spins with nothing on screen, deaf to SIGTERM. Crashing
-     * before it has one (a driver failing as it starts), it symbolizes its stack trace for a minute or more, in the dark.
+     * Without a window or GL context Factorio doesn't exit: it spins with nothing on screen, deaf to SIGTERM.
+     * Crashing before it has one (a driver failing as it starts), it symbolizes its stack trace for a minute or more,
+     * in the dark.
      */
-    private fun watchForNoWindow(process: Process, pid: Int, log: File) = thread(name = "pocketfoundry-game-window", isDaemon = true) {
+    private fun watchForNoWindow(game: Game, log: File) = thread(name = "pocketfoundry-game-window", isDaemon = true) {
         val deadline = System.currentTimeMillis() + WINDOW_TIMEOUT_MS
-        while (process.isAlive && System.currentTimeMillis() < deadline) {
+        while (game.program.isAlive && System.currentTimeMillis() < deadline) {
             val text = runCatching { log.readText() }.getOrDefault("")
             if (WINDOW_OPENED in text) {
-                windowOpened = true
+                game.windowOpened = true
                 return@thread
             }
             if (NO_WINDOW.any { it in text }) {
-                noWindow = true
-                Os.kill(pid, OsConstants.SIGKILL)
+                game.noWindow = true
+                game.program.kill()
                 return@thread
             }
             Thread.sleep(LOG_POLL_MS)
@@ -287,110 +289,5 @@ object Session {
     private fun setState(new: State) {
         state = new
         mainHandler.post { listeners.forEach { it() } }
-    }
-}
-
-/** Runs the runtime's Linux programs through its glibc loader, outside Android's own libc. */
-object Glibc {
-    fun start(paths: Paths, command: List<String>, log: File, extra: Map<String, String> = emptyMap(),
-              libraries: File? = null, append: Boolean = false): Process {
-        val libraryPath = listOfNotNull(paths.lib, libraries).joinToString(":") { it.path }
-        val pb = ProcessBuilder(listOf(paths.loader.path, "--library-path", libraryPath) + command)
-        pb.environment().apply {
-            clear()
-            put("HOME", paths.home.path)
-            put("TMPDIR", paths.tmp.path)
-            put("XDG_RUNTIME_DIR", paths.tmp.path)
-            put("PATH", "/system/bin")
-            put("LANG", "C.UTF-8")
-            put("XLOCALEDIR", File(paths.prefix, "share/X11/locale").path)
-            put("TZ", posixTimeZone(TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000))
-            // No /tmp on Android, so name the socket itself.
-            put("DISPLAY", paths.xSocket.path)
-            put("GCONV_PATH", File(paths.lib, "gconv").path)
-            put("SDL_VIDEO_DRIVER", "x11")
-            // The game's built-in SDL hands everything to ours (runtime/sdl), which has the app's sound and gamepad.
-            put("SDL3_DYNAMIC_API", File(paths.lib, "libSDL3.so.0").path)
-            put("SDL_AUDIO_DRIVER", "pocketfoundry")
-            put("POCKETFOUNDRY_AUDIO", paths.audioSocket.path)
-            put("POCKETFOUNDRY_INPUT", paths.inputSocket.path)
-            // Only our virtual pad, which SDL never filters. Where /dev/input is readable, SDL would also open the real
-            // pad and every press would count twice. No device has id 0000:0000.
-            put("SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT", "0x0000/0x0000")
-            put("POCKETFOUNDRY_FRAME_RATE", paths.frameRate.path)
-            // A program restarting itself (Factorio after a mod change) runs the loader again with only its own
-            // arguments: our loader then runs this program, with this library path (runtime/glibc/patches).
-            put("POCKETFOUNDRY_PROGRAM", command.first())
-            put("GLIBC_LD_LIBRARY_PATH", libraryPath)
-            putAll(extra)
-        }
-        val output = if (append) ProcessBuilder.Redirect.appendTo(log) else ProcessBuilder.Redirect.to(log)
-        return pb.redirectErrorStream(true).redirectOutput(output).start()
-    }
-
-    /** Android's Process doesn't expose its pid: the child of ours whose command line has [needle]. */
-    fun childPid(needle: String): Int {
-        val me = android.os.Process.myPid().toString()
-        val child = File("/proc").listFiles { f -> f.name.all(Char::isDigit) }?.firstOrNull { dir ->
-            val parent = runCatching { File(dir, "stat").readText().substringAfterLast(") ").split(' ')[1] }.getOrNull()
-            parent == me && runCatching { File(dir, "cmdline").readText() }.getOrDefault("").contains(needle)
-        }
-        return child?.name?.toInt() ?: throw IOException("Can't find the game's process")
-    }
-
-    /** No tz database in the runtime: a fixed offset is enough for log and save times. POSIX offsets are west-positive. */
-    internal fun posixTimeZone(offsetMinutes: Int): String {
-        val sign = if (offsetMinutes >= 0) "-" else "+"
-        val abs = Math.abs(offsetMinutes)
-        // Locale.ROOT: in some languages format() writes digits glibc can't read.
-        return "UTC%s%02d:%02d".format(Locale.ROOT, sign, abs / 60, abs % 60)
-    }
-}
-
-/**
- * How the game screen joins the X server, in logs/screen.log. Termux:X11 logs this only to logcat, and reading logcat
- * from the app can pop up a system dialog.
- */
-object ScreenLog {
-    private var file: File? = null
-    private var start = 0L
-    @Volatile var announced = false
-        private set
-
-    /**
-     * Termux:X11's screen writes to the app's stderr whether it can show each buffer it gets (third_party patch 0010)
-     * and, with detailed logs, what it draws (0011).
-     */
-    init {
-        runCatching {
-            val (read, write) = Os.pipe()
-            Os.dup2(write, OsConstants.STDERR_FILENO)
-            Os.close(write)
-            thread(isDaemon = true, name = "screen stderr") {
-                FileInputStream(read).bufferedReader().forEachLine {
-                    if (it.startsWith("buffer ") || it.startsWith("screen: ")) add(it)
-                }
-            }
-        }
-    }
-
-    @Synchronized
-    fun begin(context: Context) {
-        file = Paths(context).screenLog.apply { writeText("") }
-        start = SystemClock.uptimeMillis()
-        announced = false
-    }
-
-    @Synchronized
-    fun add(line: String) {
-        val file = file ?: return
-        runCatching { file.appendText("%6.1f s  %s\n".format(Locale.ROOT, (SystemClock.uptimeMillis() - start) / 1000.0, line)) }
-    }
-
-    /** The X server repeats it every second until the screen connects: only the first is written. */
-    fun announcement() {
-        if (announced) return
-        announced = true
-        add("the X server's announcement reached the app")
     }
 }

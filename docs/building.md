@@ -18,7 +18,7 @@
 
 ```sh
 tools/setup.sh                                       # Termux:X11 with Pocket Foundry's patches
-runtime/build.sh glibc mesa sdl wm hybris assemble   # the Linux runtime, built in Docker
+runtime/build.sh all                                 # the Linux runtime, built in Docker
 tools/build.sh                                       # the debug APK
 tools/build.sh :app:assembleRelease                  # the release APK
 ```

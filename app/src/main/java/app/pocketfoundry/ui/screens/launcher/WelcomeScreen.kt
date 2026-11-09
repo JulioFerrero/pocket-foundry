@@ -3,10 +3,12 @@ package app.pocketfoundry.ui.screens.launcher
 import android.content.Intent
 import android.net.Uri
 import android.text.TextUtils
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.GameImport
+import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.Uris
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.core.drivers.Drivers
@@ -18,7 +20,7 @@ import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.GuiSprites
 import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.capped
 import app.pocketfoundry.ui.kit.label
@@ -73,7 +75,7 @@ class WelcomeScreen(private val launcher: LauncherActivity) {
 }
 
 /** The game's import: the file, how far it got, and the stage's blueprint filling in. */
-class ImportScreen(private val launcher: LauncherActivity) {
+class ImportScreen(private val launcher: LauncherActivity, private val onProgress: (Int) -> Unit) {
     private val file = label(launcher, "", 14f, Factorio.MUTED).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.MIDDLE }
     private val percent = label(launcher, "0%", 18f, Factorio.HEADING, 600)
     private val bar = BarView(launcher)
@@ -88,13 +90,15 @@ class ImportScreen(private val launcher: LauncherActivity) {
         })
     }
 
-    /** [onFinished] gets why it failed, or null once it's in. */
     fun start(uri: Uri, onFinished: (error: String?) -> Unit) {
         file.text = Uris.displayName(launcher, uri) ?: "Factorio"
         show(0)
         background("import", { GameImport.import(launcher, uri) { percent -> launcher.runOnUiThread { show(percent) } } }) { result ->
             val failure = result.exceptionOrNull()
-            if (failure != null) return@background onFinished(failure.message ?: "The import failed. See Logs.")
+            if (failure != null) {
+                Log.w(TAG, "The import failed", failure)
+                return@background onFinished(failure.message ?: "The import failed.")
+            }
             GuiSprites.reload()
             show(100)
             // A moment to watch the factory start.
@@ -105,6 +109,6 @@ class ImportScreen(private val launcher: LauncherActivity) {
     private fun show(value: Int) {
         percent.text = "$value%"
         bar.fraction = value / 100f
-        launcher.stage?.progress(value)
+        onProgress(value)
     }
 }

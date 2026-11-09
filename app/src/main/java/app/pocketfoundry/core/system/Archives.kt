@@ -39,7 +39,6 @@ fun untarXz(input: InputStream, dest: File, strip: Int = 0) {
     }
 }
 
-/** Where an entry lands under [root], or null for the top folders [strip] drops. */
 internal fun entryTarget(root: File, name: String, strip: Int): File? {
     val parts = name.split('/').filter { it.isNotEmpty() && it != "." }
     if (parts.size <= strip) return null
@@ -85,7 +84,6 @@ private class PrefetchInputStream(private val source: InputStream) : InputStream
         if (len == 0) return 0
         var chunk = current
         while (chunk == null || pos == chunk.length) {
-            // A short chunk was the last.
             if (chunk != null && chunk.length < chunk.bytes.size) return -1
             chunk = chunks.take()
             chunk.error?.let { throw IOException(it.message, it) }
@@ -106,8 +104,6 @@ private class PrefetchInputStream(private val source: InputStream) : InputStream
         source.close()
     }
 }
-
-
 
 /** Several times faster than the Java xz decoder. */
 class NativeXzInputStream(private val input: InputStream) : InputStream() {
@@ -159,7 +155,6 @@ class NativeXzInputStream(private val input: InputStream) : InputStream() {
     }
 }
 
-/** Tells [onPercent] how much of [size] bytes has been read, in whole percent, when that changes; nothing if [size] is unknown. */
 class ProgressInputStream(input: InputStream, private val size: Long, private val onPercent: (Int) -> Unit) :
     FilterInputStream(input) {
     private var count = 0L

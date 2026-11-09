@@ -2,9 +2,10 @@ package app.pocketfoundry.ui.controller
 
 import android.os.SystemClock
 import android.view.ViewConfiguration
-import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
+import app.pocketfoundry.core.controller.VirtualPad
+import app.pocketfoundry.core.controller.VirtualPad.Source.GESTURES
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.dp
 import com.termux.x11.MainActivity
@@ -52,7 +53,6 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private var midStartY = 0f
     private var scrollRef = 0f
 
-    /** ONE until a second finger lands. Then UNDECIDED, PINCH or SCROLL, and LIFTED once one of the two lifts. */
     private enum class Mode { ONE, UNDECIDED, PINCH, SCROLL, LIFTED }
 
     private val longPress = Runnable {
@@ -103,6 +103,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     fun cancel() {
         mainHandler.removeCallbacks(longPress)
         release()
+        pad?.cancel()
         fingers.clear()
         mode = Mode.ONE
     }
@@ -188,7 +189,6 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         }
     }
 
-    // Of the two oldest fingers.
     private fun span() = hypot(xs[fingers[0]] - xs[fingers[1]], ys[fingers[0]] - ys[fingers[1]])
     private fun midX() = (xs[fingers[0]] + xs[fingers[1]]) / 2
     private fun midY() = (ys[fingers[0]] + ys[fingers[1]]) / 2
@@ -241,13 +241,20 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
 private class PadPresses {
     private val pressedAt = LongArray(PadButton.entries.size)
     /** Made once, so a release allocates nothing. */
-    private val releases = PadButton.entries.map { Runnable { InputBridge.button(it, false) } }
+    private val releases = PadButton.entries.map { Runnable { VirtualPad.button(GESTURES, it, false) } }
     private var pending = 0
     private var zooming = false
+    private var notch = PadButton.DPAD_UP
+    private val endNotch = Runnable {
+        VirtualPad.button(GESTURES, notch, false)
+        VirtualPad.axis(GESTURES, PadAxis.RIGHT_TRIGGER, 0)
+        mainHandler.postDelayed(nextNotch, ZOOM_GAP_MS)
+    }
+    private val nextNotch = Runnable(::nextZoom)
 
     fun hold(button: PadButton) {
-        mainHandler.removeCallbacks(releases[button.ordinal])   // a release still waiting would end this hold
-        InputBridge.button(button, true)
+        mainHandler.removeCallbacks(releases[button.ordinal])
+        VirtualPad.button(GESTURES, button, true)
         pressedAt[button.ordinal] = SystemClock.uptimeMillis()
     }
 
@@ -267,18 +274,23 @@ private class PadPresses {
         if (!zooming) nextZoom()
     }
 
+    fun cancel() {
+        releases.forEach(mainHandler::removeCallbacks)
+        mainHandler.removeCallbacks(endNotch)
+        mainHandler.removeCallbacks(nextNotch)
+        pending = 0
+        zooming = false
+        VirtualPad.release(GESTURES)
+    }
+
     private fun nextZoom() {
         zooming = pending != 0
         if (!zooming) return
-        val direction = if (pending > 0) PadButton.DPAD_UP else PadButton.DPAD_DOWN
+        notch = if (pending > 0) PadButton.DPAD_UP else PadButton.DPAD_DOWN
         pending -= pending.sign
-        InputBridge.axis(PadAxis.RIGHT_TRIGGER, InputBridge.AXIS_MAX)
-        InputBridge.button(direction, true)
-        mainHandler.postDelayed({
-            InputBridge.button(direction, false)
-            InputBridge.axis(PadAxis.RIGHT_TRIGGER, 0)
-            mainHandler.postDelayed(::nextZoom, ZOOM_GAP_MS)
-        }, MIN_HOLD_MS)
+        VirtualPad.axis(GESTURES, PadAxis.RIGHT_TRIGGER, VirtualPad.AXIS_MAX)
+        VirtualPad.button(GESTURES, notch, true)
+        mainHandler.postDelayed(endNotch, MIN_HOLD_MS)
     }
 
     companion object {

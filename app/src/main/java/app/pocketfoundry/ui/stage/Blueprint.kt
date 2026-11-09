@@ -23,7 +23,7 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
 
     private enum class Item { PLATE, GEAR, SCIENCE }
 
-    /** Built at [step]. Inserters take items off a [full] belt where their hands meet it, or put them on an empty one. */
+    /** Inserters take items off a [full] belt where their hands meet it, or put them on an empty one. */
     private class Belt(val item: Item, val y: Float, val east: Boolean, val full: Boolean, val step: Int) {
         val edges = floatArrayOf(0f, y - 8, W, y - 8, 0f, y + 8, W, y + 8)
         /** Of the [PER_SWING] items that pass while an inserter swings once, the inserter that works each, if any. */
@@ -55,8 +55,8 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
     private val gearBelt = Belt(Item.GEAR, 12f, east = true, full = false, step = 1)
     private val scienceBelt = Belt(Item.SCIENCE, 292f, east = false, full = true, step = 2)
     private val belts = arrayOf(gearBelt, plateBelt, scienceBelt)
-    // In each column, 24 in from the machines' left edge: plates into the assembler, gears out of it onto the belt
-    // above, science into the lab. The science belt comes in from the right, so its slots count the columns from there.
+    // In each column: plates into the assembler, gears out of it onto the belt above, science into the lab. The
+    // science belt comes in from the right, so its slots count the columns from there.
     private val inserters =
         Array(COLUMNS) { Inserter(columnX(it) + 24, 92f, 16f, plateBelt, SLOTS[it], assemblerStep(it) + 1) } +
         Array(COLUMNS) { Inserter(columnX(it) + 24, 28f, 16f, gearBelt, SLOTS[it], assemblerStep(it) + 2) } +
@@ -110,7 +110,6 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
             drawPole(canvas, poleX(i), TOP_POLES, topPoleStep(i))
             drawPole(canvas, poleX(i), BOTTOM_POLES, bottomPoleStep(i))
         }
-        // A wire goes up with the later of its two poles.
         for (i in 0 until COLUMNS - 2) {
             drawWire(canvas, poleX(i), TOP_POLES, maxOf(topPoleStep(i), topPoleStep(i + 1)))
             drawWire(canvas, poleX(i), BOTTOM_POLES, maxOf(bottomPoleStep(i), bottomPoleStep(i + 1)))
@@ -128,7 +127,6 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
         if (welcome) easeOut(((time - welcomeAt(step) - 0.8) / 0.45).toFloat())
         else ((percent - (2 + 2 * step)) / 2f).coerceIn(0f, 1f)
 
-    /** The stroke for step [step]'s ghost, an outline in [dashes]; null while there's none. */
     private fun ghost(step: Int, dashes: PathEffect): Paint? {
         val t = ((time - welcomeAt(step)) / 1.1).toFloat()
         val alpha = when {
@@ -147,7 +145,6 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
         if (b <= 0f) return
         canvas.drawRect(0f, belt.y - 8, W, belt.y + 8, fill(0xD9142840.toInt(), b))
         canvas.drawLines(belt.edges, stroke(LINE, b, 1.2f))
-        // Amber ticks down the middle, moving with the items.
         val shift = (ARROW_GAP * frac(SPEED * time / ARROW_GAP)).toFloat()
         canvas.save()
         canvas.translate(if (belt.east) shift else -shift, 0f)
@@ -164,7 +161,6 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
         }
     }
 
-    /** An item [along] the belt: a full belt loses it at its inserter's hand, an empty one gains it there. */
     private fun shown(belt: Belt, worker: Inserter?, along: Float): Float {
         val passing = if (belt.full) 1f else 0f
         if (worker == null) return passing
@@ -241,7 +237,7 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
         canvas.restore()
     }
 
-    /** Degrees, [c] of the way through a swing: 0 over the pickup, 180 over the drop, waiting a little at each. */
+    /** Degrees, [c] of the way through a swing: 0 over the pickup, 180 over the drop. */
     private fun angle(c: Float) = when {
         c < 0.12f -> 0f
         c < 0.45f -> 180 * smooth((c - 0.12f) / 0.33f)
@@ -262,7 +258,6 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
         canvas.drawLine(pole.right, pole.top, pole.left, pole.bottom, cross)
     }
 
-    /** From the pole at ([x], [y]) to the next one along. */
     private fun drawWire(canvas: Canvas, x: Float, y: Float, step: Int) {
         val b = built(step)
         if (b <= 0f) return
@@ -293,7 +288,7 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
         canvas.restore()
     }
 
-    /** Lines half a unit wide, just inside each cell's top and left edges. While loops: `step` would allocate. */
+    /** While loops: `step` would allocate. */
     private fun grid(canvas: Canvas, step: Int, alpha: Float) {
         val line = stroke(0xFF78AAE6.toInt(), alpha, 0.5f)
         var x = 0
@@ -321,7 +316,6 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
     private fun withAlpha(color: Int, alpha: Float): Int =
         (((color ushr 24) * alpha.coerceIn(0f, 1f)).toInt() shl 24) or (color and 0xFFFFFF)
 
-    /** Up from [low] to [high] and back every [seconds]. */
     private fun pulse(t: Double, seconds: Double, low: Float, high: Float): Float {
         val p = frac(t / seconds).toFloat()
         return mix(low, high, if (p < 0.5f) smooth(p * 2) else 1 - smooth((p - 0.5f) * 2))
@@ -345,7 +339,7 @@ class Blueprint(private val welcome: Boolean) : Drawing() {
         const val SWING_LENGTH = 96f   // px of belt that passes meanwhile: GAP × PER_SWING, so 3.2 s
         const val DROP = 0.47f         // of a swing, when the hand lets go over the drop
 
-        // Six columns, each an assembler over a lab, with a pole between each two.
+        // Each column is an assembler over a lab, with a pole between each two.
         const val COLUMNS = 6
         const val COLUMN_GAP = 136f
         const val MACHINE = 48f        // an assembler's or a lab's side

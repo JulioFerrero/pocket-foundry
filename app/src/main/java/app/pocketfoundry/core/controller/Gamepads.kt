@@ -7,20 +7,18 @@ import android.os.Vibrator
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import app.pocketfoundry.core.controller.VirtualPad.Source.GAMEPAD
 import app.pocketfoundry.core.system.mainHandler
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /**
- * Real controllers, all sharing the one virtual pad; no dead zone here, the game applies its own. A pad is in the
- * player's hands ([onInUse]) from first use until the last one is unplugged.
+ * No dead zone here: the game applies its own. A pad is in the player's hands ([onInUse]) from first use until the
+ * last one is unplugged.
  */
 class Gamepads(private val context: Context, private val onHome: () -> Unit,
                private val onInUse: (Boolean) -> Unit) : InputManager.InputDeviceListener {
     private val input = context.getSystemService(InputManager::class.java)
     private var inUse = false
-    private val held = BooleanArray(PadButton.entries.size)
-    private val sent = IntArray(PadAxis.entries.size)
     private var hat = 0
 
     init {
@@ -40,16 +38,15 @@ class Gamepads(private val context: Context, private val onHome: () -> Unit,
             val analog = if (trigger == PadAxis.LEFT_TRIGGER) analogLeft(device) else analogRight(device)
             // Analog triggers also send an axis: the key only stands in when there is none.
             if (event.repeatCount == 0 && !analog) {
-                setAxis(trigger, if (down) InputBridge.AXIS_MAX else 0)
                 if (down) used()
+                VirtualPad.axis(GAMEPAD, trigger, if (down) VirtualPad.AXIS_MAX else 0)
             }
             return true
         }
         val button = BUTTONS[event.keyCode] ?: return false
         if (event.repeatCount > 0) return true
-        held[button.ordinal] = down
-        InputBridge.button(button, down)
         if (down) used()
+        VirtualPad.button(GAMEPAD, button, down)
         return true
     }
 
@@ -71,12 +68,8 @@ class Gamepads(private val context: Context, private val onHome: () -> Unit,
     }
 
     fun release() {
-        for (button in PadButton.entries) {
-            if (held[button.ordinal]) InputBridge.button(button, false)
-        }
-        held.fill(false)
-        setHat(0)
-        PadAxis.entries.forEach { setAxis(it, 0) }
+        hat = 0
+        VirtualPad.release(GAMEPAD)
     }
 
     fun close() {
@@ -99,20 +92,14 @@ class Gamepads(private val context: Context, private val onHome: () -> Unit,
         onInUse(true)
     }
 
-    /** A stick or trigger at [value], from -1 to 1. */
     private fun tilt(axis: PadAxis, value: Float) {
-        setAxis(axis, (value.coerceIn(-1f, 1f) * InputBridge.AXIS_MAX).roundToInt())
         if (abs(value) > 0.5f) used()
-    }
-
-    private fun setAxis(axis: PadAxis, value: Int) {
-        if (sent[axis.ordinal] == value) return
-        sent[axis.ordinal] = value
-        InputBridge.axis(axis, value)
+        VirtualPad.axis(GAMEPAD, axis, value)
     }
 
     private fun setHat(bits: Int) {
-        if (DpadDir.send(hat, bits)) used()
+        if (bits and hat.inv() != 0) used()
+        VirtualPad.dpad(GAMEPAD, hat, bits)
         hat = bits
     }
 

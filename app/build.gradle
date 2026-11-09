@@ -1,9 +1,10 @@
 apply plugin: 'com.android.application'
+apply from: '../third_party/termux-x11/lorie/version.gradle'
 
 android {
     namespace 'app.pocketfoundry'
     compileSdk 36
-    ndkVersion '29.0.14206865'   // same NDK as :lorie (termux-x11/lorie/version.gradle), so one NDK builds both
+    ndkVersion termuxX11NdkVersion   // :lorie's, so one NDK builds both
 
     defaultConfig {
         applicationId 'app.pocketfoundry'
@@ -19,7 +20,7 @@ android {
     // Extracted native libraries are the only files an app may exec on Android 10+; the glibc loader is one.
     packaging.jniLibs.useLegacyPackaging true
 
-    // Built by runtime/build.sh assemble.
+    // Built by runtime/build.sh.
     sourceSets.main {
         assets.srcDirs += '../runtime/out/apk/assets'
         jniLibs.srcDirs += '../runtime/out/apk/jniLibs'

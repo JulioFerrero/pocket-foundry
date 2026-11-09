@@ -2,23 +2,23 @@ package app.pocketfoundry.ui.screens.saves
 
 import android.net.Uri
 import app.pocketfoundry.core.saves.Saves
+import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.ui.kit.Arrow
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.label
 import app.pocketfoundry.ui.kit.stack
 
-/** How many saves there are, Export to Downloads, and Import from wherever the file picker reaches. */
 class SavesDialog(private val launcher: LauncherActivity) {
     private val host = launcher.host
     private val status = label(launcher, "", 16f, weight = 600)
     private val detail = label(launcher, "Export puts a copy in Download/Pocket Foundry.", 14f, Factorio.MUTED)
-    private val importButton = button(launcher, "Import") { launcher.pickFiles(SAVE_TYPES, multiple = true) { if (host.isOpen) import(it) } }
+    private val importButton = button(launcher, "Import") { launcher.pickFiles(Saves.MIME_TYPES, multiple = true) { if (host.isOpen) import(it) } }
     private val exportButton = button(launcher, "Export", Tone.GREEN, Arrow.RIGHT) { export() }
 
     fun show() {
@@ -32,7 +32,7 @@ class SavesDialog(private val launcher: LauncherActivity) {
     }
 
     private fun showCount() {
-        val count = Saves.all(launcher.paths).size
+        val count = Saves.all(Paths(launcher)).size
         status.text = when (count) { 0 -> "No saves yet"; 1 -> "1 save"; else -> "$count saves" }
         exportButton.isEnabled = count > 0
     }
@@ -47,12 +47,11 @@ class SavesDialog(private val launcher: LauncherActivity) {
             showCount()
             this.status.text = status
             this.detail.text = detail
-            launcher.refresh()
         }
     }
 
     private fun export() = job {
-        val count = Saves.all(launcher.paths).size
+        val count = Saves.all(Paths(launcher)).size
         val folder = Saves.export(launcher)
         (if (count == 1) "Exported 1 save" else "Exported $count saves") to folder
     }
@@ -63,9 +62,5 @@ class SavesDialog(private val launcher: LauncherActivity) {
             1 -> "Added 1 save" to "It's in Load game."
             else -> "Added $added saves" to "They're in Load game."
         }
-    }
-
-    private companion object {
-        val SAVE_TYPES = listOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
     }
 }

@@ -8,7 +8,9 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
 import app.pocketfoundry.core.system.Paths
+import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.Uris
 import app.pocketfoundry.core.system.sha256
 import java.io.File
@@ -46,7 +48,6 @@ object Saves {
         return folder
     }
 
-    /** Copies the picked saves in, skipping non-saves and exact copies. Returns how many were added. */
     fun import(context: Context, uris: List<Uri>): Int {
         val dir = Paths(context).saves.apply { mkdirs() }
         var added = 0
@@ -63,8 +64,8 @@ object Saves {
         return added
     }
 
-    /** name.zip, else "name (2).zip" and on; null when one of them already holds [incoming]. */
-    private fun freeName(dir: File, name: String, incoming: File): File? {
+    /** Where [incoming] goes in [dir] as [name]: beside a save of that name, or nowhere if it's that save. */
+    internal fun freeName(dir: File, name: String, incoming: File): File? {
         val base = name.removeSuffix(".zip")
         var target = File(dir, "$base.zip")
         var n = 2
@@ -76,21 +77,30 @@ object Saves {
         return target
     }
 
-    internal fun isSave(file: File) = runCatching {
+    /** A save is a .zip with the game's level in it; pickers may call it any of these. */
+    val MIME_TYPES = listOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
+
+    internal fun isSave(file: File) = try {
         ZipFile(file).use { zip ->
             zip.entries().asSequence().any { e -> e.name.substringAfterLast('/').let { it == "level.dat0" || it == "level-init.dat" } }
         }
-    }.getOrDefault(false)
+    } catch (e: IOException) {
+        false
+    } catch (e: IllegalArgumentException) {
+        false   // entry names that aren't UTF-8, from a zip made elsewhere
+    }
 
-    /** The save as of its last change: a preview made under another key is out of date. */
     fun previewKey(save: File) = "${save.path}@${save.lastModified()}"
 
-    fun preview(save: File, sample: Int): Bitmap? = runCatching {
+    fun preview(save: File, sample: Int): Bitmap? = try {
         ZipFile(save).use { zip ->
             val entry = zip.entries().asSequence().firstOrNull { it.name.substringAfterLast('/') == "preview.jpg" } ?: return null
             zip.getInputStream(entry).use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
         }?.let(::trimBlack)
-    }.getOrNull()
+    } catch (e: Exception) {
+        Log.w(TAG, "No preview from ${save.name}", e)
+        null
+    }
 
     /** Factorio's picture is 16:9; taken from a wider screen it carries black bands. */
     private fun trimBlack(bitmap: Bitmap): Bitmap {

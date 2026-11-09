@@ -1,4 +1,4 @@
-package app.pocketfoundry.core.game
+package app.pocketfoundry.core.runtime
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

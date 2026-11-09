@@ -1,9 +1,11 @@
 package app.pocketfoundry.core.drivers
 
+import app.pocketfoundry.core.system.Paths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class DriversTest {
     @Test fun `options are NAME=value pairs split by any whitespace`() {
@@ -70,5 +72,31 @@ class DriversTest {
         assertEquals("phone", Drivers.recommend(adreno = true, vulkan = true) { it == "zink" })
         assertEquals("cpu", Drivers.recommend(adreno = false, vulkan = true) { it == "phone" })
         assertEquals("cpu", Drivers.recommend(adreno = true, vulkan = true) { true })
+    }
+
+    private val paths = Paths(File("/files"), File("/lib"))
+
+    @Test fun `Zink + Turnip draws through Zink on Turnip`() {
+        val environment = Drivers.environment(paths, "zink")
+        assertEquals("zink", environment["MESA_LOADER_DRIVER_OVERRIDE"])
+        assertEquals(paths.turnipIcd.path, environment["VK_DRIVER_FILES"])
+    }
+
+    @Test fun `Freedreno is Mesa's OpenGL driver, without Zink`() {
+        assertEquals("kgsl", Drivers.environment(paths, "freedreno")["MESA_LOADER_DRIVER_OVERRIDE"])
+    }
+
+    @Test fun `the CPU driver is llvmpipe for every way Mesa picks one`() {
+        val environment = Drivers.environment(paths, "cpu")
+        assertEquals("llvmpipe", environment["MESA_LOADER_DRIVER_OVERRIDE"])
+        assertEquals("llvmpipe", environment["GALLIUM_DRIVER"])
+        assertEquals("1", environment["LIBGL_ALWAYS_SOFTWARE"])
+    }
+
+    @Test fun `an imported driver draws through Zink on its own Vulkan driver, presenting in software`() {
+        val environment = Drivers.environment(paths, "my-turnip")
+        assertEquals("zink", environment["MESA_LOADER_DRIVER_OVERRIDE"])
+        assertEquals(DriverImport.icd(paths, "my-turnip").path, environment["VK_DRIVER_FILES"])
+        assertEquals("sw", environment["MESA_VK_WSI_DEBUG"])
     }
 }

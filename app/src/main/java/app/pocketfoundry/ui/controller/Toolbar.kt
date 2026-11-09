@@ -7,7 +7,6 @@ import app.pocketfoundry.ui.kit.GuiSheet
 
 enum class Tool { ADJUST, KEYBOARD, HIDE, SHOW, ADD, REMOVE, SMALLER, BIGGER, OPACITY, RESET, DONE }
 
-/** The tools along the top middle, and the fingers holding them. */
 class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
     private val held = arrayOfNulls<Tool>(ControllerView.POINTER_IDS)
     private val box = RectF()
@@ -16,21 +15,16 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
     private val icon = painter.icon
     private val solid = painter.fill
 
-    /** A tool's side. */
     val size get() = layout.frame * TOOL_SIZE
     val top get() = layout.frame * TOOLBAR_TOP
 
-    /**
-     * Finger [id] takes the tool under it, if any. A tool's touch area has a margin, unless a control is there: the
-     * Map button sits just below.
-     */
+    /** A tool's touch area has a margin, unless a control is there: the Map button sits just below. */
     fun press(id: Int, tools: List<Tool>, x: Float, y: Float, controlsShown: Boolean): Boolean {
         held[id] = hit(tools, x, y, 0f)
             ?: hit(tools, x, y, size * TOUCH_MARGIN)?.takeIf { !controlsShown || layout.controlAt(x, y) == null }
         return held[id] != null
     }
 
-    /** Returns the tool finger [id] held, if any. */
     fun lift(id: Int): Tool? = held[id].also { held[id] = null }
 
     fun releaseAll() = held.fill(null)
@@ -50,7 +44,6 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
         box.set(left, top, left + s, top + s)
     }
 
-    /** With ADD held while [adding]. */
     fun draw(canvas: Canvas, sheet: GuiSheet?, tools: List<Tool>, adding: Boolean) {
         val s = size
         place(0, tools.size)

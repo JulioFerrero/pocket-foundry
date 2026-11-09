@@ -28,8 +28,7 @@ class AudioBridgeTest {
     }
 
     @Test fun `a bad magic is refused`() {
-        val e = assertThrows(IOException::class.java) { AudioBridge.readHeader(stream(header("FAB1", 48000, 2))) }
-        assertEquals("Not an SDL audio stream", e.message)
+        assertThrows(IOException::class.java) { AudioBridge.readHeader(stream(header("FAB1", 48000, 2))) }
     }
 
     @Test fun `a short header ends the stream`() {

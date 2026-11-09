@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import androidx.core.content.ContextCompat
 import app.pocketfoundry.core.system.ProgressInputStream
+import app.pocketfoundry.core.system.REPOSITORY
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.objects
 import app.pocketfoundry.core.system.sha256
@@ -17,15 +18,13 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Pocket Foundry's own releases on GitHub: whether a newer one is out, and its APK handed to Android's installer. */
 object Updates {
     /** [changes]: what each version since the installed one brought, newest first. */
     class Release(val version: String, val apk: String, val checksum: String, val changes: List<Pair<String, List<String>>>)
 
-    private const val RELEASES = "https://api.github.com/repos/JulioFerrero/pocket-foundry/releases?per_page=50"
+    private const val RELEASES = "https://api.github.com/repos/$REPOSITORY/releases?per_page=50"
     private const val INSTALLED = "app.pocketfoundry.UPDATE_INSTALLED"
 
-    /** The newer release [check] found, if any. */
     @Volatile var available: Release? = null
         private set
     @Volatile var checked = false
@@ -40,7 +39,6 @@ object Updates {
         return release
     }
 
-    /** The newest release after [installed] that has an APK and its checksum, with what every release since brought. */
     internal fun newest(list: JSONArray, installed: String): Release? {
         val releases = list.objects()
             .filter { !it.optBoolean("draft") && !it.optBoolean("prerelease") }
@@ -84,7 +82,7 @@ object Updates {
 
     /**
      * The "Since vX:" list in tools/release.sh's notes, as plain text: no links, bold, code or issue numbers, which
-     * mean something on GitHub only.
+     * mean something on GitHub only. Older notes stay on GitHub as they were written, so this reads them all.
      */
     internal fun changes(notes: String): List<String> = notes.lines()
         .dropWhile { !it.startsWith("**Since") }.drop(1)
@@ -98,10 +96,7 @@ object Updates {
                 .trim()
         }
 
-    /**
-     * Off the main thread. [onPercent] gets how much is in. Checked against the release's SHA-256; an earlier download
-     * that still matches is reused.
-     */
+    /** Off the main thread. */
     fun download(context: Context, release: Release, onPercent: (Int) -> Unit): File {
         val expected = get(release.checksum).decodeToString().trim().substringBefore(' ').lowercase()
         val dir = File(context.cacheDir, "update")
@@ -167,7 +162,6 @@ object Updates {
     private fun get(url: String, accept: String? = null) =
         connect(url, accept) { connection -> connection.inputStream.use { it.readBytes() } }
 
-    /** [read] gets the connection once GitHub answered OK; it's closed after. */
     private fun <T> connect(url: String, accept: String? = null, read: (HttpURLConnection) -> T): T {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000

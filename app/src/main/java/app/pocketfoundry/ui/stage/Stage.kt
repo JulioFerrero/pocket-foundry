@@ -16,7 +16,7 @@ import android.view.Choreographer
 import android.view.View
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.TAG
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -25,7 +25,6 @@ import kotlin.math.roundToInt
 class Stage(context: Context, private val paths: Paths) : View(context), Choreographer.FrameCallback {
     enum class Scene { WELCOME, IMPORT, FACTORY }
 
-    /** A value easing from [from] to [to] in a fade begun at [at]. */
     private class Fade(var from: Float, var to: Float, var at: Long) {
         fun value(now: Long) = mix(from, to, eased(at, now))
         fun moving(now: Long) = now - at < FADE_MS
@@ -50,7 +49,6 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
 
     private val welcome = Blueprint(welcome = true)
     private val importing = Blueprint(welcome = false)
-    /** Null until it has loaded; the welcome blueprint if it can't be drawn. */
     private var factory: Drawing? = null
     private var loadingFactory = false
     private val layers = ArrayList<Layer>()
@@ -72,7 +70,7 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         val drawing = when (scene) {
             Scene.WELCOME -> welcome
             Scene.IMPORT -> importing
-            Scene.FACTORY -> factory ?: return loadFactory()   // shown once it's in
+            Scene.FACTORY -> factory ?: return loadFactory()
         }
         val now = SystemClock.uptimeMillis()
         val top = layers.lastOrNull()?.takeIf { !it.hidden }
@@ -117,7 +115,7 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
     private fun loadFactory() {
         if (loadingFactory) return
         loadingFactory = true
-        background("stage", { Factory(paths.game.resolve("data/base/graphics")) }) { result ->
+        background("stage", { Factory(paths.baseGraphics) }) { result ->
             val loaded = result.onFailure { Log.w(TAG, "The factory can't be drawn: $it") }.getOrNull()
             if (released) {
                 loaded?.release()
@@ -154,7 +152,6 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
             if (layer.fading(now)) fading = true
             fps = maxOf(fps, layer.drawing.fps)
         }
-        // At rest, a redraw only when a scene's next frame is due.
         val tick = now * fps / 1000
         if (fading || (fps > 0 && tick != lastTick)) invalidate()
         lastTick = tick
@@ -183,7 +180,7 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         }
     }
 
-    /** A filter leaving [value] of the colour, or null for all of it. Made once per step, too fine to see in a fade. */
+    /** One filter per step; the steps are too fine to see in a fade. */
     private fun saturation(value: Float): ColorFilter? {
         val step = (value * SATURATION_STEPS).roundToInt().coerceAtLeast(0)
         if (step >= SATURATION_STEPS) return null
@@ -197,7 +194,6 @@ class Stage(context: Context, private val paths: Paths) : View(context), Choreog
         private const val FADE_MS = 800L
         private const val SATURATION_STEPS = 32
 
-        /** How far a fade begun at [since] has got by [now], eased, from 0 to 1. */
         private fun eased(since: Long, now: Long) = easeOut((now - since) / FADE_MS.toFloat())
     }
 }
@@ -211,7 +207,6 @@ abstract class Drawing {
     abstract fun draw(canvas: Canvas, width: Int, height: Int, time: Double)
     open fun release() {}
 
-    /** Scales a [w] × [h] scene to fill the view, centred, cropping what spills over. */
     protected fun cover(canvas: Canvas, width: Int, height: Int, w: Float, h: Float) {
         val scale = maxOf(width / w, height / h)
         canvas.translate((width - w * scale) / 2, (height - h * scale) / 2)
@@ -224,19 +219,16 @@ internal fun frac(x: Double) = x - floor(x)
 
 internal fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
 
-/** 0 to 1 as [x] goes 0 to 1: quick at first, settling at the end. */
 internal fun easeOut(x: Float): Float {
     val rest = 1 - x.coerceIn(0f, 1f)
     return 1 - rest * rest
 }
 
-/** 0 to 1 as [x] goes 0 to 1: slow at both ends. */
 internal fun smooth(x: Float): Float {
     val t = x.coerceIn(0f, 1f)
     return t * t * (3 - 2 * t)
 }
 
-/** A radial gradient stretched into an ellipse with radii [rx], [ry]. */
 internal fun elliptical(cx: Float, cy: Float, rx: Float, ry: Float, colors: IntArray, stops: FloatArray?) =
     RadialGradient(cx, cy, rx, colors, stops, Shader.TileMode.CLAMP).apply {
         setLocalMatrix(Matrix().apply { setScale(1f, ry / rx, cx, cy) })

@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 RES = "app/src/main/res"
 PX_PER_DP = 4
 S = 108 * PX_PER_DP                               # an adaptive icon layer is 108 dp
-SUPERSAMPLE = 4                                   # launcher icons are cut out this much larger, for smooth edges
+SUPERSAMPLE = 4
 SCALE, INSET = 2.25, 27                           # ic_launcher_monochrome.xml's <group>
 SIZES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
 

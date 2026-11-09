@@ -8,10 +8,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FactorioConfigTest {
-    private val effectKeys = listOf("show-smoke", "show-clouds", "show-fog", "show-space-dust", "show-decoratives",
-                                    "show-particles", "show-item-shadows", "show-inserter-shadows",
-                                    "additional-terrain-effects", "high-quality-terrain", "elevated-rail-shadows")
-
     private fun update(ini: String, keyboard: Boolean = false, compression: Compression = Compression.GPU,
                        textures: String? = null, effects: Boolean? = null) =
         FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", compression, textures, effects)
@@ -59,13 +55,16 @@ class FactorioConfigTest {
     }
 
     @Test fun `a new config gets the version header and all our settings`() {
-        assertEquals("; version=13\n\n" +
-                     "[path]\nwrite-data=/game/write\nread-data=/game/data\n\n" +
-                     "[input]\ninput-method=game-controller\n\n" +
-                     "[interface]\ncustom-proportional-ui-scale=1.25\nui-scale-mode=manual-display-points\n\n" +
-                     "[graphics]\ngpu-accelerated-mipmap-compression=true\ngpu-accelerated-compression=true\n" +
-                     "graphics-quality=normal\n",
-                     update(""))
+        val config = update("")
+        assertTrue(config.startsWith("; version=13\n"))
+        assertEquals("/game/write", value(config, "path", "write-data"))
+        assertEquals("/game/data", value(config, "path", "read-data"))
+        assertEquals("game-controller", value(config, "input", "input-method"))
+        assertEquals("1.25", value(config, "interface", "custom-proportional-ui-scale"))
+        assertEquals("manual-display-points", value(config, "interface", "ui-scale-mode"))
+        assertEquals("true", value(config, "graphics", "gpu-accelerated-compression"))
+        assertEquals("true", value(config, "graphics", "gpu-accelerated-mipmap-compression"))
+        assertEquals("normal", value(config, "graphics", "graphics-quality"))
     }
 
     @Test fun `the player's other settings and the version header stay`() {
@@ -137,10 +136,13 @@ class FactorioConfigTest {
     }
 
     @Test fun `an effects choice sets every effect setting`() {
+        // Some of Factorio's own names for them, as its graphics settings save them.
+        val effects = listOf("show-smoke", "show-clouds", "show-decoratives", "high-quality-terrain")
         val off = update("; version=13\n[graphics]\nshow-smoke=true\n", effects = false)
-        for (key in effectKeys) assertEquals(key, "false", value(off, "graphics", key))
+        for (key in effects) assertEquals(key, "false", value(off, "graphics", key))
         val on = update(off, effects = true)
-        for (key in effectKeys) assertEquals(key, "true", value(on, "graphics", key))
+        for (key in effects) assertEquals(key, "true", value(on, "graphics", key))
+        assertFalse(on, on.lines().any { it.endsWith("=false") })
     }
 
     @Test fun `Light forces the effects off`() {

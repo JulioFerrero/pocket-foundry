@@ -16,6 +16,7 @@ import android.widget.TextView
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.DriverImport
+import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.Session
@@ -26,7 +27,7 @@ import app.pocketfoundry.ui.kit.MATCH
 import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.capped
 import app.pocketfoundry.ui.kit.heading
@@ -40,9 +41,8 @@ import app.pocketfoundry.ui.kit.stack
 import app.pocketfoundry.ui.kit.withNote
 
 /**
- * The drivers in sections on the left, the one looked at on the right: what it is, its GPUs, how the last game with it
- * went, what its driver check found, and its Options for testing it. The bar below acts on that one: Remove, Check
- * (the driver check again, no game needed) and Use; on a narrow phone they don't fit beside its name.
+ * The bar below acts on the driver looked at: Remove, Check (the driver check again, no game needed) and Use; on a
+ * narrow phone they don't fit beside its name.
  */
 class DriverDialog(private val launcher: LauncherActivity) {
     private val host = launcher.host
@@ -88,21 +88,19 @@ class DriverDialog(private val launcher: LauncherActivity) {
         status.shown = Session.inGame
         viewing = Drivers.chosen(launcher)
         val screen = launcher.resources.configuration
-        val chrome = CHROME + if (status.shown) STATUS else 0
         val title = Gpu.name?.let { withNote(TITLE, it, Factorio.FAINT, 15, gap = "   ") } ?: TITLE
         host.show(title, minOf(WIDTH, screen.screenWidthDp - MARGIN), "Close", importButton, removeButton, checkButton,
                   useButton) {
             add(row(launcher, Gravity.TOP) {
                 add(pane(list), LIST_WIDTH, MATCH)
                 add(pane(details), 0, MATCH, weight = 1f, start = 8)
-            }, height = minOf(PANES_HEIGHT, screen.screenHeightDp - chrome))
+            }, height = PANES_HEIGHT, weight = 1f)
             add(status)
         }
         listDrivers()
         options.clearFocus()   // the dialog would otherwise open typing in it
     }
 
-    /** A pane that scrolls once [frame]'s content outgrows it; the frame fills it until then. */
     private fun pane(frame: View) = ScrollView(launcher).apply {
         isFillViewport = true
         addView(frame)
@@ -128,7 +126,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
         addTextChangedListener(object : TextWatcher {
             override fun afterTextChanged(s: Editable) {
-                Drivers.setOptions(launcher, viewing, s.toString().trim())
+                DriverRecords.setOptions(launcher, viewing, s.toString().trim())
             }
             override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
@@ -141,19 +139,24 @@ class DriverDialog(private val launcher: LauncherActivity) {
         }
     }
 
-    /** The sections and their rows, which say which driver is in use and which is recommended. */
     private fun listDrivers() {
         val chosen = Drivers.chosen(launcher)
         val best = Drivers.recommended(launcher)
         val drivers = Drivers.all(launcher)
         if (drivers.none { it.id == viewing }) viewing = chosen
         list.removeAllViews()
+        val sections = listOf(
+            "For your GPU" to drivers.filter(Drivers::forThisGpu),
+            "Any GPU" to drivers.filter(Drivers::forAnyGpu),
+            "Imported" to drivers.filter { it.imported },
+            "Not for your GPU" to drivers.filter { !Drivers.fits(it.id) },
+        ).filter { it.second.isNotEmpty() }
         rows = buildMap {
-            for ((section, members) in Drivers.groups(drivers)) {
+            for ((section, members) in sections) {
                 list.add(label(launcher, section, 14f, Factorio.MUTED, 600), start = 4, top = 4)
                 for (driver in members) {
                     val note = listOfNotNull("In use".takeIf { driver.id == chosen }, "Recommended".takeIf { driver.id == best })
-                        .ifEmpty { listOf(if (Drivers.fits(driver.id)) driver.detail.substringAfter(" · ") else "Needs an Adreno") }
+                        .ifEmpty { listOf(if (Drivers.fits(driver.id)) driver.note else "Needs an Adreno") }
                         .joinToString(" · ")
                     put(driver.id, list.add(button(launcher, withNote(driver.name, note), size = 15f) { view(driver.id) }.apply {
                         gravity = Gravity.START or Gravity.CENTER_VERTICAL
@@ -166,7 +169,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         view(viewing)
     }
 
-    /** Lights [id]'s row and explains it on the right, without rebuilding the list: focus stays where it is. */
+    /** Doesn't rebuild the list, so focus stays where it is. */
     private fun view(id: String) {
         viewing = id
         rows.forEach { (row, button) -> button.tone = if (row == id) Tone.ORANGE else Tone.GREY }
@@ -178,7 +181,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         about.text = driver.about.ifEmpty { "A driver you imported." }
         worksOn.text = driver.worksOn.ifEmpty { "The GPUs it was built for" } +
             if (Drivers.fits(id)) "" else ", not your ${Gpu.name}"
-        lastGame.text = when (Drivers.lastGame(launcher, id)) {
+        lastGame.text = when (DriverRecords.outcome(launcher, id)) {
             Drivers.Outcome.RAN -> "Ran fine"
             Drivers.Outcome.STOPPED -> "Stopped unexpectedly"
             Drivers.Outcome.DIDNT_START -> "Didn't start"
@@ -188,27 +191,23 @@ class DriverDialog(private val launcher: LauncherActivity) {
         checkedFact.shown = Drivers.usesZink(id)
         checkButton.shown = Drivers.usesZink(id)
         checkButton.isEnabled = !Session.inGame
-        checked.text = DriverCheck.result(launcher, id)?.replaceFirstChar(Char::uppercase) ?: "Not checked yet"
+        checked.text = DriverCheck.summary(launcher, id)?.replaceFirstChar(Char::uppercase) ?: "Not checked yet"
         credit.shown = Drivers.isPhone(id)
-        options.setText(Drivers.options(launcher, id))
+        options.setText(DriverRecords.options(launcher, id))
         useButton.text = if (inUse) "In use" else "Use"
-        useButton.isEnabled = !inUse
+        useButton.isEnabled = !inUse && Drivers.fits(id)
         removeButton.shown = driver.imported
     }
 
     private fun choose(id: String) {
         Drivers.choose(launcher, id)
         listDrivers()
-        launcher.refresh()
     }
 
-    /** Removing the driver in use hands the choice back to the app. */
     private fun remove(id: String) {
-        if (id == Drivers.chosen(launcher)) Drivers.choose(launcher, null)
         Drivers.remove(launcher, id)
         viewing = ""
         listDrivers()
-        launcher.refresh()
     }
 
     /** Draws [id]'s test picture now, without the game. */
@@ -218,13 +217,11 @@ class DriverDialog(private val launcher: LauncherActivity) {
         background("driver-check", { Session.checkDriver(launcher, id) }) { result ->
             say(result.fold({ "Checked. Logs has the details." }, { it.message ?: "The check didn't run. See Logs." }),
                 error = result.isFailure)
-            // A check can bring a new runtime, which forgets past games: the automatic choice may move.
+            // A check can unpack a new runtime, under which past games don't count: the automatic choice may move.
             listDrivers()
-            launcher.refresh()
         }
     }
 
-    /** The status line, shown even out of a game, where it's otherwise hidden. */
     private fun say(text: String, error: Boolean = false) {
         status.text = text
         status.setTextColor(if (error) Factorio.ERROR else Factorio.MUTED)
@@ -251,8 +248,6 @@ class DriverDialog(private val launcher: LauncherActivity) {
         const val MARGIN = 32           // beside the dialog on a narrow screen
         const val LIST_WIDTH = 330
         const val PANES_HEIGHT = 330
-        const val CHROME = 130          // the dialog's frame, title and button bar around the panes
-        const val STATUS = 26           // the status line under the panes, in a game
         const val FACT_WIDTH = 84
         const val ROW = 40
         const val ROW_GAP = 4

@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build the runtime
-        run: runtime/build.sh glibc mesa sdl wm hybris assemble
+        run: runtime/build.sh all
       - uses: actions/upload-artifact@v4
         with:
           name: runtime
@@ -54,7 +54,8 @@ jobs:
         run: |
           sdkmanager=$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
           yes | $sdkmanager --licenses > /dev/null
-          $sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' 'cmake;3.22.1' > /dev/null
+          ndk=$(sed -n 's/.*termuxX11NdkVersion = "\(.*\)"/\1/p' third_party/termux-x11/lorie/version.gradle)
+          $sdkmanager 'platforms;android-36' 'build-tools;36.0.0' "ndk;$ndk" 'cmake;3.22.1' > /dev/null
       - name: Pocket Foundry's key
         env:
           KEYSTORE: ${{ secrets.POCKETFOUNDRY_KEYSTORE }}
@@ -71,11 +72,11 @@ jobs:
       - name: Test and build
         run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleRelease
       - name: Check the APK
-        run: tools/publish.sh check "${GITHUB_REF_NAME#v}"
+        run: tools/release.sh check "${GITHUB_REF_NAME#v}"
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: build/release/*.apk
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: tools/publish.sh publish "${GITHUB_REF_NAME#v}"
+        run: tools/release.sh publish "${GITHUB_REF_NAME#v}"

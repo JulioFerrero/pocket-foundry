@@ -2,7 +2,8 @@
  * The driver check: draws twelve squares the way the game draws (shaders, textures, blending, state that changes
  * between draws, and textures compressed in the formats the game uses, filled in pieces and mipmapped) into an
  * offscreen picture through the game's own OpenGL, then reads the picture back. Exits 0 when every square came out
- * right, 1 when the picture is wrong, 2 when OpenGL didn't start.
+ * right, 1 when the picture is wrong, 2 when OpenGL didn't start, and 128 + the signal when one kills it, after
+ * saying where (DriverCheck.kt reads these).
  */
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
@@ -18,7 +19,6 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-/* A grid of 4 x 3 cells. */
 #define CELL 32
 #define WIDTH (4 * CELL)
 #define HEIGHT (3 * CELL)
@@ -31,7 +31,6 @@ typedef Rgb Texels[16];
 
 static const Rgb RED = { 255, 0, 0 }, GREEN = { 0, 255, 0 }, BLUE = { 0, 0, 255 }, YELLOW = { 255, 255, 0 },
                  MAGENTA = { 255, 0, 255 }, CYAN = { 0, 255, 255 }, WHITE = { 255, 255, 255 }, BLACK = { 0 };
-/* The clear colour, under every square. */
 static const int GREY = 64;
 
 static const char *VERTEX_SHADER =
@@ -49,10 +48,10 @@ static const char *FRAGMENT_SHADER =
     "out vec4 fragment;\n"
     "void main() { fragment = mix(color, texture(sprite, uv), textured); }\n";
 
-/* The picture, read back once: [y][x], from the bottom. */
+/* Rows from the bottom, as glReadPixels returns them. */
 static unsigned char picture[HEIGHT][WIDTH][4];
 
-/* Which file [address] is in, and where in it: Android's libraries, which libhybris loads, glibc can't name. */
+/* From /proc/self/maps: glibc can't name Android's libraries, which libhybris loads. */
 static void where(const char *what, uintptr_t address)
 {
     FILE *maps = fopen("/proc/self/maps", "r");
@@ -71,7 +70,7 @@ static void where(const char *what, uintptr_t address)
     if (maps) fclose(maps);
 }
 
-/* A driver that crashes the check: the signal, where, and the libraries on the way there, into drivercheck.log. */
+/* Its output lands in drivercheck.log. */
 static void crashed(int signal, siginfo_t *info, void *context)
 {
     printf("drivercheck: crashed with signal %d, touching 0x%lx\n", signal, (unsigned long)info->si_addr);
@@ -96,7 +95,6 @@ static GLuint shader(GLenum type, const char *source)
     return ok ? s : 0;
 }
 
-/* A square over the whole viewport: [count] corners in a buffer of their own, [stride] floats apart. */
 static GLuint square(const float *corners, int count, int stride)
 {
     GLuint vao, vbo;
@@ -167,7 +165,6 @@ static void bc4_block(unsigned char *block, int a, int b, int (*index)(int, int)
     indices(block + 2, 3, index);
 }
 
-/* What channel [c] of a block from [a] to [b] decodes to. */
 static void channel(Texels out, int c, int a, int b, int parts, int (*index)(int, int))
 {
     for (int t = 0; t < 16; t++) out[t][c] = on_line(a, b, index(t % 4, t / 4), parts);
@@ -194,10 +191,6 @@ static GLuint compressed(GLenum format, const unsigned char *block, GLsizei size
     return t;
 }
 
-/*
- * An 8 x 8 BC1 texture with a 4 x 4 second level, filled a block at a time: [corner] at 0,0 and [opposite] at 4,4 of
- * the first level, [small] the second.
- */
 static GLuint mipmapped(const unsigned char *corner, const unsigned char *opposite, const unsigned char *small)
 {
     GLuint t = texture();
@@ -217,10 +210,6 @@ static void viewport(int column, int row)
     glViewport(column * CELL, row * CELL, CELL, CELL);
 }
 
-/*
- * Whether the 4 x 4 texels of [size] pixels from pixel [x], [y] are [want] (RGB), give or take rounding. Says where
- * the square is first wrong.
- */
 static int expect(const char *name, int x, int y, int size, Rgb *want)
 {
     for (int t = 0; t < 16; t++) {
@@ -236,7 +225,6 @@ static int expect(const char *name, int x, int y, int size, Rgb *want)
     return 1;
 }
 
-/* Whether the square in a whole cell is [want]. */
 static int expect_cell(const char *name, int column, int row, Rgb *want)
 {
     return expect(name, column * CELL, row * CELL, CELL / 4, want);
@@ -363,14 +351,12 @@ int main(void)
     glClearDepth(1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Bottom row, first: red, nothing else on.
     viewport(0, 0);
     glBindVertexArray(padded);
     glUniform1f(textured, 0);
     glUniform4f(color, 1, 0, 0, 1);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    // Bottom row, second: green, culling back faces and testing depth.
     viewport(1, 0);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -381,7 +367,6 @@ int main(void)
     glUniform4f(color, 0, 1, 0, 1);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    // Middle row, first: the blue texture, blended, inside a scissor.
     glDisable(GL_CULL_FACE);
     glDisable(GL_DEPTH_TEST);
     viewport(0, 1);
@@ -396,7 +381,6 @@ int main(void)
     glDisable(GL_SCISSOR_TEST);
     // Middle row, second: keeps the clear colour.
 
-    // Top row, first: red, then a quarter-opaque colour blended to only darken what's below, by a quarter.
     viewport(0, 2);
     glDisable(GL_BLEND);
     glUniform1f(textured, 0);
@@ -407,7 +391,7 @@ int main(void)
     glUniform4f(color, 0, 1, 0, 0.25f);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    // Top row, second: multiplied by what's below, the way the game's light map darkens the picture.
+    // The game's light map darkens the picture this way.
     viewport(1, 2);
     glDisable(GL_BLEND);
     glUniform4f(color, 1, 0.5f, 1, 1);
@@ -417,9 +401,7 @@ int main(void)
     glUniform4f(color, 0.5f, 0.5f, 1, 1);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-    // The compressed squares, blended like the game's sprites: BC1 and BC3 on the bottom row, BC4 and BC5 in the
-    // middle, and on top the mipmapped texture: its first level magnified over a cell, its second drawn by shrinking
-    // the texture onto 4 x 4 pixels.
+    // Blended like the game's sprites. Shrunk onto 4 x 4 pixels, the mipmapped texture shows its second level.
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUniform1f(textured, 1);
     const GLuint compressed_squares[] = { bc1_texture, bc3_texture, bc4_texture, bc5_texture };
