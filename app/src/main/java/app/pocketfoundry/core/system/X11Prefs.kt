@@ -27,10 +27,13 @@ class X11Prefs(private val context: Context) {
         val scales = resolutionScales
         val saved = resolutionScale
         if (saved !in scales) resolutionScale = ResolutionScale.nearest(scales, saved)
-        // Own flag so existing installs get it too. Without it the keyboard app turns a hardware keyboard's keys into
-        // text, so the game never sees one held (WASD). The on-screen keyboard still types.
-        if (!prefs.getBoolean("pocketFoundryCharInput", false)) {
-            prefs.edit().putBoolean("enforceCharBasedInput", true).putBoolean("pocketFoundryCharInput", true).apply()
+        // Own flag so existing installs get it too. A hardware keyboard's keys go to the game before the keyboard app
+        // sees them (scancodes workaround off), so it can't turn them into text and the game sees them held (WASD).
+        // Char-based input stays off: it hides the game from keyboard apps as a text field, and Chinese or Japanese
+        // ones then can't compose.
+        if (!prefs.getBoolean("pocketFoundryKeys", false)) {
+            prefs.edit().putBoolean("hardwareKbdScancodesWorkaround", false).putBoolean("enforceCharBasedInput", false)
+                .putBoolean("pocketFoundryKeys", true).remove("pocketFoundryCharInput").apply()
         }
         // Written once so later changes stick. touchMode 3 is Direct touch: taps click where you touch.
         if (!prefs.getBoolean("pocketFoundryDefaults", false)) {
