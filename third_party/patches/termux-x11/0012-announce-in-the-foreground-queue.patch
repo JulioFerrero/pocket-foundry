@@ -1,0 +1,13 @@
+diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+--- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
++++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+@@ -73,6 +73,9 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
+ 
+         if (getuid() == 0 || getuid() == 2000)
+             intent.setFlags(0x00400000 /* FLAG_RECEIVER_FROM_SHELL */);
++        // Pocket Foundry: up to Android 13 every app's background broadcasts wait in one queue, so one slow receiver
++        // elsewhere held the announcement back and the game screen stayed on "Not connected".
++        intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+ 
+         return intent;
+     }
