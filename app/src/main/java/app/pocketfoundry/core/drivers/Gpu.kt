@@ -48,9 +48,14 @@ object Gpu {
     internal fun isSupported(renderer: String?): Boolean {
         val name = renderer ?: return true
         if (!name.contains("Adreno")) return false
-        val number = ADRENO.find(name)?.groupValues?.get(1)?.toInt() ?: return true
+        val number = adrenoNumber(name) ?: return true
         return number >= 600
     }
+
+    /** "Adreno (TM) 740" -> 740. */
+    val adreno: Int? get() = adrenoNumber(name)
+
+    internal fun adrenoNumber(renderer: String?) = renderer?.let { ADRENO.find(it) }?.groupValues?.get(1)?.toInt()
 
     private val ADRENO = Regex("""Adreno \(TM\) (\d{3})""")
 

@@ -173,17 +173,19 @@ object Drivers {
                              "LP_PERF" to "no_mip_linear")
         // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
         null -> mapOf("VK_DRIVER_FILES" to DriverImport.icd(paths, id).path, "MESA_VK_WSI_DEBUG" to "sw")
-    } + if (noImageCompression(Build.VERSION.SDK_INT) { Gpu.supported }) NO_IMAGE_COMPRESSION else emptyMap()
+    } + if (setsFlagHint(Build.VERSION.SDK_INT) { Gpu.adreno }) FLAG_HINT else emptyMap()
 
     /**
-     * On Android 16 an Adreno 740 (Galaxy S23s, Tab S9 Ultra, POCO F6 Pro) flashes black, and leaves black lines in
-     * the terrain, while Turnip or Freedreno compress images (UBWC); the same tablet on Android 15 doesn't. Of
-     * everything Turnip can switch, only turning compression off helped, and an S23 Ultra kept 60 FPS without it.
+     * An Adreno 740's TPL1_DBG_ECO_CNTL1.TP_UBWC_FLAG_HINT must match between every driver on the GPU, or blits from
+     * compressed images go wrong. Mesa leaves it off, like Qualcomm's older drivers; the Qualcomm driver Android 16
+     * brings, which draws the rest of the screen, sets it. Without the match, Galaxy S23s, a Tab S9 Ultra and a POCO
+     * F6 Pro flashed black and left black lines in the terrain; the same tablet on Android 15 didn't.
      */
-    internal fun noImageCompression(android: Int, adreno: () -> Boolean) = android >= ANDROID_16 && adreno()
+    internal fun setsFlagHint(android: Int, adreno: () -> Int?) = android >= ANDROID_16 && adreno() == 740
 
     private const val ANDROID_16 = 36
-    private val NO_IMAGE_COMPRESSION = mapOf("TU_DEBUG" to "noubwc", "FD_MESA_DEBUG" to "noubwc")
+    /** Mesa's override of its own GPU table, read by Turnip and Freedreno alike. */
+    private val FLAG_HINT = mapOf("FD_DEV_FEATURES" to "enable_tp_ubwc_flag_hint=1")
 
     /**
      * Factorio needs OpenGL 3.3, which Zink offers only on Vulkan drivers with depth clamp and vertex attribute
