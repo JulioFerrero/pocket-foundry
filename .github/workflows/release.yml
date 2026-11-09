@@ -1,0 +1,91 @@
+# Builds a version tag from source and publishes it: v0.8.17-beta.1 as a pre-release, v0.8.17 as a release.
+# tools/release.sh makes the tag. Everything in the APK comes from this repository at that tag.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # The Linux runtime, in the same arm64 Docker image as a local build. Only the pieces whose sources changed since
+  # the cached build are rebuilt (runtime/build.sh --stale).
+  runtime:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            runtime/out
+            runtime/cache
+          key: runtime-${{ hashFiles('runtime/**') }}
+          restore-keys: runtime-
+      - name: Build the runtime
+        run: |
+          stale=$(runtime/build.sh --stale)
+          echo "Building: ${stale:-nothing, all cached}"
+          [ -z "$stale" ] || runtime/build.sh $stale
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime
+          path: runtime/out/apk
+          if-no-files-found: error
+
+  # The APK, on x86-64: Android's build tools don't run on Linux arm64.
+  apk:
+    needs: runtime
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write       # the GitHub release
+      id-token: write       # the build attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # the notes list the commits since the last tag
+      - name: Termux:X11 with Pocket Foundry's patches
+        run: tools/setup.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: runtime
+          path: runtime/out/apk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Android SDK
+        run: |
+          sdkmanager=$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+          yes | $sdkmanager --licenses > /dev/null
+          $sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' 'cmake;3.22.1' > /dev/null
+      - name: Pocket Foundry's key
+        env:
+          KEYSTORE: ${{ secrets.POCKETFOUNDRY_KEYSTORE }}
+          STORE_PASSWORD: ${{ secrets.POCKETFOUNDRY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.POCKETFOUNDRY_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.POCKETFOUNDRY_KEY_PASSWORD }}
+        run: |
+          [ -n "$KEYSTORE" ] || { echo "The POCKETFOUNDRY_* secrets are missing"; exit 1; }
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+              "$RUNNER_TEMP/release.jks" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
+              > "$RUNNER_TEMP/keystore.properties"
+          echo "POCKETFOUNDRY_SIGNING=$RUNNER_TEMP/keystore.properties" >> "$GITHUB_ENV"
+      - name: Test and build
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleRelease
+      - name: Check the APK
+        run: tools/publish.sh check "${GITHUB_REF_NAME#v}"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: build/release/*.apk
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tools/publish.sh publish "${GITHUB_REF_NAME#v}"
