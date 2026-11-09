@@ -14,24 +14,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The Linux runtime, in the same arm64 Docker image as a local build. Only the pieces whose sources changed since
-  # the cached build are rebuilt (runtime/build.sh --stale).
+  # The Linux runtime, in the same arm64 Docker image as a local build, from scratch every time: about 11 minutes.
+  # (A cache wouldn't help: GitHub keeps each tag's caches apart.)
   runtime:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        with:
-          path: |
-            runtime/out
-            runtime/cache
-          key: runtime-${{ hashFiles('runtime/**') }}
-          restore-keys: runtime-
       - name: Build the runtime
-        run: |
-          stale=$(runtime/build.sh --stale)
-          echo "Building: ${stale:-nothing, all cached}"
-          [ -z "$stale" ] || runtime/build.sh $stale
+        run: runtime/build.sh glibc mesa sdl wm hybris assemble
       - uses: actions/upload-artifact@v4
         with:
           name: runtime
