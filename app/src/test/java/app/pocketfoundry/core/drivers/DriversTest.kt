@@ -93,6 +93,13 @@ class DriversTest {
         assertEquals("1", environment["LIBGL_ALWAYS_SOFTWARE"])
     }
 
+    @Test fun `Adrenos on Android 16 and newer draw without image compression`() {
+        assertTrue(Drivers.noImageCompression(36) { true })
+        assertTrue(Drivers.noImageCompression(37) { true })
+        assertFalse(Drivers.noImageCompression(35) { true })
+        assertFalse(Drivers.noImageCompression(36) { false })
+    }
+
     @Test fun `an imported driver draws through Zink on its own Vulkan driver, presenting in software`() {
         val environment = Drivers.environment(paths, "my-turnip")
         assertEquals("zink", environment["MESA_LOADER_DRIVER_OVERRIDE"])

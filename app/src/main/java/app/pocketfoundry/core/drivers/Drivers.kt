@@ -1,6 +1,7 @@
 package app.pocketfoundry.core.drivers
 
 import android.content.Context
+import android.os.Build
 import app.pocketfoundry.core.runtime.DebugEnv
 import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.Paths
@@ -172,7 +173,17 @@ object Drivers {
                              "LP_PERF" to "no_mip_linear")
         // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
         null -> mapOf("VK_DRIVER_FILES" to DriverImport.icd(paths, id).path, "MESA_VK_WSI_DEBUG" to "sw")
-    }
+    } + if (noImageCompression(Build.VERSION.SDK_INT) { Gpu.supported }) NO_IMAGE_COMPRESSION else emptyMap()
+
+    /**
+     * On Android 16 an Adreno 740 (Galaxy S23s, Tab S9 Ultra, POCO F6 Pro) flashes black, and leaves black lines in
+     * the terrain, while Turnip or Freedreno compress images (UBWC); the same tablet on Android 15 doesn't. Of
+     * everything Turnip can switch, only turning compression off helped, and an S23 Ultra kept 60 FPS without it.
+     */
+    internal fun noImageCompression(android: Int, adreno: () -> Boolean) = android >= ANDROID_16 && adreno()
+
+    private const val ANDROID_16 = 36
+    private val NO_IMAGE_COMPRESSION = mapOf("TU_DEBUG" to "noubwc", "FD_MESA_DEBUG" to "noubwc")
 
     /**
      * Factorio needs OpenGL 3.3, which Zink offers only on Vulkan drivers with depth clamp and vertex attribute
