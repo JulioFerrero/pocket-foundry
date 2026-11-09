@@ -43,7 +43,11 @@ missing=$(LD_LIBRARY_PATH=$OUT/lib:$OUT/lib/hybris ldd $targets 2>/dev/null | gr
 
 # glibc last: ldd above runs on the container's 2.41 and must not pick up our libc.
 for f in $GLIBC_LIBS; do cp -L $GLIBC/lib/$f $OUT/lib/; done
-cp -r $GLIBC/lib/gconv $OUT/lib/
+# iconv's charsets beyond UTF-8 and UCS-4, which glibc has built in: the Unicode and Latin ones SDL or the game could
+# ask for. glibc has 250 more (20 MB unpacked) that nothing here uses.
+mkdir -p $OUT/lib/gconv
+cp -r $GLIBC/lib/gconv/gconv-modules $GLIBC/lib/gconv/gconv-modules.d $OUT/lib/gconv/
+for m in UTF-16 UTF-32 UTF-7 UNICODE ISO8859-1 ISO8859-15 CP1252; do cp $GLIBC/lib/gconv/$m.so $OUT/lib/gconv/; done
 # The C.UTF-8 locale that LANG names, made with our glibc's localedef: without it setlocale() falls back to "C".
 gzip -dc $GLIBC/share/i18n/charmaps/UTF-8.gz > /tmp/UTF-8
 mkdir -p $OUT/lib/locale
@@ -61,7 +65,9 @@ printf '127.0.0.1 localhost\n::1 localhost\n' > $OUT/etc/hosts
 
 find $OUT -name '*.so*' -type f -exec strip --strip-unneeded {} + 2>/dev/null || true
 du -sh $OUT/lib $OUT/share
-cd /out/runtime && tar -cJf /out/runtime.tar.xz usr
+# xz's ARM64 filter rewrites the code's relative branch targets as absolute ones, which repeat: with -9e the runtime
+# packs about 11% smaller than tar -J.
+cd /out/runtime && tar -cf - usr | xz --arm64 --lzma2=preset=9e -T1 > /out/runtime.tar.xz
 ls -la /out/runtime.tar.xz
 
 # The loader ships as a "library": Android extracts those to the one place an app may exec from.
