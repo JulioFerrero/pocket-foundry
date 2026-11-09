@@ -55,8 +55,24 @@ object Updates {
                        releases.map { (v, json) -> v to changes(json.optString("body")) })
     }
 
-    /** 0.6.10 after 0.6.9: compared number by number. */
+    /**
+     * 0.6.10 after 0.6.9, compared number by number, and a version after its betas: 0.8.17 after 0.8.17-beta.2, which
+     * comes after 0.8.17-beta.1. A beta installed from a pre-release is then offered its release, never an older one.
+     */
     internal fun compareVersions(a: String, b: String): Int {
+        val release = compareNumbers(a.substringBefore('-'), b.substringBefore('-'))
+        if (release != 0) return release
+        val x = a.substringAfter('-', "")
+        val y = b.substringAfter('-', "")
+        return when {
+            x == y -> 0
+            x.isEmpty() -> 1
+            y.isEmpty() -> -1
+            else -> compareNumbers(x.filter { it.isDigit() || it == '.' }, y.filter { it.isDigit() || it == '.' })
+        }
+    }
+
+    private fun compareNumbers(a: String, b: String): Int {
         val x = a.split('.').map { it.toIntOrNull() ?: 0 }
         val y = b.split('.').map { it.toIntOrNull() ?: 0 }
         for (i in 0 until maxOf(x.size, y.size)) {
