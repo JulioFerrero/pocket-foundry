@@ -1,3 +1,5 @@
+diff --git a/lorie/src/main/cpp/lorie/InitOutput.c b/lorie/src/main/cpp/lorie/InitOutput.c
+index ce128ba..9e82389 100644
 --- a/lorie/src/main/cpp/lorie/InitOutput.c
 +++ b/lorie/src/main/cpp/lorie/InitOutput.c
 @@ -25,6 +25,8 @@
@@ -36,7 +38,7 @@
  
  extern DeviceIntPtr lorieMouse, lorieKeyboard;
  
-@@ -151,6 +171,7 @@
+@@ -147,6 +167,7 @@ void OsVendorInit(void) {
          return;
  
      lorieServerDebugEnabled = getenv("TERMUX_X11_DEBUG") != NULL;
@@ -44,7 +46,7 @@
  
      if (-1 == (lorieScreen.stateFd = LorieBuffer_createRegion("xserver", sizeof(*lorieScreen.state)))) {
          dprintf(2, "FATAL: Failed to allocate server state.\n");
-@@ -169,6 +190,7 @@
+@@ -165,6 +186,7 @@ void OsVendorInit(void) {
      pthread_mutex_init(&lorieScreen.state->cursor.lock, &mutex_attr);
      // Hidden until a real mouse moves: touch never shows it (Pocket Foundry).
      lorieScreen.state->cursor.visible = FALSE;
@@ -52,7 +54,7 @@
  
      lorieListenForKnocks(documentTag ? DOCUMENT_PORT_BASE + atoi(display) : PORT, documentTag);
  }
-@@ -313,7 +335,7 @@
+@@ -306,7 +328,7 @@ void ddxReady(void) {
  }
  
  void OsVendorFatalError(unused const char *f, unused va_list args) {
@@ -61,7 +63,7 @@
  }
  
  #if defined(DDXBEFORERESET)
-@@ -595,6 +617,7 @@
+@@ -587,6 +609,7 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
  
          DamageEmpty(pvfb->damage);
          pvfb->state->drawRequested = TRUE;
@@ -69,9 +71,9 @@
      }
  
      if (pvfb->state->drawRequested || pvfb->state->cursor.moved || pvfb->state->cursor.updated) {
-@@ -613,14 +636,31 @@
- static uint64_t gpuCopyAttempts = 0, gpuCopyOffloads = 0;
- static uint64_t gpuCopyFallbackRects = 0, gpuCopyFallbackQueueFull = 0, gpuCopyFallbackOther = 0;
+@@ -602,10 +625,27 @@ static Bool lorieRedraw(__unused ClientPtr pClient, __unused void *closure) {
+     return TRUE;
+ }
  
 +/* Each frame's way to the screen, a line whenever a rate moves: the game's frames that reached the X server (flips
 + * among them) and the frames the renderer drew. The app copies these lines into screen.log. */
@@ -87,22 +89,18 @@
 +}
 +
  static CARD32 lorieFramecounter(unused OsTimerPtr timer, unused CARD32 time, unused void *arg) {
-     if (pvfb->state->renderedFrames || gpuCopyAttempts)
--        log(INFO, gpuCopyAttempts ? "%d frames in 5.0 seconds = %.1f FPS, %llu/%llu present copies offloaded to GPU (CPU fallback: %llu too many rects, %llu queue full, %llu other)"
-+        __android_log_print(ANDROID_LOG_INFO, "LorieNative", gpuCopyAttempts ? "%d frames in 5.0 seconds = %.1f FPS, %llu/%llu present copies offloaded to GPU (CPU fallback: %llu too many rects, %llu queue full, %llu other)"
-                                    : "%d frames in 5.0 seconds = %.1f FPS",
-             pvfb->state->renderedFrames, ((float) pvfb->state->renderedFrames) / 5,
-             (unsigned long long) gpuCopyOffloads, (unsigned long long) gpuCopyAttempts,
-             (unsigned long long) gpuCopyFallbackRects, (unsigned long long) gpuCopyFallbackQueueFull,
-             (unsigned long long) gpuCopyFallbackOther);
+     if (pvfb->state->renderedFrames)
+-        log(INFO, "%d frames in 5.0 seconds = %.1f FPS",
++        __android_log_print(ANDROID_LOG_INFO, "LorieNative", "%d frames in 5.0 seconds = %.1f FPS",
+             pvfb->state->renderedFrames, ((float) pvfb->state->renderedFrames) / 5);
 +    if (lorieDetailedLogs)
 +        lorieLogFrames((lorieUpdatedFrames + 2) / 5, (lorieFlippedFrames + 2) / 5, (pvfb->state->renderedFrames + 2) / 5,
 +                       pvfb->state->surfaceAvailable);
 +    lorieUpdatedFrames = lorieFlippedFrames = 0;
      pvfb->state->renderedFrames = 0;
-     gpuCopyAttempts = gpuCopyOffloads = 0;
-     gpuCopyFallbackRects = gpuCopyFallbackQueueFull = gpuCopyFallbackOther = 0;
-@@ -1120,6 +1160,7 @@
+     return 5000;
+ }
+@@ -961,6 +1001,7 @@ Bool loriePresentFlip(__unused RRCrtcPtr crtc, __unused uint64_t event_id, __unu
          return FALSE;
  
      lorieRegisterBuffer(priv->buffer);
@@ -110,7 +108,7 @@
      return TRUE;
  }
  
-@@ -1283,7 +1324,7 @@
+@@ -1133,7 +1174,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
      if (modifier == DRM_FORMAT_MOD_INVALID || modifier == DRM_FORMAT_MOD_LINEAR || modifier == RAW_MMAPPABLE_FD) {
          check(!(priv->buffer = LorieBuffer_wrapFileDescriptor(width, strides[0]/4, height, AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM, fds[0], offsets[0])), "DRI3: LorieBuffer_wrapAHardwareBuffer failed.");
          screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, strides[0], NULL);
@@ -119,18 +117,20 @@
              log(INFO, "DRI3: imported raw fd, modifier %llu, %ux%u stride %u", (unsigned long long) modifier, width, height, strides[0]);
          return pixmap;
      }
-@@ -1315,7 +1356,7 @@
-         LorieBuffer_unlock(priv->buffer);
+@@ -1143,7 +1184,7 @@ static PixmapPtr loriePixmapFromFds(ScreenPtr screen, CARD8 num_fds, const int *
+         check(!(priv->buffer = lorieReceiveSocketBuffer(fds[0], &desc)), "DRI3: failed to import AHardwareBuffer");
  
          screen->ModifyPixmapHeader(pixmap, width, height, 0, 0, desc.stride * 4, NULL);
 -        if (lorieServerDebugEnabled)
 +        if (lorieServerDebugEnabled || lorieDetailedLogs)
-             log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u%s", (unsigned long long) modifier, desc.width, desc.height, desc.stride, priv->gpuOnly ? ", not lockable" : "");
+             log(INFO, "DRI3: imported AHardwareBuffer, modifier %llu, %ux%u stride %u", (unsigned long long) modifier, desc.width, desc.height, desc.stride);
      }
  
+diff --git a/lorie/src/main/cpp/lorie/lorie.h b/lorie/src/main/cpp/lorie/lorie.h
+index 0b7a598..39a0f28 100644
 --- a/lorie/src/main/cpp/lorie/lorie.h
 +++ b/lorie/src/main/cpp/lorie/lorie.h
-@@ -266,6 +266,10 @@
+@@ -237,6 +237,10 @@ struct lorie_shared_server_state {
          // Signals to renderer to update cursor's texture or its coordinates
          volatile uint8_t updated, moved, visible;
      } cursor;
@@ -141,6 +141,8 @@
  };
  
  #ifdef __cplusplus
+diff --git a/lorie/src/main/cpp/lorie/renderer.cpp b/lorie/src/main/cpp/lorie/renderer.cpp
+index 333ad48..ffb7bda 100644
 --- a/lorie/src/main/cpp/lorie/renderer.cpp
 +++ b/lorie/src/main/cpp/lorie/renderer.cpp
 @@ -36,14 +36,51 @@
@@ -197,16 +199,7 @@
  
  static constexpr EGLTimeKHR FENCE_TIMEOUT_NANOS = 100000000;
  
-@@ -971,7 +1008,7 @@
-                 float v1 = (float) r.y2 / (float) srcDesc->height;
-                 // Only swap channels if src/dst storage formats actually differ.
-                 uint8_t needsSwizzle = LorieBuffer_isRgba(src) != LorieBuffer_isRgba(dst);
--                log("rendererApplyPendingGpuCopies: rect (%d,%d)-(%d,%d) off=(%d,%d) -> ndc=(%.3f,%.3f)-(%.3f,%.3f) uv=(%.3f,%.3f)-(%.3f,%.3f) srcTex=%u dstTex=%u swizzle=%d\n",
-+                __android_log_print(ANDROID_LOG_DEBUG, "gles-renderer", "rendererApplyPendingGpuCopies: rect (%d,%d)-(%d,%d) off=(%d,%d) -> ndc=(%.3f,%.3f)-(%.3f,%.3f) uv=(%.3f,%.3f)-(%.3f,%.3f) srcTex=%u dstTex=%u swizzle=%d\n",
-                     r.x1, r.y1, r.x2, r.y2, entry.xOff, entry.yOff, x0, y0, x1, y1, u0, v0, u1, v1,
-                     LorieBuffer_getGLTextureId(src), LorieBuffer_getGLTextureId(dst), needsSwizzle);
-                 drawRegion(0, x0, y0, x1, y1, u0, v0, u1, v1, needsSwizzle);
-@@ -1188,7 +1225,7 @@
+@@ -932,7 +969,7 @@ void Renderer::redrawLocked(bool* waitingForBuffers) {
      glFlush();
  
      if (state->cursor.updated) {
@@ -215,7 +208,7 @@
          lorie_mutex_lock(&state->cursor.lock, &state->cursor.lockingPid, connFd());
          state->cursor.updated = false;
          bindTexture(cursor.id);
-@@ -1275,6 +1312,7 @@
+@@ -1014,6 +1051,7 @@ void Renderer::threadLoop() {
              state = pendingState;
              pendingState = nullptr;
              stateChanged = false;
