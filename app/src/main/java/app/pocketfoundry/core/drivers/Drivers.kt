@@ -15,8 +15,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * The app has two drivers of its own, the phone's and the CPU. The GPU drivers come from the catalog (Catalog), which
- * the app downloads before a game; players can import others.
+ * The app has one driver of its own, the phone's. The others come from the catalog (Catalog), which the app downloads
+ * before a game: the GPU drivers, and the CPU, which a game falls back on. Players can import others.
  */
 object Drivers {
     enum class Origin { APP, CATALOG, IMPORTED }
@@ -47,8 +47,6 @@ object Drivers {
         Driver(PHONE, "Phone's driver", Origin.APP, "Android's own, through libhybris",
                "Zink on the Vulkan driver your phone already has, loaded through libhybris. The way in for Mali, " +
                "PowerVR and Xclipse.", "Any GPU"),
-        Driver(CPU, "CPU", Origin.APP, "slow, uses a lot of battery",
-               "Mesa draws on the processor, without the GPU. Slow and hard on the battery.", "Any GPU"),
     )
 
     private fun fromCatalog(entry: Catalog.Entry) =
@@ -62,8 +60,7 @@ object Drivers {
      * apart), the maker's version for the phone's. A downloaded driver's is the build it has, not the catalog's.
      */
     fun version(context: Context, driver: Driver): String = when (driver.origin) {
-        Origin.APP -> if (driver.id == PHONE) Gpu.driverVersion?.let(::makersVersion) ?: "Android's own"
-                      else "llvmpipe, slow"
+        Origin.APP -> Gpu.driverVersion?.let(::makersVersion) ?: "Android's own"
         Origin.IMPORTED -> driver.note
         Origin.CATALOG -> (DriverImport.downloaded(Paths(context), driver.id) ?: driver.entry)
             ?.let { buildVersion(it.version, it.mesa, it.updated, LocalDate.now()) }.orEmpty()
@@ -93,8 +90,12 @@ object Drivers {
     /** Listed To try: made for another GPU of the same family. */
     fun toTry(driver: Driver) = driver.entry?.let { Catalog.mightFit(it, Gpu.name, Catalog.android) } == true
 
+    /** The phone's driver and the CPU. */
+    fun forAnyGpu(driver: Driver) = driver.origin == Origin.APP || driver.entry?.kind == Catalog.Kind.CPU
+
     /** A catalog driver for neither this GPU nor its family can't be used. */
-    fun fits(driver: Driver) = driver.origin != Origin.CATALOG || forThisGpu(driver) || toTry(driver)
+    fun fits(driver: Driver) =
+        driver.origin != Origin.CATALOG || forAnyGpu(driver) || forThisGpu(driver) || toTry(driver)
 
     /** A choice that can't be used any more (a phone moved to another GPU, a driver removed) isn't one. */
     fun chosen(context: Context): String =
@@ -120,11 +121,11 @@ object Drivers {
     fun isPhone(id: String) = id == PHONE
 
     /**
-     * Whether the game reaches [id] through Zink: all but the CPU and the catalog's OpenGL drivers. [listed]: the
-     * catalog's entry, for one not downloaded yet.
+     * Whether the game reaches [id] through Zink: all but the catalog's drivers with a Mesa of their own. [listed]:
+     * the catalog's entry, for one not downloaded yet.
      */
     fun usesZink(paths: Paths, id: String, listed: Catalog.Entry? = null) =
-        id != CPU && (DriverImport.downloaded(paths, id) ?: listed)?.kind != Catalog.Kind.OPENGL
+        (DriverImport.downloaded(paths, id) ?: listed)?.kind?.ownMesa != true
 
     /** Not downloaded yet, or the catalog has a newer build of it: the next game downloads [id] first. */
     fun pending(context: Context, id: String): Catalog.Entry? {
@@ -134,11 +135,13 @@ object Drivers {
 
     /**
      * Off the main thread, before a game: the chosen driver's package if it's [pending]. A newer build that can't be
-     * downloaded waits for the next game; a driver that isn't there at all can't play.
+     * downloaded waits for the next game; a driver that isn't there at all can't play. Neither can the CPU before the
+     * app has the catalog that lists it, on a first start without a connection.
      */
     @Synchronized
     fun prepare(context: Context, onPercent: (name: String, percent: Int) -> Unit) {
         val id = chosen(context)
+        if (find(context, id) == null) throw IOException("No driver list yet. Check the connection and try again.")
         val entry = pending(context, id) ?: return
         val installed = DriverImport.downloaded(Paths(context), id) != null
         try {
@@ -178,7 +181,7 @@ object Drivers {
 
     /**
      * Off the main thread: the newest catalog, which can change the recommended driver (a first start without it
-     * has only the phone's and the CPU). Offline, the saved one stays.
+     * has only the phone's). Offline, the saved one stays.
      */
     fun refreshCatalog(context: Context) = switching(context) {
         runCatching { Catalog.refresh(context) }.onFailure { Log.w(TAG, "No driver list: ${it.message}") }
@@ -259,15 +262,9 @@ object Drivers {
                            // Android 10's linker config is named by it: libhybris's linker can't read properties.
                            HYBRIS_VNDK to Runtime.properties["ro.vndk.version"].orEmpty(),
                            "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") + if (Gpu.mali) MALI else emptyMap()
-            // llvmpipe: Mesa on the CPU. Software GLX still follows MESA_LOADER_DRIVER_OVERRIDE, so it must name
-            // llvmpipe too. 256-bit code (two NEON registers at a time) and bilinear filtering were the fastest that
-            // still looked right.
-            CPU -> mapOf("LIBGL_ALWAYS_SOFTWARE" to "1", "MESA_LOADER_DRIVER_OVERRIDE" to "llvmpipe",
-                         "GALLIUM_DRIVER" to "llvmpipe", "LP_NATIVE_VECTOR_WIDTH" to "256",
-                         "LP_PERF" to "no_mip_linear")
             else -> if (installed != null) {
                 val icd = DriverImport.icd(paths, id).path
-                val vulkan = if (installed.kind == Catalog.Kind.VULKAN) mapOf("VK_DRIVER_FILES" to icd) else emptyMap()
+                val vulkan = if (installed.kind.ownMesa) emptyMap() else mapOf("VK_DRIVER_FILES" to icd)
                 vulkan + installed.env + fixes
             } else {
                 // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
@@ -288,13 +285,13 @@ object Drivers {
                              DriverCheck.TRANSCODER to "0")
 
     /**
-     * Where [id]'s process finds its libraries. An OpenGL driver brings its own Mesa, which must come before the
-     * runtime's; a Vulkan driver's folder only adds what the runtime lacks.
+     * Where [id]'s process finds its libraries. A driver with its own Mesa needs it before the runtime's; a Vulkan
+     * driver's folder only adds what the runtime lacks.
      */
     fun libraryPath(paths: Paths, id: String): List<File> {
-        if (id == PHONE || id == CPU) return listOf(paths.lib)
+        if (id == PHONE) return listOf(paths.lib)
         val folder = DriverImport.folder(paths, id)
-        return if (DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.OPENGL) listOf(folder, paths.lib)
+        return if (DriverImport.downloaded(paths, id)?.kind?.ownMesa == true) listOf(folder, paths.lib)
                else listOf(paths.lib, folder)
     }
 

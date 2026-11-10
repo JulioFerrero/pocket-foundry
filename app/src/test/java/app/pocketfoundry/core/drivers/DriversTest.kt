@@ -77,11 +77,20 @@ class DriversTest {
         assertEquals(null, environment["VK_DRIVER_FILES"])
     }
 
-    @Test fun `the CPU driver is llvmpipe for every way Mesa picks one`() {
-        val environment = Drivers.environment(paths, "cpu", null, emptyMap())
+    @Test fun `the catalog's CPU driver is its own Mesa too, picked by the catalog's settings`() {
+        val cpu = entry("cpu", "cpu", """{"MESA_LOADER_DRIVER_OVERRIDE": "llvmpipe", "LIBGL_ALWAYS_SOFTWARE": "1"}""")
+        val environment = Drivers.environment(paths, "cpu", cpu, emptyMap())
         assertEquals("llvmpipe", environment["MESA_LOADER_DRIVER_OVERRIDE"])
-        assertEquals("llvmpipe", environment["GALLIUM_DRIVER"])
         assertEquals("1", environment["LIBGL_ALWAYS_SOFTWARE"])
+        assertEquals(null, environment["VK_DRIVER_FILES"])
+    }
+
+    @Test fun `the CPU is for any GPU, like the phone's driver`() {
+        val cpu = Drivers.Driver("cpu", "CPU", Drivers.Origin.CATALOG, "", entry = entry("cpu", "cpu"))
+        assertTrue(Drivers.forAnyGpu(cpu))
+        assertTrue(Drivers.fits(cpu))
+        assertFalse(Drivers.forAnyGpu(Drivers.Driver("turnip", "Turnip", Drivers.Origin.CATALOG, "",
+                                                     entry = entry("turnip", "vulkan"))))
     }
 
     @Test fun `an imported driver draws through Zink on its own Vulkan driver, presenting in software`() {
@@ -100,23 +109,27 @@ class DriversTest {
         return paths
     }
 
-    @Test fun `an OpenGL driver's own Mesa comes before the runtime's`() {
+    @Test fun `an OpenGL or CPU driver's own Mesa comes before the runtime's`() {
         val paths = installed("freedreno", "opengl")
+        installed("cpu", "cpu")
         assertEquals(listOf(DriverImport.folder(paths, "freedreno"), paths.lib),
                      Drivers.libraryPath(paths, "freedreno"))
+        assertEquals(listOf(DriverImport.folder(paths, "cpu"), paths.lib), Drivers.libraryPath(paths, "cpu"))
     }
 
     @Test fun `a Vulkan driver's folder only adds to the runtime`() {
         val paths = installed("turnip", "vulkan")
         assertEquals(listOf(paths.lib, DriverImport.folder(paths, "turnip")), Drivers.libraryPath(paths, "turnip"))
         assertEquals(listOf(paths.lib, DriverImport.folder(paths, "imported")), Drivers.libraryPath(paths, "imported"))
-        assertEquals(listOf(paths.lib), Drivers.libraryPath(paths, "cpu"))
+        assertEquals(listOf(paths.lib), Drivers.libraryPath(paths, "phone"))
     }
 
     @Test fun `only the CPU and OpenGL drivers draw without Zink`() {
         val paths = installed("freedreno", "opengl")
+        installed("cpu", "cpu")
         assertFalse(Drivers.usesZink(paths, "freedreno"))
         assertFalse(Drivers.usesZink(paths, "cpu"))
+        assertFalse(Drivers.usesZink(paths, "listed", entry("listed", "cpu")))
         assertTrue(Drivers.usesZink(paths, "phone"))
         assertTrue(Drivers.usesZink(paths, "turnip"))
     }

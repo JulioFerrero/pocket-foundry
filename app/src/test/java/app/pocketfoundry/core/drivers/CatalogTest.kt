@@ -19,6 +19,8 @@ class CatalogTest {
           {"id": "panvk", "name": "PanVK", "kind": "vulkan", "gpus": ["Mali-G76*"], "android": {"min": 10},
            "family": {"name": "Mali Bifrost", "gpus": ["Mali-G52*", "Mali-G72*", "Mali-G76*"]},
            "file": {"url": "https://example.com/panvk.tar.xz", "sha256": "cd", "size": 3}},
+          {"id": "cpu", "name": "CPU", "kind": "cpu", "for": "Any GPU",
+           "file": {"url": "https://example.com/cpu.tar.xz", "sha256": "12", "size": 4}},
           {"id": "future", "name": "From a newer catalog", "kind": "metal",
            "file": {"url": "https://example.com/x", "sha256": "ef"}},
           {"id": "unbuilt", "name": "No file yet", "kind": "vulkan"}
@@ -31,7 +33,7 @@ class CatalogTest {
     private val panvk = catalog.find("panvk")!!
 
     @Test fun `drivers the app can't read are left out`() {
-        assertEquals(listOf("turnip", "panvk"), catalog.drivers.map { it.id })
+        assertEquals(listOf("turnip", "panvk", "cpu"), catalog.drivers.map { it.id })
     }
 
     @Test fun `a question mark is one character, a star any text`() {

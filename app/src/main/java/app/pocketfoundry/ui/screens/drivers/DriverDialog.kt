@@ -198,7 +198,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val sections = listOf(
             "For your GPU" to drivers.filter(Drivers::forThisGpu),
             "To try" to drivers.filter(Drivers::toTry),
-            "With the app" to drivers.filter { it.origin == Drivers.Origin.APP },
+            "For any GPU" to drivers.filter(Drivers::forAnyGpu),
             "Imported" to drivers.filter { it.origin == Drivers.Origin.IMPORTED },
         ).filter { it.second.isNotEmpty() }
         rows = buildMap {
@@ -298,7 +298,8 @@ class DriverDialog(private val launcher: LauncherActivity) {
     private fun showRunning(driver: Driver, inUse: Boolean) {
         facts.removeAllViews()
         val id = driver.id
-        if (driver.origin == Drivers.Origin.CATALOG) {
+        // Fixes are for a GPU: none comes with the CPU.
+        if (driver.origin == Drivers.Origin.CATALOG && !Drivers.forAnyGpu(driver)) {
             val fixes = Catalog.fixesFor(Catalog.get(launcher), id, Gpu.name, Catalog.android)
             fact("Fix", fixes.joinToString(", ") { it.name }.ifEmpty { "None needed" })
         }
@@ -376,8 +377,6 @@ class DriverDialog(private val launcher: LauncherActivity) {
             }
             // MaliBridge's licence asks for this credit wherever the app shows credits.
             Drivers.isPhone(driver.id) -> byline.add(link(launcher, "Uses MaliBridge by ASEbrahim", MALIBRIDGE, 13f))
-            driver.origin == Drivers.Origin.APP ->
-                byline.add(label(launcher, "Comes with the app", 13f, Factorio.FAINT))
             else -> byline.add(label(launcher, "Imported from ${driver.note}", 13f, Factorio.FAINT).capped(1))
         }
     }

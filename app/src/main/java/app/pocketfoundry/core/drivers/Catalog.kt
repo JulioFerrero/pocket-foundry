@@ -25,7 +25,11 @@ import java.util.Locale
  * signs. Only a catalog signed with [KEY] is read, and each download must match the SHA-256 in it.
  */
 object Catalog {
-    enum class Kind { VULKAN, OPENGL }
+    /**
+     * A Vulkan driver the game reaches through the runtime's Zink, or a whole Mesa of its own ([ownMesa]): an OpenGL
+     * driver, or the CPU, which is for any GPU. Apps before 0.8.17-beta.10 skip the CPU's entry, having their own.
+     */
+    enum class Kind(val ownMesa: Boolean) { VULKAN(false), OPENGL(true), CPU(true) }
 
     class Setting(val id: String, val label: String, val about: String, val env: Map<String, String>)
 

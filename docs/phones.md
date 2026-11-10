@@ -77,8 +77,8 @@ older can't run Turnip, and their kernels lack what freedreno needs: they use th
 ## Any other phone: the CPU
 
 **CPU** in **Settings -> Driver** draws the game on the phone's processor with Mesa's llvmpipe, no GPU driver
-needed. Phones where no GPU driver starts end up on it. It's experimental: slow, and it uses a lot of battery. How fast it
-runs depends on the processor, not on Pocket Foundry.
+needed. Phones where no GPU driver starts end up on it, and download it (13 MB) the first time. It's experimental: slow,
+and it uses a lot of battery. How fast it runs depends on the processor, not on Pocket Foundry.
 
 Choosing it also sets Medium sprites, **Graphics: Light** (Factorio's smoke, clouds, decoratives, shadows and terrain
 effects off) and the lowest resolution, which keeps the same view, only softer. A vivo X200 Ultra runs it at 60 FPS;
