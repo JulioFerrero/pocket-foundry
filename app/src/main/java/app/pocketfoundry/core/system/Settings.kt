@@ -24,6 +24,10 @@ class Settings(context: Context) {
     var spriteQuality by prefs.string(SPRITE_QUALITY, HIGH)
     /** Factorio's extra effects off (smoke, clouds, decoratives, shadows, terrain effects…): fewer pixels to draw. */
     var lightGraphics by prefs.bool(LIGHT_GRAPHICS, false)
+    /** The player set the resolution, sprites or graphics: a driver's speed test leaves them as they are. */
+    var graphicsChosen by prefs.bool(GRAPHICS_CHOSEN, false)
+    /** The driver whose speed test last set them: Drivers.useSpeedTest sets them again only for another. */
+    var graphicsDriver by prefs.string("graphicsDriver", "")
     /** Android is asked once for notifications, which carry Quit. */
     var askedNotifications by prefs.bool("askedNotifications", false)
 
@@ -32,6 +36,9 @@ class Settings(context: Context) {
 
     fun setGraphicsDefaults(spriteQuality: String, lightGraphics: Boolean, onlyUnset: Boolean) {
         val edit = prefs.edit()
+        // Installs from before graphicsChosen: what they have may be the player's.
+        if (!prefs.contains(GRAPHICS_CHOSEN)) edit.putBoolean(GRAPHICS_CHOSEN, prefs.contains(SPRITE_QUALITY))
+        if (!onlyUnset) edit.putBoolean(GRAPHICS_CHOSEN, false)
         if (!onlyUnset || !prefs.contains(SPRITE_QUALITY)) edit.putString(SPRITE_QUALITY, spriteQuality)
         if (!onlyUnset || !prefs.contains(LIGHT_GRAPHICS)) edit.putBoolean(LIGHT_GRAPHICS, lightGraphics)
         edit.apply()
@@ -48,6 +55,7 @@ class Settings(context: Context) {
 
         private const val SPRITE_QUALITY = "spriteQuality"
         private const val LIGHT_GRAPHICS = "lightGraphics"
+        private const val GRAPHICS_CHOSEN = "graphicsChosen"
     }
 }
 

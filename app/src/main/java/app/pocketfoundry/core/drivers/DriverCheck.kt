@@ -84,6 +84,10 @@ object DriverCheck {
         return hiding(base, offIn(found)) + if (found.optBoolean("transcode")) mapOf(TRANSCODER to "1") else emptyMap()
     }
 
+    /** How fast this version of [driver] drew the speed test; empty if it hasn't, or couldn't. */
+    fun speed(context: Context, driver: String) =
+        SpeedTest.fromJson(current(context, driver)?.optJSONArray("speed"))
+
     /** What the check found for this version of [driver], in a line; null if it hasn't checked it. */
     fun summary(context: Context, driver: String) = current(context, driver)?.let(::summary)
 
@@ -134,6 +138,12 @@ object DriverCheck {
         val result = JSONObject().put("version", version(context, driver)).put("off", off.joinToString(","))
             .put("transcode", transcoded).put("failed", found == Found.Failed).put("wrong", found == Found.Wrong)
             .put("timelines", timelines)
+        // On what draws right, with what the game gets.
+        if (found is Found.Right) {
+            val speed = SpeedTest.measure(context, paths, driver, withFindings(environment, result))
+            result.put("speed", SpeedTest.toJson(speed))
+            if (speed.isNotEmpty()) ScreenLog.add("speed test: ${SpeedTest.summary(speed)}")
+        }
         DriverRecords.setCheck(context, driver, result)
         ScreenLog.add("driver check: ${summary(result)}")
         return result

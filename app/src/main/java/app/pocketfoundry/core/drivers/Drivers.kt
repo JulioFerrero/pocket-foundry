@@ -175,13 +175,30 @@ object Drivers {
 
     /**
      * The CPU driver gets Medium sprites, Light graphics and the coarser resolution it was made for. Malis get Medium
-     * sprites too: High crashed PanVK while loading, and their own driver loads them unpacked. [onlyUnset] keeps what
+     * sprites too: High crashed PanVK while loading, and their own driver loads them unpacked. A GPU driver gets the
+     * resolution its speed test found, and Light graphics if even the coarsest was too slow. [onlyUnset] keeps what
      * the player chose.
      */
     private fun setGraphicsDefaults(context: Context, cpu: Boolean, onlyUnset: Boolean) {
-        Settings(context).setGraphicsDefaults(if (cpu || Gpu.mali) Settings.MEDIUM else Settings.HIGH, cpu, onlyUnset)
+        val settings = Settings(context)
+        val fit = if (cpu) null
+                  else SpeedTest.fit(context, DriverCheck.speed(context, chosen(context)), settings.frameRate)
+        settings.setGraphicsDefaults(if (cpu || Gpu.mali) Settings.MEDIUM else Settings.HIGH, cpu || fit?.light == true,
+                                     onlyUnset)
         val x11 = X11Prefs(context)
-        if (!onlyUnset || !x11.hasResolutionScale) x11.resolutionScale = x11.startingResolutionScale(cpu)
+        if (!onlyUnset || !x11.hasResolutionScale) x11.resolutionScale = fit?.scale ?: x11.startingResolutionScale(cpu)
+    }
+
+    /**
+     * Before a game, once its driver's check has run: on the first game, and the first after the driver changes, the
+     * resolution and graphics its speed test found, unless the player chose their own. A new build of the same driver,
+     * a new runtime or a Check measure again but change nothing.
+     */
+    fun useSpeedTest(context: Context, driver: String) {
+        val settings = Settings(context)
+        if (settings.graphicsDriver == driver) return
+        if (!settings.graphicsChosen) setGraphicsDefaults(context, driver == CPU, onlyUnset = false)
+        settings.graphicsDriver = driver
     }
 
     /** [id]'s Settings and Options and DriverCheck's findings go on top of this. */

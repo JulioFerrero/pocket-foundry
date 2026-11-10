@@ -45,7 +45,10 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val x11 = X11Prefs(launcher)
     private val note = label(launcher, "Resolution, sprites, graphics, the FPS counter and detailed logs change when " +
                              "Factorio next starts.", 13f, Factorio.MUTED)
-    private val resolution = Dropdown(launcher, resolutionNames()) { x11.resolutionScale = x11.resolutionScales[it] }
+    private val resolution = Dropdown(launcher, resolutionNames()) {
+        x11.resolutionScale = x11.resolutionScales[it]
+        settings.graphicsChosen = true
+    }
     private val border = Dropdown(launcher, BORDERS.map { it.second }) {
         settings.border = BORDERS[it].first
     }
@@ -54,8 +57,12 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     }
     private val sprites = Dropdown(launcher, Settings.SPRITE_QUALITIES.map { it.replaceFirstChar(Char::uppercase) }) {
         settings.spriteQuality = Settings.SPRITE_QUALITIES[it]
+        settings.graphicsChosen = true
     }
-    private val graphics = Choice(launcher, listOf("Full", "Light")) { settings.lightGraphics = it == LIGHT }
+    private val graphics = Choice(launcher, listOf("Full", "Light")) {
+        settings.lightGraphics = it == LIGHT
+        settings.graphicsChosen = true
+    }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)
     private val layoutLater = label(launcher, "In a game", 15f, Factorio.FAINT)
     // Up by the title, out of the bar below: on a narrow phone the bar has no room for it next to the update.

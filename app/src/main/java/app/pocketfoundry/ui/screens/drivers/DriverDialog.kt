@@ -410,10 +410,10 @@ class DriverDialog(private val launcher: LauncherActivity) {
         listDrivers()
     }
 
-    /** Draws [id]'s test picture now, without the game. */
+    /** Draws [id]'s test picture and times its frames now, without the game. */
     private fun checkDriver(id: String) {
         checkButton.isEnabled = false
-        say("Drawing a test picture…")
+        say("Drawing a test picture, then timing frames…")
         background("driver-check", { Session.checkDriver(launcher, id) }) { result ->
             say(result.fold({ "Checked. Logs has the details." }, { it.message ?: "The check didn't run. See Logs." }),
                 error = result.isFailure)

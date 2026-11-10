@@ -26,6 +26,7 @@ import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
+import app.pocketfoundry.core.drivers.SpeedTest
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.appVersion
@@ -114,6 +115,7 @@ class LogActivity : Activity() {
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
         val options = DriverRecords.options(this, played)
         val checked = DriverCheck.summary(this, played)
+        val speed = DriverCheck.speed(this, played)
         val formats = Gpu.textureFormats.joinToString(", ").ifEmpty { "none" }
         val settings = Settings(this)
         fun onOff(on: Boolean) = if (on) "on" else "off"
@@ -129,6 +131,7 @@ class LogActivity : Activity() {
             "GPU's compressed textures: $formats\n" +
             (Runtime.misplaced(this)?.let { "Runtime: $it\n" } ?: "") +
             (if (checked != null) "Driver check: $checked\n" else "") +
+            (if (speed.isNotEmpty()) "Speed test: ${SpeedTest.summary(speed)}\n" else "") +
             "Driver list: ${Catalog.status ?: "not fetched yet"}\n"
     }
 
