@@ -1,6 +1,9 @@
 package app.pocketfoundry.core.system
 
 import android.content.Context
+import android.graphics.Point
+import android.hardware.display.DisplayManager
+import android.view.Display
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -19,6 +22,17 @@ class X11Prefs(private val context: Context) {
         set(scale) = prefs.edit().putString("displayResolutionMode", "scaled").putInt(SCALE, scale).apply()
 
     val uiScale get() = ResolutionScale.uiScale(dpi, resolutionScale)
+
+    /**
+     * The game's screen at [scale], landscape: the screen's pixels as Android runs it now × 100 / scale. Not the
+     * panel's: a Galaxy S10 set to FHD+ runs its 3040 × 1440 panel at 2280 × 1080.
+     */
+    fun gameSize(scale: Int): Pair<Int, Int> {
+        val size = Point()
+        @Suppress("DEPRECATION")   // its replacement, WindowManager's metrics, needs Android 11
+        context.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY).getRealSize(size)
+        return maxOf(size.x, size.y) * 100 / scale to minOf(size.x, size.y) * 100 / scale
+    }
 
     val hasResolutionScale get() = prefs.contains(SCALE)
 

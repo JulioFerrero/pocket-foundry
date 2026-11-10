@@ -27,7 +27,6 @@ import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.buttonBar
 import app.pocketfoundry.ui.kit.checkBox
 import app.pocketfoundry.ui.kit.column
-import app.pocketfoundry.ui.kit.displayCompat
 import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.heading
 import app.pocketfoundry.ui.kit.keepScrollBar
@@ -130,12 +129,9 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         setting(text, checkBox(launcher, checked, onChange), controlHeight = CONTROL_HEIGHT)
 
     private fun resolutionNames(): List<CharSequence> {
-        val mode = launcher.displayCompat()!!.mode
-        val long = maxOf(mode.physicalWidth, mode.physicalHeight)
-        val short = minOf(mode.physicalWidth, mode.physicalHeight)
         val default = x11.defaultResolutionScale
         return x11.resolutionScales.map { scale ->
-            val size = "${long * 100 / scale} × ${short * 100 / scale}"
+            val size = x11.gameSize(scale).let { (width, height) -> "$width × $height" }
             val note = when (scale) {
                 ResolutionScale.NATIVE -> "Native"
                 default -> "Default"
