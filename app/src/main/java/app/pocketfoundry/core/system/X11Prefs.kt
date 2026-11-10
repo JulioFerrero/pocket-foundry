@@ -7,7 +7,8 @@ import kotlin.math.roundToInt
 /** Termux:X11's own prefs, which its X server and game screen read. */
 class X11Prefs(private val context: Context) {
     private val prefs = context.getSharedPreferences("${context.packageName}_preferences", Context.MODE_PRIVATE)
-    private val dpi get() = context.resources.displayMetrics.densityDpi
+    /** The screen's own: our activities draw at a lower density (UI_SCALE). */
+    private val dpi get() = context.applicationContext.resources.displayMetrics.densityDpi
 
     val defaultResolutionScale get() = ResolutionScale.default(dpi)
     val resolutionScales get() = ResolutionScale.options(defaultResolutionScale)

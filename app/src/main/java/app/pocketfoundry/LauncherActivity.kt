@@ -2,6 +2,7 @@ package app.pocketfoundry
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -40,6 +41,7 @@ import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.edgeToEdge
 import app.pocketfoundry.ui.kit.immersive
 import app.pocketfoundry.ui.kit.padForCutout
+import app.pocketfoundry.ui.kit.scaleUi
 import app.pocketfoundry.ui.kit.shown
 import app.pocketfoundry.ui.screens.updates.UpdateDialog
 import app.pocketfoundry.core.updates.UpdateFlow
@@ -74,6 +76,11 @@ class LauncherActivity : Activity() {
     private var afterAsking: (() -> Unit)? = null
     private var onPicked: ((List<Uri>) -> Unit)? = null
     private val sessionChanged: () -> Unit = { refresh() }
+
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        scaleUi(base)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

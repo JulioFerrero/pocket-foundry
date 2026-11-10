@@ -3,6 +3,7 @@ package app.pocketfoundry.ui.screens.launcher
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -28,6 +29,7 @@ import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
+import app.pocketfoundry.ui.kit.scaleUi
 import app.pocketfoundry.ui.kit.FButton
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
@@ -44,6 +46,11 @@ import kotlin.concurrent.thread
 
 /** The phone's facts and the ends of the game's logs, to read or copy into a report. */
 class LogActivity : Activity() {
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        scaleUi(base)
+    }
+
     private val paths by lazy { Paths(this) }
     private val text by lazy {
         TextView(this).apply {
