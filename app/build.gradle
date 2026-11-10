@@ -19,6 +19,12 @@ android {
 
     // Extracted native libraries are the only files an app may exec on Android 10+; the glibc loader is one.
     packaging.jniLibs.useLegacyPackaging true
+    // The code compressed: 0.8 MB less to download, for a copy Android unpacks when it installs the app.
+    packaging.dex.useLegacyPackaging true
+    // The app is in English: the libraries' translations of their own strings would only take room.
+    androidResources.localeFilters += ['en']
+    // commons-compress brings commons-codec, whose classes R8 drops, but not its phonetic rules (0.1 MB of text).
+    packaging.resources.excludes += 'org/apache/commons/codec/**'
 
     // Built by runtime/build.sh.
     sourceSets.main {
@@ -46,7 +52,7 @@ android {
         }
     }
 
-    // R8 drops the unused parts of the libraries: about 10 MB of the APK, as Android stores code uncompressed.
+    // R8 drops the unused parts of the libraries, most of their code.
     buildTypes.release {
         minifyEnabled true
         shrinkResources true

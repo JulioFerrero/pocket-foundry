@@ -1,0 +1,15 @@
+diff --git a/lorie/src/main/cpp/CMakeLists.txt b/lorie/src/main/cpp/CMakeLists.txt
+index 7c96a8a..314d6a0 100644
+--- a/lorie/src/main/cpp/CMakeLists.txt
++++ b/lorie/src/main/cpp/CMakeLists.txt
+@@ -6,7 +6,9 @@ enable_language(ASM)
+ 
+ set(CMAKE_C_STANDARD 11)
+ set(CMAKE_CXX_STANDARD 17)
+-set(CMAKE_BUILD_TYPE RelWithDebInfo)
++# Pocket Foundry: built for size. The server only hands the game's frames and input around, and the debug info was
++# stripped from the APK anyway.
++set(CMAKE_BUILD_TYPE MinSizeRel)
+ 
+ include(TestBigEndian)
+ include(CheckIncludeFile)

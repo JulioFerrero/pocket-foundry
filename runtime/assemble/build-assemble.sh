@@ -7,7 +7,8 @@ GLIBC=/out/glibc$PREFIX
 MESA=/out/mesa$PREFIX
 OUT=/out/runtime/usr
 DEB=/usr/lib/aarch64-linux-gnu   # the Dockerfile installs what we copy from here
-GLIBC_LIBS="ld-linux-aarch64.so.1 libc.so.6 libm.so.6 libmvec.so.1 libresolv.so.2 libpthread.so.0 \
+# Not libmvec: nothing links it (the game needs only libc, libm and libresolv).
+GLIBC_LIBS="ld-linux-aarch64.so.1 libc.so.6 libm.so.6 libresolv.so.2 libpthread.so.0 \
             libdl.so.2 librt.so.1 libutil.so.1 libanl.so.1 libnss_files.so.2 libnss_dns.so.2"
 
 rm -rf /out/runtime && mkdir -p $OUT/lib $OUT/bin $OUT/share $OUT/etc $OUT/tmp
@@ -67,6 +68,8 @@ I18NPATH=$GLIBC/share/i18n $GLIBC/lib/ld-linux-aarch64.so.1 --library-path $GLIB
 
 mkdir -p $OUT/share/X11
 cp -r /usr/share/X11/xkb $OUT/share/X11/
+# The X server compiles keymaps from the rest; the layouts' descriptions are for settings programs.
+rm $OUT/share/X11/xkb/rules/*.xml $OUT/share/X11/xkb/rules/*.lst $OUT/share/X11/xkb/rules/xkb.dtd
 # Xlib's locale files: without them, or without C.UTF-8 above, SDL opens no input method and a key beyond ASCII
 # (ñ, é, Cyrillic) gives the game no text. The input method needs the Compose file too.
 mkdir -p $OUT/share/X11/locale/en_US.UTF-8
@@ -78,8 +81,8 @@ printf '127.0.0.1 localhost\n::1 localhost\n' > $OUT/etc/hosts
 find $OUT -name '*.so*' -type f -exec strip --strip-unneeded {} +
 du -sh $OUT/lib $OUT/share
 # xz's ARM64 filter rewrites the code's relative branch targets as absolute ones, which repeat: with -9e the runtime
-# packs about 11% smaller than tar -J.
-cd /out/runtime && tar -cf - usr | xz --arm64 --lzma2=preset=9e -T1 > /out/runtime.tar.xz
+# packs about 11% smaller than tar -J. lp=2 and pb=2 model the 4-byte instructions: 1.4% smaller again.
+cd /out/runtime && tar -cf - usr | xz --arm64 --lzma2=preset=9e,lc=2,lp=2,pb=2 -T1 > /out/runtime.tar.xz
 ls -la /out/runtime.tar.xz
 
 # The loader ships as a "library": Android extracts those to the one place an app may exec from.

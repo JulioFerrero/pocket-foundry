@@ -17,8 +17,10 @@ mkdir -p src/pocketfoundry && cp /runtime/sdl/pocketfoundry/* src/pocketfoundry/
 
 # io_uring off: Android's syscall filter kills processes that use it.
 # SDL only offers the virtual joystick with HIDAPI on; HIDAPI's own drivers stay off.
+# Built for size: the game draws with OpenGL itself, so SDL's GPU API and Vulkan renderer go, and what's left (window,
+# input, sound) costs little time. 0.87 MB packed before, 0.49 after.
 cmake -S . -B build -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_INSTALL_LIBDIR=lib \
     -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
     -DSDL_INSTALL_DOCS=OFF -DSDL_RPATH=OFF \
     -DSDL_POCKETFOUNDRY=ON \
@@ -27,7 +29,8 @@ cmake -S . -B build -G Ninja \
     -DSDL_DISKAUDIO=OFF -DSDL_DUMMYAUDIO=ON \
     -DSDL_VIRTUAL_JOYSTICK=ON -DSDL_HIDAPI=ON -DSDL_HIDAPI_JOYSTICK=OFF -DSDL_HIDAPI_LIBUSB=OFF \
     -DSDL_LIBUDEV=OFF -DSDL_DBUS=OFF -DSDL_IBUS=OFF -DSDL_LIBURING=OFF \
-    -DSDL_DUMMYCAMERA=OFF -DSDL_OPENVR=OFF -DSDL_FRIBIDI=OFF -DSDL_LIBTHAI=OFF
+    -DSDL_DUMMYCAMERA=OFF -DSDL_OPENVR=OFF -DSDL_FRIBIDI=OFF -DSDL_LIBTHAI=OFF \
+    -DSDL_GPU=OFF -DSDL_RENDER_VULKAN=OFF
 ninja -C build
 rm -rf /out/sdl && DESTDIR=/out/sdl ninja -C build install
 strip --strip-unneeded /out/sdl$PREFIX/lib/libSDL3.so.*.*
