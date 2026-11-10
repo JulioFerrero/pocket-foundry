@@ -10,6 +10,9 @@ import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.X11Prefs
 import java.io.File
 import java.io.IOException
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 /**
  * The app has two drivers of its own, the phone's and the CPU. The GPU drivers come from the catalog (Catalog), which
@@ -53,6 +56,37 @@ object Drivers {
 
     fun find(context: Context, id: String?) = all(context).firstOrNull { it.id == id }
 
+    /**
+     * One way to say which build a driver is, wherever the app names it: "1.2.9 · 10 Nov" for one with its own
+     * version, "Mesa 27 · 10 Nov" for one built from Mesa's development code (where the date is what tells builds
+     * apart), the maker's version for the phone's. A downloaded driver's is the build it has, not the catalog's.
+     */
+    fun version(context: Context, driver: Driver): String = when (driver.origin) {
+        Origin.APP -> if (driver.id == PHONE) Gpu.driverVersion?.let(::makersVersion) ?: "Android's own"
+                      else "llvmpipe, slow"
+        Origin.IMPORTED -> driver.note
+        Origin.CATALOG -> (DriverImport.downloaded(Paths(context), driver.id) ?: driver.entry)
+            ?.let { buildVersion(it.version, it.mesa, it.updated, LocalDate.now()) }.orEmpty()
+    }
+
+    internal fun buildVersion(version: String, mesa: String, built: String, today: LocalDate): String {
+        val own = if (version.isEmpty() || version == mesa) "Mesa ${mesa.substringBefore('.')}" else version
+        return listOf(own, shortDate(built, today)).filter { it.isNotEmpty() && it != "Mesa " }.joinToString(" · ")
+    }
+
+    /** Android's OpenGL ES version string, down to the driver's own: "Qualcomm 0800.73", "Arm r38p1". */
+    internal fun makersVersion(gl: String): String {
+        Regex("""V@(\d+\.\d+)""").find(gl)?.let { return "Qualcomm ${it.groupValues[1]}" }
+        Regex("""\b(r\d+p\d+)""").find(gl)?.let { return "Arm ${it.groupValues[1]}" }
+        return gl.removePrefix("OpenGL ES ").substringAfter(' ').trim().take(24).ifEmpty { gl }
+    }
+
+    /** "3 Nov" this year, "Nov 2025" before; "" for none. */
+    internal fun shortDate(day: String, today: LocalDate): String = runCatching {
+        val date = LocalDate.parse(day)
+        date.format(DateTimeFormatter.ofPattern(if (date.year == today.year) "d MMM" else "MMM yyyy", Locale.ENGLISH))
+    }.getOrDefault(day)
+
     /** Listed For your GPU. */
     fun forThisGpu(driver: Driver) = driver.entry?.let { Catalog.fits(it, Gpu.name, Catalog.android) } == true
 
@@ -85,9 +119,12 @@ object Drivers {
     /** MaliBridge's fixes come with the phone's own driver. */
     fun isPhone(id: String) = id == PHONE
 
-    /** Whether the game reaches [id] through Zink: all but the CPU and the catalog's OpenGL drivers. */
-    fun usesZink(paths: Paths, id: String) =
-        id != CPU && DriverImport.downloaded(paths, id)?.kind != Catalog.Kind.OPENGL
+    /**
+     * Whether the game reaches [id] through Zink: all but the CPU and the catalog's OpenGL drivers. [listed]: the
+     * catalog's entry, for one not downloaded yet.
+     */
+    fun usesZink(paths: Paths, id: String, listed: Catalog.Entry? = null) =
+        id != CPU && (DriverImport.downloaded(paths, id) ?: listed)?.kind != Catalog.Kind.OPENGL
 
     /** Not downloaded yet, or the catalog has a newer build of it: the next game downloads [id] first. */
     fun pending(context: Context, id: String): Catalog.Entry? {

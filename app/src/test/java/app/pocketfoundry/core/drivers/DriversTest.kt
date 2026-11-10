@@ -120,4 +120,28 @@ class DriversTest {
         assertTrue(Drivers.usesZink(paths, "phone"))
         assertTrue(Drivers.usesZink(paths, "turnip"))
     }
+
+    private val today = java.time.LocalDate.of(2026, 11, 10)
+
+    @Test fun `a driver with its own version shows it and its build day`() {
+        assertEquals("1.2.9 · 10 Nov", Drivers.buildVersion("1.2.9", "26.3.0-devel", "2026-11-10", today))
+        assertEquals("0.1.0 RC3 · 10 Nov", Drivers.buildVersion("0.1.0 RC3", "26.3.0-devel", "2026-11-10", today))
+    }
+
+    @Test fun `one built from Mesa's development code shows Mesa's major version and its build day`() {
+        assertEquals("Mesa 27 · 10 Nov", Drivers.buildVersion("27.0.0-devel", "27.0.0-devel", "2026-11-10", today))
+        assertEquals("Mesa 27 · Oct 2025", Drivers.buildVersion("27.0.0-devel", "27.0.0-devel", "2025-10-01", today))
+    }
+
+    @Test fun `a build without a day shows its version alone`() {
+        assertEquals("1.2.9", Drivers.buildVersion("1.2.9", "", "", today))
+    }
+
+    @Test fun `the phone's driver shows its maker's version`() {
+        assertEquals("Qualcomm 0800.73",
+                     Drivers.makersVersion("OpenGL ES 3.2 V@0800.73.1 (GIT@22ea836242, If5f3cc8599, 1780462147)"))
+        assertEquals("Arm r38p1", Drivers.makersVersion("OpenGL ES 3.2 v1.r38p1-01eac0.2bad4a3b3b8c45d7"))
+        assertEquals("build 1.15@6133109", Drivers.makersVersion("OpenGL ES 3.2 build 1.15@6133109"))
+        assertEquals("(4.1 Metal - 91.7)", Drivers.makersVersion("OpenGL ES 3.0 (4.1 Metal - 91.7)"))
+    }
 }

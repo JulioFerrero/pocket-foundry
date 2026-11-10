@@ -104,4 +104,13 @@ class DriverCheckTest {
         val environment = mapOf("HYBRIS_BC_TEXTURES" to "0")
         assertEquals(environment, DriverCheck.withFindings(environment, JSONObject().put("off", "")))
     }
+
+    @Test fun `the driver screen gets the check in a few words`() {
+        assertEquals("Passed", DriverCheck.brief(JSONObject().put("off", "").put("transcode", false)))
+        assertEquals("Passed · 2 features off · textures kept compressed",
+                     DriverCheck.brief(JSONObject().put("off", "$eds2,$eds1").put("transcode", true)))
+        assertEquals("Passed · 1 feature off", DriverCheck.brief(JSONObject().put("off", eds1)))
+        assertEquals("Wrong picture", DriverCheck.brief(JSONObject().put("off", "").put("wrong", true)))
+        assertEquals("Couldn't draw", DriverCheck.brief(JSONObject().put("off", "").put("failed", true)))
+    }
 }

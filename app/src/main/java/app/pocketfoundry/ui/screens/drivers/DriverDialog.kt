@@ -5,7 +5,9 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.text.Editable
 import android.text.InputType
-import android.text.TextUtils
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.TypefaceSpan
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -24,11 +26,11 @@ import app.pocketfoundry.core.drivers.Drivers.Driver
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.system.Paths
-import app.pocketfoundry.core.system.appVersion
+import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.ButtonDrawable
 import app.pocketfoundry.ui.kit.Choice
-import app.pocketfoundry.ui.kit.Dropdown
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.MATCH
@@ -52,14 +54,13 @@ import app.pocketfoundry.ui.kit.shown
 import app.pocketfoundry.ui.kit.spacer
 import app.pocketfoundry.ui.kit.stack
 import app.pocketfoundry.ui.kit.withNote
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * Every driver for this phone, what each is for and when it was updated, and the one looked at: About (who made it,
- * where it was tested) and Settings (the catalog's checkboxes for it, Options). The bar below acts on that one. A
- * short screen scrolls the panes.
+ * Every driver for this phone, each with its version and state, and the one looked at: Running (what runs with it: the
+ * driver list's fixes for this GPU, the driver check, the resolution, how the textures are compressed, its settings),
+ * About (who made it, where it was tested) and Settings (the catalog's checkboxes for it, Options). The bar below acts
+ * on that one. A short screen scrolls the panes.
  */
 class DriverDialog(private val launcher: LauncherActivity) {
     private val host = launcher.host
@@ -68,15 +69,16 @@ class DriverDialog(private val launcher: LauncherActivity) {
     private var rows = emptyMap<String, View>()
     private var viewing = ""
 
-    private val sort = Dropdown(launcher, SORTS) { sorting = it; listDrivers() }.apply { selected = sorting }
-
-    private val tabs = Choice(launcher, listOf("About", "Settings"), width = 100) { showTab(it) }
+    private val tabs = Choice(launcher, listOf("Running", "About", "Settings"), width = 100) { showTab(it) }
+    private val running = column(launcher)
     private val about = column(launcher)
     private val settings = column(launcher)
 
     private val name = heading(launcher, "", 20f)
-    private val version = label(launcher, "", 14f, Factorio.MUTED)
-    private val chip = label(launcher, "", 12f, Tone.GREEN.dark, 600).apply { pad(6, 2) }
+    private val chip = label(launcher, "", 12f, weight = 600).apply { pad(6, 2) }
+    private val version = label(launcher, "", 14f, Factorio.MUTED).capped(1)
+
+    private val facts = column(launcher, gap = FACT_GAP)
     private val byline = row(launcher) {}
     private val text = label(launcher, "", 14f)
     private val tested = row(launcher) {}
@@ -84,7 +86,6 @@ class DriverDialog(private val launcher: LauncherActivity) {
 
     private val checkboxes = column(launcher, gap = 6)
     private val options = optionsField()
-    private val checked = label(launcher, "", 13f, Factorio.FAINT).capped(2)
 
     private val useButton = button(launcher, "Use", Tone.GREEN) { use(viewing) }
     private val removeButton = button(launcher, "Remove") { remove(viewing) }
@@ -94,13 +95,9 @@ class DriverDialog(private val launcher: LauncherActivity) {
     private val downloading = Progress(launcher)
 
     init {
+        running.add(facts, top = 14)
         about.apply {
-            add(row(launcher, Gravity.CENTER_VERTICAL) {
-                add(name)
-                add(version, start = 8)
-                add(chip, start = 10)
-            }, top = 8)
-            add(byline, top = 2)
+            add(byline, top = 12)
             add(text, top = 6)
             add(tested, top = 10)
             add(View(launcher), height = 0, weight = 1f)
@@ -113,7 +110,6 @@ class DriverDialog(private val launcher: LauncherActivity) {
             add(stack(launcher, Frame.SHALLOW, padding = 4) { add(options) }, top = 5)
             add(label(launcher, "For testing: NAME=value pairs, set when the game starts.", 13f, Factorio.FAINT),
                 top = 4)
-            add(checked, top = 10)
             add(View(launcher), height = 0, weight = 1f)
             add(row(launcher) {
                 spacer()
@@ -125,17 +121,20 @@ class DriverDialog(private val launcher: LauncherActivity) {
     fun show() {
         status.shown = Session.inGame
         viewing = Drivers.chosen(launcher)
-        val title = Gpu.name?.let { withNote(TITLE, it, Factorio.FAINT, 15, gap = "   ") } ?: TITLE
-        val sortRow = row(launcher) {
-            add(label(launcher, "Sort", 14f, Factorio.FAINT), gravity = Gravity.CENTER_VERTICAL)
-            add(sort, SORT_WIDTH, 34, start = 8)
-        }
+        val phone = listOfNotNull(Gpu.name, "Android ${Catalog.android}").joinToString(" · ")
+        val title = withNote(TITLE, phone, Factorio.FAINT, 15, gap = "   ")
         host.show(title, minOf(WIDTH, launcher.screenWidthDp - MARGIN), "Close", importButton, removeButton,
-                  checkButton, useButton, titleEnd = sortRow) {
+                  checkButton, useButton) {
             add(row(launcher, Gravity.TOP) {
                 add(pane(list), LIST_WIDTH, MATCH)
                 add(stack(launcher, Frame.DEEP, padding = 10) {
                     add(tabs)
+                    add(row(launcher, Gravity.CENTER_VERTICAL) {
+                        add(name)
+                        add(chip, start = 10)
+                    }, top = 10)
+                    add(version, top = 1)
+                    add(pane(running), height = 0, weight = 1f)
                     add(pane(about), height = 0, weight = 1f)
                     add(pane(settings), height = 0, weight = 1f)
                 }, 0, MATCH, weight = 1f, start = 8)
@@ -151,8 +150,9 @@ class DriverDialog(private val launcher: LauncherActivity) {
     }
 
     private fun showTab(tab: Int) {
-        (about.parent as View).shown = tab == 0
-        (settings.parent as View).shown = tab == 1
+        (running.parent as View).shown = tab == 0
+        (about.parent as View).shown = tab == 1
+        (settings.parent as View).shown = tab == 2
     }
 
     private fun pane(content: View) = ScrollView(launcher).apply {
@@ -195,8 +195,6 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val drivers = Drivers.all(launcher)
         if (drivers.none { it.id == viewing }) viewing = chosen
         list.removeAllViews()
-        list.add(columns(label(launcher, "Driver", 13f, Factorio.FAINT), label(launcher, "For", 13f, Factorio.FAINT),
-                         label(launcher, "Updated", 13f, Factorio.FAINT)).apply { pad(ROW_SIDE, 0) }, top = 2)
         val sections = listOf(
             "For your GPU" to drivers.filter(Drivers::forThisGpu),
             "To try" to drivers.filter(Drivers::toTry),
@@ -206,59 +204,60 @@ class DriverDialog(private val launcher: LauncherActivity) {
         rows = buildMap {
             for ((section, members) in sections) {
                 list.add(label(launcher, section, 14f, Factorio.MUTED, 600), start = 4, top = 4)
-                for (driver in sorted(members)) {
-                    put(driver.id, list.add(driverRow(driver, driver.id == chosen), height = ROW))
+                // The catalog's own order, which is the order a game tries them in.
+                for (driver in members.sortedBy { it.entry?.priority ?: 0 }) {
+                    put(driver.id, list.add(driverRow(driver, chosen)))
                 }
             }
         }
         view(viewing)
     }
 
-    private fun sorted(drivers: List<Driver>) = when (sorting) {
-        BY_UPDATE -> drivers.sortedByDescending { it.entry?.updated.orEmpty() }
-        BY_NAME -> drivers.sortedBy { it.name.lowercase() }
-        // The catalog's own order, which is the order a game tries them in.
-        else -> drivers.sortedBy { it.entry?.priority ?: 0 }
-    }
-
-    /** One button, three columns: the name, what it's for, when it was updated. */
-    private fun driverRow(driver: Driver, inUse: Boolean) = columns(
-        label(launcher, if (inUse) withNote(driver.name, "In use", sizeSp = 12) else driver.name, 15f, Color.BLACK,
-              600),
-        label(launcher, driver.forGpus, 13f, NOTE),
-        label(launcher, updated(driver), 13f, NOTE),
-    ).apply {
+    /** One button: the name and version, and the driver's state at the end. */
+    private fun driverRow(driver: Driver, chosen: String) = row(launcher) {
+        add(label(launcher, nameAndVersion(driver), 15f, Color.BLACK, 600).apply {
+            capped(2)
+            setLineSpacing(0f, LINE_SPACING)
+        }, 0, WRAP, weight = 1f)
+        add(label(launcher, "", 12f, weight = 600).apply { pad(6, 2); paint(state(driver, chosen)) }, start = 8)
+    }.apply {
         background = ButtonDrawable(launcher, Tone.GREY)
         isClickable = true
         isFocusable = true
-        pad(ROW_SIDE, 0)
+        pad(ROW_SIDE, ROW_PAD)
         setOnClickListener { view(driver.id) }
     }
 
-    private fun columns(name: TextView, forGpus: TextView, updated: TextView) = row(launcher) {
-        add(name.oneLine(), 0, WRAP, weight = 1f)
-        add(forGpus.oneLine(), FOR_WIDTH, WRAP, start = 8)
-        add(updated.oneLine(), UPDATED_WIDTH, WRAP, start = 8)
+    /** One text, so the two lines sit close together and centre as one. */
+    private fun nameAndVersion(driver: Driver): CharSequence =
+        SpannableStringBuilder(withNote(driver.name, Drivers.version(launcher, driver), NOTE, 12, gap = "\n")).apply {
+            setSpan(TypefaceSpan(Factorio.font(launcher, 400)), driver.name.length + 1, length,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+
+    private class State(val text: String, val face: Int, val ink: Int)
+
+    private fun state(driver: Driver, chosen: String): State {
+        val downloaded = driver.origin != Drivers.Origin.CATALOG || DriverImport.downloaded(paths, driver.id) != null
+        return when {
+            driver.id == chosen -> State("In use", Tone.GREEN.face, Tone.GREEN.dark)
+            DriverRecords.outcome(launcher, driver.id) == Drivers.Outcome.DIDNT_START ->
+                State("Didn't start", Tone.RED.face, Tone.RED.dark)
+            !downloaded && Drivers.toTry(driver) -> State("To try", Factorio.BAR, TRY_INK)
+            !downloaded -> State(size(driver.entry) ?: "Download", CHIP, CHIP_INK)
+            Drivers.pending(launcher, driver.id) != null -> State("Update", Factorio.LINK, UPDATE_INK)
+            else -> State("Ready", CHIP, CHIP_INK)
+        }
     }
 
-    private fun TextView.oneLine() = apply {
-        maxLines = 1
-        ellipsize = TextUtils.TruncateAt.END
+    private fun TextView.paint(state: State) {
+        text = state.text
+        setBackgroundColor(state.face)
+        setTextColor(state.ink)
     }
 
-    private fun updated(driver: Driver): String = when (driver.origin) {
-        Drivers.Origin.APP -> launcher.appVersion().substringBefore('-')
-        Drivers.Origin.CATALOG -> driver.entry?.updated?.let(::shortDate).orEmpty()
-        Drivers.Origin.IMPORTED ->
-            shortDate(LocalDate.ofEpochDay(DriverImport.folder(paths, driver.id).lastModified() / DAY_MS).toString())
-    }
-
-    /** "3 Nov" this year, "Nov 2025" before. */
-    private fun shortDate(day: String): String = runCatching {
-        val date = LocalDate.parse(day)
-        val pattern = if (date.year == LocalDate.now().year) "d MMM" else "MMM yyyy"
-        date.format(DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH))
-    }.getOrDefault(day)
+    private fun size(entry: Catalog.Entry?) =
+        entry?.size?.takeIf { it > 0 }?.let { "%.1f MB".format(Locale.ROOT, it / 1e6) }
 
     /** Doesn't rebuild the list, so focus stays where it is. */
     private fun view(id: String) {
@@ -267,21 +266,84 @@ class DriverDialog(private val launcher: LauncherActivity) {
             (view.background as ButtonDrawable).tone = if (row == id) Tone.ORANGE else Tone.GREY
         }
         val driver = Drivers.find(launcher, id) ?: return
-        val entry = driver.entry
         val inUse = id == Drivers.chosen(launcher)
         val downloaded = driver.origin != Drivers.Origin.CATALOG || DriverImport.downloaded(paths, id) != null
 
         name.text = driver.name
-        version.text = if (driver.origin == Drivers.Origin.CATALOG) driver.note else ""
-        val recommended = id == Drivers.recommended(launcher)
-        chip.text = when {
-            recommended -> "Recommended"
-            Drivers.toTry(driver) -> "To try"
-            else -> ""
+        chip.paint(state(driver, Drivers.chosen(launcher)))
+        val build = when {
+            driver.origin != Drivers.Origin.CATALOG -> null
+            !downloaded -> "not downloaded"
+            Drivers.pending(launcher, id) != null -> "newer build next game"
+            else -> "up to date"
         }
-        chip.setBackgroundColor(if (recommended) Tone.GREEN.face else Factorio.BAR)
-        chip.setTextColor(if (recommended) Tone.GREEN.dark else 0xFF3A2508.toInt())
-        chip.shown = chip.text.isNotEmpty()
+        version.text = listOfNotNull(Drivers.version(launcher, driver).ifEmpty { null }, build).joinToString(" · ")
+
+        showRunning(driver, inUse)
+        showAbout(driver, downloaded)
+        showSettings(driver)
+        useButton.text = when {
+            inUse -> "In use"
+            !downloaded && Drivers.toTry(driver) -> "Try"
+            !downloaded -> "Download"
+            else -> "Use"
+        }
+        useButton.isEnabled = !inUse && Drivers.fits(driver)
+        removeButton.shown = driver.origin != Drivers.Origin.APP && downloaded
+        checkButton.shown = downloaded && Drivers.usesZink(paths, id)
+        checkButton.isEnabled = !Session.inGame
+    }
+
+    /** What runs with [driver] on top of it, a row each; what doesn't apply has no row. */
+    private fun showRunning(driver: Driver, inUse: Boolean) {
+        facts.removeAllViews()
+        val id = driver.id
+        if (driver.origin == Drivers.Origin.CATALOG) {
+            val fixes = Catalog.fixesFor(Catalog.get(launcher), id, Gpu.name, Catalog.android)
+            fact("Fix", fixes.joinToString(", ") { it.name }.ifEmpty { "None needed" })
+        }
+        if (Drivers.usesZink(paths, id, driver.entry)) {
+            fact("Driver check", DriverCheck.brief(launcher, id) ?: "Not checked yet")
+        }
+        if (inUse) fact("Resolution", resolution(id))
+        when (Drivers.compression(paths, id, DriverCheck.transcodes(launcher, id))) {
+            Drivers.Compression.CPU -> fact("Textures", "Compressed by the CPU")
+            Drivers.Compression.NONE -> fact("Textures", "Not compressed")
+            Drivers.Compression.GPU -> {}
+        }
+        val offered = driver.entry?.settings.orEmpty()
+        if (offered.isNotEmpty()) {
+            val ticked = DriverRecords.settings(launcher, id)
+            fact("Settings", offered.filter { it.id in ticked }.joinToString(", ") { it.label }.ifEmpty { "Default" })
+        }
+        DriverRecords.options(launcher, id).takeIf { it.isNotEmpty() }?.let { fact("Options", it) }
+        if (facts.childCount == 0) facts.add(label(launcher, "Nothing else runs with it.", 14f, Factorio.FAINT))
+    }
+
+    private fun fact(what: String, value: CharSequence) = facts.add(row(launcher, Gravity.TOP) {
+        add(label(launcher, what, 15f, Factorio.FAINT), FACT_LABEL, WRAP)
+        add(label(launcher, value, 15f), 0, WRAP, weight = 1f)
+    })
+
+    /** The game's resolution now, and where it came from. */
+    private fun resolution(id: String): CharSequence {
+        val x11 = X11Prefs(launcher)
+        val settings = Settings(launcher)
+        val (width, height) = x11.gameSize(x11.resolutionScale)
+        val default = x11.resolutionScale == x11.defaultResolutionScale
+        val why = when {
+            !settings.graphicsChosen && settings.graphicsDriver == id && DriverCheck.speed(launcher, id).isNotEmpty() ->
+                if (default) "speed test kept the default" else "lowered by the speed test"
+            default -> "default"
+            settings.graphicsChosen -> "your choice"
+            else -> null
+        }
+        val size = "$width × $height"
+        return if (why == null) size else withNote(size, "· $why", Factorio.FAINT, 13, gap = " ")
+    }
+
+    private fun showAbout(driver: Driver, downloaded: Boolean) {
+        val entry = driver.entry
         showByline(driver)
         text.text = when {
             Drivers.toTry(driver) ->
@@ -299,18 +361,6 @@ class DriverDialog(private val launcher: LauncherActivity) {
             tested.add(label(launcher, "+${phones.size - MAX_TAGS}", 13f, Factorio.FAINT), start = 8)
         }
         footer.text = footer(driver, entry, downloaded)
-
-        showSettings(driver)
-        useButton.text = when {
-            inUse -> "In use"
-            !downloaded && Drivers.toTry(driver) -> "Try"
-            !downloaded -> "Download"
-            else -> "Use"
-        }
-        useButton.isEnabled = !inUse && Drivers.fits(driver)
-        removeButton.shown = driver.origin != Drivers.Origin.APP && downloaded
-        checkButton.shown = downloaded && Drivers.usesZink(paths, id)
-        checkButton.isEnabled = !Session.inGame
     }
 
     private fun showByline(driver: Driver) {
@@ -321,7 +371,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
                 byline.add(label(launcher, "by ", 13f, Factorio.FAINT))
                 byline.add(link(launcher, entry.madeBy, entry.source, 13f))
                 if (entry.mesa.isNotEmpty() && entry.version != entry.mesa) {
-                    byline.add(label(launcher, " · Mesa ${entry.mesa}", 13f, Factorio.FAINT))
+                    byline.add(label(launcher, " · on Mesa ${entry.mesa.substringBefore('-')}", 13f, Factorio.FAINT))
                 }
             }
             // MaliBridge's licence asks for this credit wherever the app shows credits.
@@ -344,12 +394,8 @@ class DriverDialog(private val launcher: LauncherActivity) {
             Drivers.Outcome.DIDNT_START -> "didn't start"
             null -> "not tried yet"
         }
-        val size = entry?.size?.takeIf { it > 0 }?.let { "%.1f MB".format(Locale.ROOT, it / 1e6) }
-        return listOfNotNull(
-            entry?.updated?.let { "Updated ${shortDate(it)}" },
-            size?.let { if (downloaded) it else "Not downloaded, $it" },
-            "Last game: $lastGame",
-        ).joinToString(" · ")
+        // A size not downloaded yet is in the state next to the name.
+        return listOfNotNull(size(entry)?.takeIf { downloaded }, "Last game: $lastGame").joinToString(" · ")
     }
 
     private fun showSettings(driver: Driver) {
@@ -360,15 +406,13 @@ class DriverDialog(private val launcher: LauncherActivity) {
                 add(label(launcher, setting.label, 14f), 0, WRAP, weight = 1f)
                 add(checkBox(launcher, setting.id in ticked) {
                     DriverRecords.setSetting(launcher, driver.id, setting.id, it)
+                    showRunning(driver, driver.id == Drivers.chosen(launcher))
                 })
             })
             if (setting.about.isNotEmpty()) checkboxes.add(label(launcher, setting.about, 13f, Factorio.FAINT))
         }
         checkboxes.shown = checkboxes.childCount > 0
         options.setText(DriverRecords.options(launcher, driver.id))
-        checked.text = "Driver check: " +
-            (DriverCheck.summary(launcher, driver.id) ?: "not checked yet")
-        checked.shown = Drivers.usesZink(paths, driver.id)
     }
 
     private fun reset(id: String) {
@@ -444,24 +488,23 @@ class DriverDialog(private val launcher: LauncherActivity) {
     private companion object {
         const val TITLE = "Graphics driver"
         const val MALIBRIDGE = "https://github.com/ASEbrahim/MaliBridge"
-        val SORTS = listOf("Best for your GPU", "Recently updated", "Name")
-        const val BY_UPDATE = 1
-        const val BY_NAME = 2
-        /** Kept while the app runs. */
-        var sorting = 0
         const val NOTE = 0xFF2A2A2A.toInt()
+        const val CHIP = 0xFF555455.toInt()
+        const val CHIP_INK = 0xFFE6E1DA.toInt()
+        const val TRY_INK = 0xFF3A2508.toInt()
+        const val UPDATE_INK = 0xFF10303D.toInt()
         const val MAX_TAGS = 2
-        const val DAY_MS = 86_400_000L
         const val WIDTH = 880
         const val MARGIN = 32           // beside the dialog on a narrow screen
-        const val LIST_WIDTH = 400
+        const val LIST_WIDTH = 340
         const val PANES_HEIGHT = 330
-        const val FOR_WIDTH = 130
-        const val UPDATED_WIDTH = 60
-        const val SORT_WIDTH = 190
-        const val ROW = 36
         const val ROW_GAP = 3
-        const val ROW_SIDE = 14
+        const val ROW_SIDE = 12
+        /** Above and below a row's text: the row is as tall as its text needs, plus this. */
+        const val ROW_PAD = 11
         const val LIST_PADDING = 6
+        const val FACT_LABEL = 118
+        const val FACT_GAP = 9
+        const val LINE_SPACING = 0.9f
     }
 }

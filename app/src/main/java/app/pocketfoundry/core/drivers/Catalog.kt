@@ -160,11 +160,15 @@ object Catalog {
         gpu != null && android >= entry.androidMin && !fits(entry, gpu, android) &&
             entry.familyGpus.any { matches(it, gpu) }
 
-    /** What [contents]' fixes set for [driver] on this GPU and Android. */
-    fun fixes(contents: Contents, driver: String, gpu: String?, android: Int): Map<String, String> =
+    /** [contents]' fixes for [driver] on this GPU and Android. */
+    fun fixesFor(contents: Contents, driver: String, gpu: String?, android: Int): List<Fix> =
         contents.fixes.filter { fix ->
             driver in fix.drivers && gpu != null && android >= fix.androidMin && fix.gpus.any { matches(it, gpu) }
-        }.fold(emptyMap()) { env, fix -> env + fix.env }
+        }
+
+    /** What they set. */
+    fun fixes(contents: Contents, driver: String, gpu: String?, android: Int): Map<String, String> =
+        fixesFor(contents, driver, gpu, android).fold(emptyMap()) { env, fix -> env + fix.env }
 
     /** [pattern]'s * stands for any text and ? for one character: "Adreno (TM) 7??", "Mali-G76*". */
     internal fun matches(pattern: String, name: String): Boolean =

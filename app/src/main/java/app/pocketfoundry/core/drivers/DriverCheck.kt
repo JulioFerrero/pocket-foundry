@@ -88,6 +88,22 @@ object DriverCheck {
     fun speed(context: Context, driver: String) =
         SpeedTest.fromJson(current(context, driver)?.optJSONArray("speed"))
 
+    /** In a few words, for the driver screen: "Passed", "Passed · 3 features off"; null if it hasn't checked it. */
+    fun brief(context: Context, driver: String) = current(context, driver)?.let(::brief)
+
+    internal fun brief(saved: JSONObject): String = when {
+        saved.optBoolean("failed") -> "Couldn't draw"
+        saved.optBoolean("wrong") -> "Wrong picture"
+        else -> listOfNotNull(
+            "Passed",
+            offIn(saved).size.takeIf { it > 0 }?.let { if (it == 1) "1 feature off" else "$it features off" },
+            "textures kept compressed".takeIf { saved.optBoolean("transcode") },
+        ).joinToString(" · ")
+    }
+
+    /** Whether this version of [driver] keeps the game's textures compressed through the transcoder. */
+    fun transcodes(context: Context, driver: String) = current(context, driver)?.optBoolean("transcode") == true
+
     /** What the check found for this version of [driver], in a line; null if it hasn't checked it. */
     fun summary(context: Context, driver: String) = current(context, driver)?.let(::summary)
 

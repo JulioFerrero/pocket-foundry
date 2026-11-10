@@ -105,11 +105,10 @@ class LogActivity : Activity() {
 
     /** What a report needs besides the logs. */
     private val phone by lazy {
-        // The driver the logs are about. Imported drivers also show their file name: PanVK builds all report the same
-        // Mesa version.
+        // The driver the logs are about, with its version as the driver screen gives it: an imported one's is its
+        // file name, as PanVK builds all report the same Mesa version.
         val played = ScreenLog.driver ?: Drivers.chosen(this)
-        val driver = Drivers.find(this, played)
-            ?.let { if (it.origin == Drivers.Origin.APP) it.name else "${it.name} (${it.note})" }
+        val driver = Drivers.find(this, played)?.let { "${it.name} (${Drivers.version(this, it)})" }
         val facts = listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }

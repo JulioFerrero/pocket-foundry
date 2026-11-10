@@ -23,7 +23,8 @@ class CatalogTest {
            "file": {"url": "https://example.com/x", "sha256": "ef"}},
           {"id": "unbuilt", "name": "No file yet", "kind": "vulkan"}
         ], "fixes": [
-          {"id": "flag-hint", "drivers": ["turnip"], "gpus": ["Adreno (TM) 740"], "android": {"min": 16},
+          {"id": "flag-hint", "name": "No black flashes on Android 16", "drivers": ["turnip"],
+           "gpus": ["Adreno (TM) 740"], "android": {"min": 16},
            "env": {"FD_DEV_FEATURES": "enable_tp_ubwc_flag_hint=1"}}
         ]}""")
     private val turnip = catalog.find("turnip")!!
@@ -68,6 +69,12 @@ class CatalogTest {
         assertEquals(emptyMap<String, String>(), Catalog.fixes(catalog, "turnip", "Adreno (TM) 740", 15))
         assertEquals(emptyMap<String, String>(), Catalog.fixes(catalog, "turnip", "Adreno (TM) 750", 16))
         assertEquals(emptyMap<String, String>(), Catalog.fixes(catalog, "panvk", "Adreno (TM) 740", 16))
+    }
+
+    @Test fun `the driver screen names the fixes that apply`() {
+        assertEquals(listOf("No black flashes on Android 16"),
+                     Catalog.fixesFor(catalog, "turnip", "Adreno (TM) 740", 16).map { it.name })
+        assertEquals(emptyList<Catalog.Fix>(), Catalog.fixesFor(catalog, "turnip", "Adreno (TM) 740", 15))
     }
 
     private val keys = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }
