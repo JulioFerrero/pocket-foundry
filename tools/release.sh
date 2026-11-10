@@ -83,7 +83,7 @@ publish)
         fi
         echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, run without emulation on the phone's GPU."
         echo
-        echo "**Install:** open \`$name\` on the phone (Android 10 or later; Adreno 6xx or newer, other GPUs through the phone's own driver (experimental) or an imported one, or any phone on the CPU, slowly), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
+        echo "**Install:** open \`$name\` on the phone (Android 10 or later and a connection on its first start: it downloads the driver for your GPU, Turnip on Adreno 6xx or newer, experimental builds on some Mali and Xclipse GPUs; other GPUs play through the phone's own driver (experimental) or an imported one, or on any phone's CPU, slowly), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
         echo
         echo "**Signing certificate (SHA-256):** \`$(certificate)\`"
         echo

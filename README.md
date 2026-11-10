@@ -32,7 +32,7 @@ Pocket Foundry picks the driver for the phone's GPU by itself. If it doesn't sta
 
 | GPU | Found in | Runs with |
 |---|---|---|
-| Adreno 6xx and newer | Snapdragon | Turnip, bundled and tested |
+| Adreno 6xx and newer | Snapdragon | Turnip, downloaded by the app, tested |
 | Mali | MediaTek, Google Tensor, older Exynos | The phone's own driver (experimental), or a community driver |
 | Xclipse | Exynos (Galaxy S24, S25) | The phone's own driver (experimental), or a community driver |
 | PowerVR | Pixel 10 | The phone's own driver (experimental) |

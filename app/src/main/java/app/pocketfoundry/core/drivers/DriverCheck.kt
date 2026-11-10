@@ -72,7 +72,7 @@ object DriverCheck {
      * Options with their own list of extensions to hide skip the check.
      */
     fun apply(context: Context, paths: Paths, driver: String, environment: Map<String, String>): Applied {
-        if (!Drivers.usesZink(driver) || HIDE in environment) return Applied(environment, transcodes = false)
+        if (!Drivers.usesZink(paths, driver) || HIDE in environment) return Applied(environment, transcodes = false)
         val saved = current(context, driver)
         val found = saved ?: check(context, paths, driver, environment)
         if (saved != null) ScreenLog.add("driver check: ${summary(saved)}")
@@ -146,8 +146,8 @@ object DriverCheck {
 
     private fun draw(paths: Paths, driver: String, environment: Map<String, String>): Result {
         val command = listOf(paths.driverCheck.path)
-        val program = Program.start(paths, command, paths.driverCheckLog, environment, Drivers.libraries(paths, driver),
-                                    appendLog = true)
+        val program = Program.start(paths, command, paths.driverCheckLog, environment,
+                                    Drivers.libraryPath(paths, driver), appendLog = true)
         val exit = program.waitFor(TIMEOUT_S) ?: run {
             program.kill()
             program.waitFor()

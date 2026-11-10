@@ -22,11 +22,18 @@ class DialogHost(private val activity: Activity, private val onClosed: () -> Uni
 
     /**
      * Closed by a tap beside it, Back, or [close]. On a screen too short for it, the parts [build] adds with a weight
-     * shrink to fit.
+     * shrink to fit. [titleEnd] sits at the title's far end.
      */
-    fun show(title: CharSequence, widthDp: Int, back: CharSequence, vararg actions: View, build: LinearLayout.() -> Unit) {
+    fun show(title: CharSequence, widthDp: Int, back: CharSequence, vararg actions: View, titleEnd: View? = null,
+             build: LinearLayout.() -> Unit) {
         Dropdown.dismissOpen()
-        val panel = panel(activity, title) {
+        val heading = heading(activity, title)
+        val top = if (titleEnd == null) heading else row(activity) {
+            add(heading)
+            spacer()
+            add(titleEnd)
+        }
+        val panel = panel(activity, top) {
             build()
             add(buttonBar(activity, back, ::close, *actions))
         }

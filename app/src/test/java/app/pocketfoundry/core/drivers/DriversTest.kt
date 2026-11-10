@@ -4,7 +4,10 @@ import app.pocketfoundry.core.system.Paths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.json.JSONObject
 import java.io.File
 
 class DriversTest {
@@ -38,80 +41,83 @@ class DriversTest {
         assertEquals(mapOf("A" to "'x"), Drivers.parseOptions("A='x y'"))
     }
 
-    @Test fun `a GPU that couldn't be named gets the benefit of the doubt`() {
-        assertTrue(Gpu.isSupported(null))
-    }
-
-    @Test fun `Adreno 600 and newer are supported`() {
-        for (name in listOf("Adreno (TM) 600", "Adreno (TM) 618", "Adreno (TM) 740", "Adreno (TM) 830"))
-            assertTrue(name, Gpu.isSupported(name))
-    }
-
-    @Test fun `older Adrenos aren't`() {
-        for (name in listOf("Adreno (TM) 530", "Adreno (TM) 506", "Adreno (TM) 599"))
-            assertFalse(name, Gpu.isSupported(name))
-    }
-
-    @Test fun `an Adreno named some other way gets the benefit of the doubt`() {
-        assertTrue(Gpu.isSupported("Adreno X1-85"))
-        assertTrue(Gpu.isSupported("Adreno 740"))
-    }
-
-    @Test fun `other GPUs aren't`() {
-        for (name in listOf("Mali-G610", "PowerVR B-Series BXM-8-256", "llvmpipe (LLVM 19.1.0, 128 bits)", ""))
-            assertFalse(name, Gpu.isSupported(name))
-    }
-
-    @Test fun `Turnip on Adreno, the phone's own driver on other GPUs, the CPU without Vulkan`() {
-        assertEquals("zink", Drivers.recommend(adreno = true, vulkan = true) { false })
-        assertEquals("phone", Drivers.recommend(adreno = false, vulkan = true) { false })
-        assertEquals("cpu", Drivers.recommend(adreno = false, vulkan = false) { false })
+    @Test fun `the catalog's drivers for the GPU first, then the phone's own, then the CPU`() {
+        assertEquals("turnip", Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true) { false })
+        assertEquals("phone", Drivers.recommend(emptyList(), vulkan = true) { false })
+        assertEquals("cpu", Drivers.recommend(emptyList(), vulkan = false) { false })
     }
 
     @Test fun `a driver that didn't start is passed over`() {
-        assertEquals("phone", Drivers.recommend(adreno = true, vulkan = true) { it == "zink" })
-        assertEquals("cpu", Drivers.recommend(adreno = false, vulkan = true) { it == "phone" })
-        assertEquals("cpu", Drivers.recommend(adreno = true, vulkan = true) { true })
+        assertEquals("freedreno", Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true) { it == "turnip" })
+        assertEquals("phone", Drivers.recommend(listOf("turnip"), vulkan = true) { it == "turnip" })
+        assertEquals("cpu", Drivers.recommend(emptyList(), vulkan = true) { it == "phone" })
+        assertEquals("cpu", Drivers.recommend(listOf("turnip"), vulkan = true) { true })
     }
 
     private val paths = Paths(File("/files"), File("/lib"))
 
-    @Test fun `Zink + Turnip draws through Zink on Turnip`() {
-        val environment = Drivers.environment(paths, "zink")
+    private fun entry(id: String, kind: String, env: String = "{}") = Catalog.Entry(JSONObject("""
+        {"id": "$id", "name": "$id", "kind": "$kind", "env": $env,
+         "file": {"url": "https://example.com/$id.tar.xz", "sha256": "00", "size": 1}}"""))
+
+    @Test fun `a catalog Vulkan driver draws through Zink on it, with its own settings and the fixes for it`() {
+        val turnip = entry("turnip", "vulkan", """{"TU_DEBUG": "x"}""")
+        val environment = Drivers.environment(paths, "turnip", turnip, mapOf("FD_DEV_FEATURES" to "y"))
         assertEquals("zink", environment["MESA_LOADER_DRIVER_OVERRIDE"])
-        assertEquals(paths.turnipIcd.path, environment["VK_DRIVER_FILES"])
+        assertEquals(DriverImport.icd(paths, "turnip").path, environment["VK_DRIVER_FILES"])
+        assertEquals("x", environment["TU_DEBUG"])
+        assertEquals("y", environment["FD_DEV_FEATURES"])
+        assertEquals(null, environment["MESA_VK_WSI_DEBUG"])
     }
 
-    @Test fun `Freedreno is Mesa's OpenGL driver, without Zink`() {
-        assertEquals("kgsl", Drivers.environment(paths, "freedreno")["MESA_LOADER_DRIVER_OVERRIDE"])
+    @Test fun `a catalog OpenGL driver is its own Mesa, without Zink`() {
+        val freedreno = entry("freedreno", "opengl", """{"MESA_LOADER_DRIVER_OVERRIDE": "kgsl"}""")
+        val environment = Drivers.environment(paths, "freedreno", freedreno, emptyMap())
+        assertEquals("kgsl", environment["MESA_LOADER_DRIVER_OVERRIDE"])
+        assertEquals(null, environment["VK_DRIVER_FILES"])
     }
 
     @Test fun `the CPU driver is llvmpipe for every way Mesa picks one`() {
-        val environment = Drivers.environment(paths, "cpu")
+        val environment = Drivers.environment(paths, "cpu", null, emptyMap())
         assertEquals("llvmpipe", environment["MESA_LOADER_DRIVER_OVERRIDE"])
         assertEquals("llvmpipe", environment["GALLIUM_DRIVER"])
         assertEquals("1", environment["LIBGL_ALWAYS_SOFTWARE"])
     }
 
-    @Test fun `an Adreno's number comes from its name`() {
-        assertEquals(740, Gpu.adrenoNumber("Adreno (TM) 740"))
-        assertEquals(null, Gpu.adrenoNumber("Adreno X1-85"))
-        assertEquals(null, Gpu.adrenoNumber("Mali-G710"))
-        assertEquals(null, Gpu.adrenoNumber(null))
-    }
-
-    @Test fun `an Adreno 740 on Android 16 and newer sets the UBWC flag hint like Qualcomm's driver`() {
-        assertTrue(Drivers.setsFlagHint(36) { 740 })
-        assertTrue(Drivers.setsFlagHint(37) { 740 })
-        assertFalse(Drivers.setsFlagHint(35) { 740 })
-        assertFalse(Drivers.setsFlagHint(36) { 750 })
-        assertFalse(Drivers.setsFlagHint(36) { null })
-    }
-
     @Test fun `an imported driver draws through Zink on its own Vulkan driver, presenting in software`() {
-        val environment = Drivers.environment(paths, "my-turnip")
+        val environment = Drivers.environment(paths, "my-turnip", null, emptyMap())
         assertEquals("zink", environment["MESA_LOADER_DRIVER_OVERRIDE"])
         assertEquals(DriverImport.icd(paths, "my-turnip").path, environment["VK_DRIVER_FILES"])
         assertEquals("sw", environment["MESA_VK_WSI_DEBUG"])
+    }
+
+    @get:Rule val folder = TemporaryFolder()
+
+    private fun installed(id: String, kind: String): Paths {
+        val paths = Paths(folder.root, File("/lib"))
+        val json = JSONObject().put("name", id).put("catalog", entry(id, kind).json)
+        DriverImport.folder(paths, id).apply { mkdirs() }.resolve("driver.json").writeText(json.toString())
+        return paths
+    }
+
+    @Test fun `an OpenGL driver's own Mesa comes before the runtime's`() {
+        val paths = installed("freedreno", "opengl")
+        assertEquals(listOf(DriverImport.folder(paths, "freedreno"), paths.lib),
+                     Drivers.libraryPath(paths, "freedreno"))
+    }
+
+    @Test fun `a Vulkan driver's folder only adds to the runtime`() {
+        val paths = installed("turnip", "vulkan")
+        assertEquals(listOf(paths.lib, DriverImport.folder(paths, "turnip")), Drivers.libraryPath(paths, "turnip"))
+        assertEquals(listOf(paths.lib, DriverImport.folder(paths, "imported")), Drivers.libraryPath(paths, "imported"))
+        assertEquals(listOf(paths.lib), Drivers.libraryPath(paths, "cpu"))
+    }
+
+    @Test fun `only the CPU and OpenGL drivers draw without Zink`() {
+        val paths = installed("freedreno", "opengl")
+        assertFalse(Drivers.usesZink(paths, "freedreno"))
+        assertFalse(Drivers.usesZink(paths, "cpu"))
+        assertTrue(Drivers.usesZink(paths, "phone"))
+        assertTrue(Drivers.usesZink(paths, "turnip"))
     }
 }

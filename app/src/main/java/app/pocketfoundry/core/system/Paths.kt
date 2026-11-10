@@ -23,7 +23,6 @@ class Paths(val files: File, nativeLibs: File) {
     val gconv = File(lib, "gconv")
     /** Our SDL, which the game's built-in one hands everything to (runtime/sdl). */
     val sdl = File(lib, "libSDL3.so.0")
-    val turnipIcd = File(prefix, "share/vulkan/icd.d/freedreno_icd.aarch64.json")
     val eglVendors = File(prefix, "share/glvnd/egl_vendor.d")
     /** libhybris and its Vulkan layers (runtime/hybris). */
     val hybris = File(lib, "hybris")
@@ -34,8 +33,7 @@ class Paths(val files: File, nativeLibs: File) {
     val driverCheck = program("pocketfoundry-drivercheck")
 
     /** What the app reads from the runtime, beside the libraries it loads: RuntimeContractTest finds each in it. */
-    val shipped get() = listOf(xkb, xLocales, gconv, sdl, turnipIcd, eglVendors, hybris, hybrisIcd, windowManager,
-                               driverCheck)
+    val shipped get() = listOf(xkb, xLocales, gconv, sdl, eglVendors, hybris, hybrisIcd, windowManager, driverCheck)
 
     /** No /tmp on Android: the X server's socket and lock live in [tmp], and DISPLAY names the socket itself. */
     val xSocket = File(tmp, ".X11-unix/X$DISPLAY")
@@ -58,6 +56,8 @@ class Paths(val files: File, nativeLibs: File) {
     val saves = File(gameData, "saves")
 
     val drivers = File(files, "drivers")
+    /** The last signed catalog of drivers downloaded (Catalog). */
+    val catalog = File(files, "catalog.json")
     /** Outside [drivers] so the driver list never sees a half-imported one. */
     val driverStaging = File(files, "driver.importing")
     val debugEnv = File(files, "debug.env")

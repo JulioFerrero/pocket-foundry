@@ -28,15 +28,24 @@ class UpdateFlow(private val activity: Activity, private val onChanged: () -> Un
      * Once per app launch unless off in Settings; turning it on there checks right away. Never in debug builds:
      * they're for testing on the phone, and a release would replace them.
      */
+    val wanted get() =
+        !activity.isDebuggable && activity.isStock && Settings(activity).checkForUpdates && !Updates.checked &&
+            !checking
+
     fun check() {
-        if (activity.isDebuggable || !activity.isStock || !Settings(activity).checkForUpdates || Updates.checked || checking) return
+        if (!wanted) return
         checking = true
-        background("update-check", { Updates.check(activity) }) { result ->
-            result.onFailure { Log.i(TAG, "No update check: ${it.message}") }
-            checking = false
-            onChanged()
-            result.getOrNull()?.takeIf { it.version != Settings(activity).updateShown }?.let(onFound)
-        }
+        background("update-check", { Updates.check(activity) }, ::checked)
+    }
+
+    /** The start's step: off the main thread, then [checked] on it. */
+    fun checkNow(): Result<Updates.Release?> = runCatching { Updates.check(activity) }
+
+    fun checked(result: Result<Updates.Release?>) {
+        result.onFailure { Log.i(TAG, "No update check: ${it.message}") }
+        checking = false
+        onChanged()
+        result.getOrNull()?.takeIf { it.version != Settings(activity).updateShown }?.let(onFound)
     }
 
     /** Its notes show once: the next check passes over it. */

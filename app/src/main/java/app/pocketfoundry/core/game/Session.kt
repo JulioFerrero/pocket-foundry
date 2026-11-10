@@ -167,9 +167,9 @@ object Session {
         val environment = gameEnvironment(context, paths, driver)
         val applied = if (testing) DriverCheck.Applied(environment, transcodes = false)
                       else DriverCheck.apply(context, paths, driver, environment)
-        FactorioConfig.write(context, paths, keyboard, Drivers.compression(driver, applied.transcodes))
+        FactorioConfig.write(context, paths, keyboard, Drivers.compression(paths, driver, applied.transcodes))
         val started = Program.start(paths, command, paths.gameLog, Sdl.environment(paths) + applied.environment,
-                                    Drivers.libraries(paths, driver))
+                                    Drivers.libraryPath(paths, driver))
         val memory = if (DetailedLogs.on(context)) DetailedLogs.watchMemory(started) else null
         val game = Game(started, driver, testing, memory)
         this.game = game
@@ -186,7 +186,7 @@ object Session {
         val uiScale = "%.4f".format(Locale.ROOT, X11Prefs(context).uiScale)
         // Mesa's own counter, drawn into the game's frames, whichever driver draws them.
         val fpsCounter = if (Settings(context).fpsCounter) mapOf("GALLIUM_HUD" to "simple,fps") else emptyMap()
-        return Drivers.environment(paths, driver) + ("SDL_VIDEO_X11_SCALING_FACTOR" to uiScale) + fpsCounter +
+        return Drivers.environment(context, driver) + ("SDL_VIDEO_X11_SCALING_FACTOR" to uiScale) + fpsCounter +
                DetailedLogs.environment(context) + Drivers.overrides(context, driver)
     }
 

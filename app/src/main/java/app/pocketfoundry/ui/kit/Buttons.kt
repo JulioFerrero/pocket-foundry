@@ -170,11 +170,11 @@ open class FButton(context: Context, label: CharSequence, tone: Tone = Tone.GREY
 fun button(context: Context, text: CharSequence, tone: Tone = Tone.GREY, arrow: Arrow = Arrow.NONE, size: Float = 16f,
            onClick: () -> Unit) = FButton(context, text, tone, arrow, size).apply { setOnClickListener { onClick() } }
 
-/** The game's toggle. */
+/** The game's toggle. [width]: each button's, in dp. */
 @SuppressLint("ViewConstructor")
-class Choice(context: Context, labels: List<String>, onSelect: (Int) -> Unit) : LinearLayout(context) {
+class Choice(context: Context, labels: List<String>, width: Int = 84, onSelect: (Int) -> Unit) : LinearLayout(context) {
     private val buttons = labels.mapIndexed { i, label ->
-        add(button(context, label, size = 15f) { selected = i; onSelect(i) }, 84, 34, start = if (i > 0) 2 else 0)
+        add(button(context, label, size = 15f) { selected = i; onSelect(i) }, width, 34, start = if (i > 0) 2 else 0)
     }
     var selected = -1
         set(value) {

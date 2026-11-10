@@ -12,6 +12,9 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import com.termux.x11.MainActivity
+import app.pocketfoundry.core.drivers.Catalog
+import app.pocketfoundry.core.drivers.Drivers
+import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.GameImport
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.logs.ScreenLog
@@ -24,6 +27,7 @@ import app.pocketfoundry.ui.screens.game.GameScreens
 import app.pocketfoundry.ui.screens.launcher.HomeScreen
 import app.pocketfoundry.ui.screens.launcher.ImportScreen
 import app.pocketfoundry.ui.screens.launcher.SettingsScreen
+import app.pocketfoundry.ui.screens.launcher.StartScreen
 import app.pocketfoundry.ui.screens.launcher.WelcomeScreen
 import app.pocketfoundry.ui.stage.Stage
 import app.pocketfoundry.ui.kit.Arrow
@@ -64,12 +68,15 @@ class LauncherActivity : Activity() {
     private val stageHolder by lazy { FrameLayout(this) }
 
     private val welcome by lazy { WelcomeScreen(this) }
+    private val startScreen by lazy { StartScreen(this) }
     private val importing by lazy { ImportScreen(this) { stage?.progress(it) } }
     private val home by lazy { HomeScreen(this) }
     private val settingsScreen by lazy { SettingsScreen(this) }
     private var updateDialog: UpdateDialog? = null
     private var focusedFor: Pair<View, Boolean>? = null
     private var importingNow = false
+    /** The start screen shows: the app's start, or a driver downloading before a game. */
+    private var loading = false
     private var settingsOpen = false
     private var busy: String? = null
     private var error: String? = null
@@ -84,12 +91,13 @@ class LauncherActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        updates.check()
+        if (!started) startUp() else updates.check()
         edgeToEdge()
         val overlay = FrameLayout(this).apply {
             padForCutout()
             add(welcome.view, 460, WRAP, Gravity.CENTER)
             add(importing.view, 560, WRAP, Gravity.CENTER)
+            add(startScreen.view, 560, WRAP, Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM, bottom = 24)
             add(home.view)
             add(settingsScreen.view, start = 24, top = 16, end = 24, bottom = 16)
         }
@@ -151,7 +159,7 @@ class LauncherActivity : Activity() {
             Dropdown.dismissOpen() -> {}
             host.isOpen -> host.close()
             settingsOpen -> showSettings(false)
-            importingNow -> {}                       // an import can't be cancelled
+            importingNow || loading -> {}            // an import or a download can't be cancelled
             else -> @Suppress("DEPRECATION") super.onBackPressed()
         }
     }
@@ -169,12 +177,15 @@ class LauncherActivity : Activity() {
 
     private fun showScreen(version: String?, inGame: Boolean) {
         val screen = when {
+            loading -> startScreen.view
             importingNow -> importing.view
             version == null -> welcome.view
             settingsOpen -> settingsScreen.view
             else -> home.view
         }
-        for (view in listOf(welcome.view, importing.view, home.view, settingsScreen.view)) view.shown = view === screen
+        for (view in listOf(startScreen.view, welcome.view, importing.view, home.view, settingsScreen.view)) {
+            view.shown = view === screen
+        }
         // Home and the pause menu are one view with different first buttons (Continue, Resume), so either change
         // moves focus.
         if (screen to inGame != focusedFor) {
@@ -184,6 +195,8 @@ class LauncherActivity : Activity() {
             if (!host.isOpen) if (screen === welcome.view) welcome.focus() else screen.requestFocus()
         }
         when {
+            loading && version == null -> stage?.show(Stage.Scene.WELCOME)
+            loading -> stage?.show(Stage.Scene.FACTORY, dim = 0.75f)
             importingNow -> stage?.show(Stage.Scene.IMPORT)
             version == null -> stage?.show(Stage.Scene.WELCOME)
             settingsOpen -> stage?.show(Stage.Scene.FACTORY, dim = 0.55f)
@@ -257,17 +270,66 @@ class LauncherActivity : Activity() {
 
     fun showGame() = startActivity(Intent(this, MainActivity::class.java))
 
+    /**
+     * Once per launch, on the start screen: the newest driver list, the driver for this GPU (downloaded if it's
+     * missing or the list has a newer build), then updates. Offline, the game's start tries the driver again.
+     */
+    private fun startUp() {
+        started = true
+        loading = true
+        val checkUpdates = updates.wanted
+        startScreen.show("Fetching the driver list", 0f)
+        refresh()
+        background("start-up", {
+            Drivers.refreshCatalog(this)
+            step("Finding the driver for your ${Gpu.name ?: "GPU"}", 0.1f)
+            val driver = runCatching {
+                Drivers.prepare(this) { name, percent -> step("Downloading $name", 0.15f + 0.7f * percent / 100) }
+            }
+            if (checkUpdates) step("Checking for updates", 0.9f)
+            driver to if (checkUpdates) updates.checkNow() else null
+        }) { result ->
+            loading = false
+            val (driver, update) = result.getOrThrow()
+            driver.onFailure { error = it.message }
+            refresh()
+            update?.let(updates::checked)
+        }
+    }
+
+    private fun step(text: String, done: Float) = runOnUiThread { startScreen.show(text, done) }
+
+    /** Before a game, a driver it doesn't have yet: on the start screen too. */
+    private fun download(name: String, percent: Int) = runOnUiThread {
+        startScreen.show("Downloading $name", percent / 100f)
+        if (!loading) {
+            loading = true
+            refresh()
+        }
+    }
+
     fun play(save: File?) {
         if (askForNotifications(then = { play(save) })) return
         error = null
         busy = "Starting…"
         refresh()
         background("start", {
+            // The start couldn't get the driver list (no connection yet): without it the GPU may get no driver.
+            if (!Catalog.fetched) {
+                runOnUiThread { loading = true; startScreen.show("Fetching the driver list", 0f); refresh() }
+                Drivers.refreshCatalog(this)
+            }
+            Drivers.prepare(this, ::download)
+            runOnUiThread {
+                loading = false
+                refresh()
+            }
             // The first start after an update unpacks the runtime.
             if (!Runtime.isInstalled(this)) runOnUiThread { busy = "Getting ready…"; refresh() }
             Session.start(this, if (save != null) listOf("--load-game", save.path) else emptyList())
         }) { result ->
             busy = null
+            loading = false   // a driver that didn't download
             // Logs keeps the whole of it: Home has room for two lines.
             result.onFailure { error = it.message ?: "Factorio didn't start. See Logs."; ScreenLog.add("didn't start: $it") }
             refresh()
@@ -296,5 +358,7 @@ class LauncherActivity : Activity() {
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3
         var checked = false
+        /** The start screen's steps ran: once per launch. */
+        var started = false
     }
 }

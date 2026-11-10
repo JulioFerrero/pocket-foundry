@@ -1,6 +1,7 @@
 #!/bin/bash
-# Runs inside the build container: Mesa from lfdevs/mesa-for-android-container (Turnip, freedreno and Zink for
-# Adreno 6xx and newer), plus llvmpipe for phones without a GPU driver.
+# Runs inside the build container: Mesa from lfdevs/mesa-for-android-container, with Zink for the phone's own Vulkan
+# driver and the GPU drivers the app downloads, and llvmpipe for the CPU. The GPU drivers themselves (Turnip,
+# freedreno) are built in JulioFerrero/pocket-foundry-drivers.
 set -euo pipefail
 
 COMMIT=eb3e7fd4f009cab04b1482aad4843c0bde28a786   # tag mesa-27.0.0-devel-20261025-r1
@@ -17,9 +18,8 @@ for p in /runtime/mesa/patches/*.patch; do patch -p1 --silent < "$p"; done
 meson setup build \
     --prefix=$PREFIX --libdir=lib --buildtype=release -Db_ndebug=true \
     -Dplatforms=x11 \
-    -Dgallium-drivers=zink,freedreno,llvmpipe \
-    -Dvulkan-drivers=freedreno \
-    -Dfreedreno-kmds=kgsl,msm \
+    -Dgallium-drivers=zink,llvmpipe \
+    -Dvulkan-drivers= \
     -Dglx=dri -Degl=enabled -Dgbm=disabled -Dglvnd=enabled \
     -Dgles1=disabled -Dgles2=enabled \
     -Dllvm=enabled -Dshared-llvm=disabled \

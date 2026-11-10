@@ -28,6 +28,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import kotlin.math.roundToInt
 
 const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
 const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
@@ -181,6 +182,31 @@ class BarView(context: Context) : View(context) {
         canvas.drawRect(0f, 0f, x, edge, paint)
         paint.color = 0xFF7A4A10.toInt()
         canvas.drawRect(0f, h - edge, x, h, paint)
+    }
+}
+
+/** What's going on and how far it got, over the game's loading bar: the import, the start, a driver's download. */
+class Progress(context: Context) {
+    val text = label(context, "", 15f).apply {
+        maxLines = 1
+        ellipsize = TextUtils.TruncateAt.END
+    }
+    private val percent = label(context, "0%", 18f, Factorio.HEADING, 600)
+    private val bar = BarView(context)
+
+    val view = stack(context, Frame.DEEP, padding = 12, gap = 10) {
+        add(row(context) {
+            add(text, width = 0, weight = 1f)
+            add(percent, start = 16)
+        })
+        add(bar, height = 14)
+    }
+
+    /** [done]: 0 to 1. */
+    fun show(text: CharSequence, done: Float) {
+        this.text.text = text
+        percent.text = "${(done * 100).roundToInt()}%"
+        bar.fraction = done
     }
 }
 

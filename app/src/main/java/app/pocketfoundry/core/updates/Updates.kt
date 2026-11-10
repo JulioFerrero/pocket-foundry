@@ -7,7 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInstaller
 import androidx.core.content.ContextCompat
-import app.pocketfoundry.core.system.ProgressInputStream
+import app.pocketfoundry.core.system.Http
 import app.pocketfoundry.core.system.REPOSITORY
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.objects
@@ -15,8 +15,6 @@ import app.pocketfoundry.core.system.sha256
 import org.json.JSONArray
 import java.io.File
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 
 object Updates {
     /** [changes]: what each version since the installed one brought, newest first. */
@@ -32,7 +30,7 @@ object Updates {
 
     /** Off the main thread. Throws when GitHub can't be reached. */
     fun check(context: Context): Release? {
-        val list = JSONArray(get(RELEASES, accept = "application/vnd.github+json").decodeToString())
+        val list = JSONArray(Http.get(RELEASES, accept = "application/vnd.github+json").decodeToString())
         val release = newest(list, context.appVersion())
         available = release
         checked = true
@@ -98,17 +96,13 @@ object Updates {
 
     /** Off the main thread. */
     fun download(context: Context, release: Release, onPercent: (Int) -> Unit): File {
-        val expected = get(release.checksum).decodeToString().trim().substringBefore(' ').lowercase()
+        val expected = Http.get(release.checksum).decodeToString().trim().substringBefore(' ').lowercase()
         val dir = File(context.cacheDir, "update")
         val file = File(dir, "pocket-foundry-${release.version}.apk")
         if (file.exists() && file.sha256() == expected) return file
         dir.deleteRecursively()
         dir.mkdirs()
-        connect(release.apk) { connection ->
-            ProgressInputStream(connection.inputStream, connection.contentLengthLong, onPercent).use { input ->
-                file.outputStream().use { input.copyTo(it, 1 shl 16) }
-            }
-        }
+        Http.download(release.apk, file, onPercent)
         if (file.sha256() != expected) {
             file.delete()
             throw IOException("The download doesn't match the release's checksum")
@@ -156,24 +150,6 @@ object Updates {
                 else -> onFailure("Android didn't install the update: " +
                                   (intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "no reason given"))
             }
-        }
-    }
-
-    private fun get(url: String, accept: String? = null) =
-        connect(url, accept) { connection -> connection.inputStream.use { it.readBytes() } }
-
-    private fun <T> connect(url: String, accept: String? = null, read: (HttpURLConnection) -> T): T {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 30_000
-            setRequestProperty("User-Agent", "PocketFoundry")
-            if (accept != null) setRequestProperty("Accept", accept)
-        }
-        try {
-            if (connection.responseCode !in 200..299) throw IOException("GitHub answered ${connection.responseCode}")
-            return read(connection)
-        } finally {
-            connection.disconnect()
         }
     }
 }

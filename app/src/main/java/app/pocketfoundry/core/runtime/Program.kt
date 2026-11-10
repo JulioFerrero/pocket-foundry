@@ -47,9 +47,9 @@ class Program private constructor(private val process: Process, val pid: Int) {
                                     OsConstants.SIGSEGV to "SIGSEGV", OsConstants.SIGTERM to "SIGTERM")
 
         fun start(paths: Paths, command: List<String>, log: File, environment: Map<String, String> = emptyMap(),
-                  libraries: File? = null, appendLog: Boolean = false): Program {
-            val libraryPath = listOfNotNull(paths.lib, libraries).joinToString(":") { it.path }
-            val pb = ProcessBuilder(listOf(paths.loader.path, "--library-path", libraryPath) + command)
+                  libraryPath: List<File> = listOf(paths.lib), appendLog: Boolean = false): Program {
+            val libraries = libraryPath.joinToString(":") { it.path }
+            val pb = ProcessBuilder(listOf(paths.loader.path, "--library-path", libraries) + command)
             pb.environment().apply {
                 clear()
                 put("HOME", paths.home.path)
@@ -64,7 +64,7 @@ class Program private constructor(private val process: Process, val pid: Int) {
                 // A program restarting itself (Factorio after a mod change) runs the loader again with only its own
                 // arguments: our loader then runs this program, with this library path (runtime/glibc/patches).
                 put(RESTART_PROGRAM, command.first())
-                put(RESTART_LIBRARIES, libraryPath)
+                put(RESTART_LIBRARIES, libraries)
                 putAll(environment)
             }
             val output = if (appendLog) ProcessBuilder.Redirect.appendTo(log) else ProcessBuilder.Redirect.to(log)

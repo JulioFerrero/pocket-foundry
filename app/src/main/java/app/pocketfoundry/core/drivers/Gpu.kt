@@ -27,12 +27,6 @@ object Gpu {
                       "ASTC".takeIf { _ -> "GL_KHR_texture_compression_astc_ldr" in it.extensions })
     }.orEmpty()
 
-    /**
-     * Turnip starts at Adreno 6xx (older ones also lack the kernel's dma-buf heaps freedreno needs). A GPU that
-     * couldn't be named, or an Adreno named without three digits (the laptops' X1-85), gets the benefit of the doubt.
-     */
-    val supported: Boolean get() = isSupported(name)
-
     /** Arm's Mali, which the phone's driver sets up for OpenGL 3.3 and uncompressed textures. */
     val mali: Boolean get() = name?.contains("Mali") == true
 
@@ -44,20 +38,6 @@ object Gpu {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, VULKAN_1_1)
 
     private const val VULKAN_1_1 = 0x401000
-
-    internal fun isSupported(renderer: String?): Boolean {
-        val name = renderer ?: return true
-        if (!name.contains("Adreno")) return false
-        val number = adrenoNumber(name) ?: return true
-        return number >= 600
-    }
-
-    /** "Adreno (TM) 740" -> 740. */
-    val adreno: Int? get() = adrenoNumber(name)
-
-    internal fun adrenoNumber(renderer: String?) = renderer?.let { ADRENO.find(it) }?.groupValues?.get(1)?.toInt()
-
-    private val ADRENO = Regex("""Adreno \(TM\) (\d{3})""")
 
     /** No eglTerminate: the display is shared with the rest of the app, which draws with it. */
     private fun query(): Info {

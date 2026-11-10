@@ -23,6 +23,7 @@ import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.DriverRecords
+import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.logs.ScreenLog
@@ -106,7 +107,8 @@ class LogActivity : Activity() {
         // The driver the logs are about. Imported drivers also show their file name: PanVK builds all report the same
         // Mesa version.
         val played = ScreenLog.driver ?: Drivers.chosen(this)
-        val driver = Drivers.find(this, played)?.let { if (it.imported) "${it.name} (${it.note})" else it.name }
+        val driver = Drivers.find(this, played)
+            ?.let { if (it.origin == Drivers.Origin.APP) it.name else "${it.name} (${it.note})" }
         val facts = listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
@@ -126,7 +128,8 @@ class LogActivity : Activity() {
             (if (options.isNotEmpty()) "Driver options: $options\n" else "") +
             "GPU's compressed textures: $formats\n" +
             (Runtime.misplaced(this)?.let { "Runtime: $it\n" } ?: "") +
-            (if (checked != null) "Driver check: $checked\n" else "")
+            (if (checked != null) "Driver check: $checked\n" else "") +
+            "Driver list: ${Catalog.status ?: "not fetched yet"}\n"
     }
 
     private fun load() {

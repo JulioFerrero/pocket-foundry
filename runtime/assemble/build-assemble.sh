@@ -35,6 +35,13 @@ seeds="libGL.so.1 libGLX.so.0 libGLdispatch.so.0 libEGL.so.1 libvulkan.so.1
        libXfixes.so.3 libXss.so.1 libXrender.so.1 libxkbcommon.so.0 libxkbcommon-x11.so.0"
 targets="$(for s in $seeds; do echo $DEB/$s; done) $(find $OUT/lib -maxdepth 2 -name '*.so*' -type f)
          $(find $OUT/bin -type f)"
+# What the GPU drivers the app downloads link (JulioFerrero/pocket-foundry-drivers, whose CI checks them against this
+# list): Turnip, freedreno and PanVK need them whether or not anything here does.
+driver_seeds="libdrm.so.2 libexpat.so.1 libz.so.1 libzstd.so.1 libstdc++.so.6 libgcc_s.so.1
+              libX11.so.6 libX11-xcb.so.1 libXext.so.6 libXxf86vm.so.1 libxshmfence.so.1
+              libxcb.so.1 libxcb-dri3.so.0 libxcb-glx.so.0 libxcb-present.so.0 libxcb-randr.so.0
+              libxcb-shm.so.0 libxcb-sync.so.1 libxcb-xfixes.so.0"
+seeds="$seeds $driver_seeds"
 for s in $seeds; do cp -L $DEB/$s $OUT/lib/; done
 LD_LIBRARY_PATH=$OUT/lib:$OUT/lib/hybris ldd $targets 2>/dev/null | awk '/=> \// {print $1, $3}' | sort -u |
 while read -r name path; do
