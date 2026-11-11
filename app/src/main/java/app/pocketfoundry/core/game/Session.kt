@@ -44,6 +44,13 @@ object Session {
     private const val WINDOW_TIMEOUT_MS = 60_000L
     private const val LOG_POLL_MS = 250L
     private const val WINDOW_OPENED = "Initialised OpenGL"
+    /**
+     * glibc gives blocks of 1 MB and more back to Android as soon as the game frees them, instead of keeping them for
+     * later. Loading the sprites peaked 18% lower on a vivo X200 Ultra (1.69 GB -> 1.39), and the game held 23% less
+     * once loaded: room a phone with little memory needs to get through a first load. Options can change it.
+     */
+    private val MEMORY = mapOf("GLIBC_TUNABLES" to
+                                   "glibc.malloc.mmap_threshold=1048576:glibc.malloc.trim_threshold=1048576")
     private val NO_WINDOW = listOf("Failed to create an application window", "Failed to create OpenGL context",
                                    "Factorio crashed")
 
@@ -190,7 +197,7 @@ object Session {
     private fun gameEnvironment(context: Context, paths: Paths, driver: String): Map<String, String> {
         // Mesa's own counter, drawn into the game's frames, whichever driver draws them.
         val fpsCounter = if (Settings(context).fpsCounter) mapOf("GALLIUM_HUD" to "simple,fps") else emptyMap()
-        return Drivers.environment(context, driver) + fpsCounter +
+        return Drivers.environment(context, driver) + fpsCounter + MEMORY +
                DetailedLogs.environment(context) + Drivers.overrides(context, driver)
     }
 
