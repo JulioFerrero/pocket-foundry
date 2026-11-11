@@ -88,7 +88,7 @@ phones with slower processors will run lower. How it runs on yours:
 
 ## Reported working
 
-From players' reports and my own tests on the vivo and on remote test phones.
+From players' reports, and tests on the vivo and on remote test phones.
 
 | Phone | GPU | Driver | |
 |---|---|---|---|
