@@ -88,7 +88,7 @@ publish)
         echo "**Signing certificate (SHA-256):** \`$(certificate)\`"
         echo
         echo "**Since $previous:**"
-        git log --reverse --format='- %s' "$previous..$tag" | grep -Ev "$BUMP" || true
+        git log --reverse --no-merges --format='- %s' "$previous..$tag" | grep -Ev "$BUMP" || true
         echo
         echo "**Built on GitHub** from [$tag]($repo/tree/$tag), GPL-3.0, in [this run]($run): the APK and the runtime inside it (glibc, Mesa, libhybris, SDL, Termux:X11's X server), from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. To check a download came from that build: \`gh attestation verify $name -R $GITHUB_REPOSITORY\`. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
     } > "$notes"
