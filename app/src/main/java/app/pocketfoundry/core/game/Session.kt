@@ -22,6 +22,7 @@ import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.system.mainHandler
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
@@ -32,9 +33,9 @@ object Session {
 
     /**
      * [exit] is Factorio's when it failed, null after a normal quit. [noWindow] says it never opened its window: the
-     * graphics driver didn't start.
+     * graphics driver didn't start. [deviceLost]: the app stopped it when the driver lost the GPU.
      */
-    class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean)
+    class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean, val deviceLost: Boolean = false)
 
     /** A files/usr/bin program that DebugPad or debug.env's test.program may run: no paths. */
     private val TOOL_NAME = Regex("[a-z0-9-]+")
@@ -45,6 +46,8 @@ object Session {
     private const val WINDOW_TIMEOUT_MS = 60_000L
     private const val LOG_POLL_MS = 250L
     private const val WINDOW_OPENED = "Initialised OpenGL"
+    private const val DEVICE_LOST = "zink: DEVICE LOST!"
+    private const val DEVICE_POLL_MS = 1_000L
     /**
      * glibc gives blocks of 1 MB and more back to Android as soon as the game frees them, instead of keeping them for
      * later. Loading the sprites peaked 18% lower on a vivo X200 Ultra (1.69 GB -> 1.39), and the game held 23% less
@@ -77,6 +80,7 @@ object Session {
                        val memory: DetailedLogs.MemoryWatch?) {
         @Volatile var windowOpened = false
         @Volatile var noWindow = false
+        @Volatile var deviceLost = false
     }
 
     private var xServer: Process? = null
@@ -204,6 +208,7 @@ object Session {
         val app = context.applicationContext
         thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(app, game, started.waitFor()) }
         watchForNoWindow(game, paths.gameLog)
+        watchForDeviceLost(game, paths.gameLog)
         context.startForegroundService(Intent(context, GameService::class.java))
     }
 
@@ -276,7 +281,7 @@ object Session {
         this.game = null
         // Killed by a signal before its window opened: the driver crashed starting, like one that opens no window.
         val noWindow = game.noWindow || failed && !game.windowOpened && exit.signal != null
-        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow)
+        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow, game.deviceLost)
         val outcome = when {
             game.testing -> null
             noWindow -> Drivers.Outcome.DIDNT_START
@@ -307,6 +312,36 @@ object Session {
                 return@thread
             }
             Thread.sleep(LOG_POLL_MS)
+        }
+    }
+
+    /**
+     * Once Zink has lost the GPU, Factorio goes on with nothing to draw with: a black or frozen screen, and memory
+     * growing by gigabytes (a Mali-G52 on PanVK-kbase went from 2 to 5.6 GB in 20 s).
+     */
+    private fun watchForDeviceLost(game: Game, log: File) = thread(name = "pocketfoundry-game-gpu", isDaemon = true) {
+        var read = 0L
+        var tail = ""
+        while (game.program.isAlive) {
+            val new = runCatching {
+                RandomAccessFile(log, "r").use { file ->
+                    if (file.length() < read) read = 0
+                    ByteArray((file.length() - read).toInt()).also { file.seek(read); file.readFully(it) }
+                }
+            }.getOrNull()
+            if (new != null) {
+                read += new.size
+                // A line read across two polls is found too.
+                val text = tail + String(new)
+                if (DEVICE_LOST in text) {
+                    game.deviceLost = true
+                    ScreenLog.add("the graphics driver lost the GPU: game stopped")
+                    game.program.kill()
+                    return@thread
+                }
+                tail = text.takeLast(DEVICE_LOST.length)
+            }
+            Thread.sleep(DEVICE_POLL_MS)
         }
     }
 

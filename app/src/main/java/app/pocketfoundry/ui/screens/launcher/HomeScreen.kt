@@ -99,7 +99,11 @@ class HomeScreen(private val launcher: LauncherActivity) {
 
         val failure = error ?: Session.lastGame?.let { ending ->
             val exit = ending.exit ?: return@let null
-            if (ending.noWindow) driverDidntStart(ending.driver) else "Factorio stopped unexpectedly (${exit.status}). See Logs."
+            when {
+                ending.noWindow -> driverDidntStart(ending.driver)
+                ending.deviceLost -> "The graphics driver lost the GPU, so the game was stopped. See Logs."
+                else -> "Factorio stopped unexpectedly (${exit.status}). See Logs."
+            }
         }
         footerLeft.setTextColor(if (failure != null) Factorio.ERROR else Factorio.TEXT)
         footerLeft.textSize = if (failure != null) 13f else 15f
