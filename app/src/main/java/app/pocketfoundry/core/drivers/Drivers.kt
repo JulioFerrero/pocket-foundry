@@ -261,7 +261,8 @@ object Drivers {
                            HYBRIS_PROPERTIES to paths.androidProperties.path,
                            // Android 10's linker config is named by it: libhybris's linker can't read properties.
                            HYBRIS_VNDK to Runtime.properties["ro.vndk.version"].orEmpty(),
-                           "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") + if (Gpu.mali) MALI else emptyMap()
+                           "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") +
+                (if (Gpu.mali) MALI else emptyMap()) + (if (Gpu.powervr) POWERVR else emptyMap())
             else -> if (installed != null) {
                 val icd = DriverImport.icd(paths, id).path
                 val vulkan = if (installed.kind.ownMesa) emptyMap() else mapOf("VK_DRIVER_FILES" to icd)
@@ -280,6 +281,12 @@ object Drivers {
      * The compat layer's stand-in for the BC textures Malis lack failed on every one Factorio made (a G925, and the
      * vivo with it forced): Mesa unpacks them itself instead, unless DriverCheck found its transcoder draws them right.
      */
+    /**
+     * The X server copies a frame it doesn't flip with the CPU, which Google's allocator on PowerVR allows only for
+     * buffers made for it: without them it stopped at the first frame (runtime/hybris patch 0006).
+     */
+    private val POWERVR = mapOf("HYBRIS_WSI_CPU_ACCESS" to "1")
+
     private val MALI = mapOf("MESA_GL_VERSION_OVERRIDE" to "3.3",
                              "MESA_EXTENSION_OVERRIDE" to "+GL_ARB_instanced_arrays",
                              DriverCheck.TRANSCODER to "0")

@@ -30,6 +30,9 @@ object Gpu {
     /** Arm's Mali, which the phone's driver sets up for OpenGL 3.3 and uncompressed textures. */
     val mali: Boolean get() = name?.contains("Mali") == true
 
+    /** Imagination's PowerVR (Pixel 10 and 11), whose buffers the X server can lock only if asked for (Drivers). */
+    val powervr: Boolean get() = name?.contains("PowerVR") == true
+
     /**
      * Android's Vulkan is 1.1 or newer: worth trying the phone's driver. One without the timeline semaphores Zink
      * needs, which came with 1.2, gets them from Khronos's layer (DriverCheck).

@@ -1,0 +1,24 @@
+--- a/hybris/vulkan/icd/swapchain.c
++++ b/hybris/vulkan/icd/swapchain.c
+@@ -17,6 +17,8 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
++#include <sys/auxv.h>
++#include <hardware/gralloc.h>
+ #ifdef WANT_WAYLAND
+ #include <hybris/gralloc/gralloc.h>
+ #include <hybris/grallocusage/GrallocUsageConversion.h>
+@@ -491,6 +493,12 @@
+         return VK_ERROR_FORMAT_NOT_SUPPORTED;
+     }
+     int usage = android_convertGralloc1To0Usage(producer, consumer);
++    /* Pocket Foundry: the X server copies a frame it doesn't flip with the CPU, locking its buffer. Google's
++     * allocator (Pixel 10 and 11, PowerVR) refuses that for a buffer allocated for the GPU alone, as the driver
++     * asks; Qualcomm's and Arm's allow it. HYBRIS_WSI_CPU_ACCESS=1 asks for CPU access too. */
++    const char *cpu_access = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_WSI_CPU_ACCESS");
++    if (cpu_access && !strcmp(cpu_access, "1"))
++        usage |= GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
+     uint32_t count = info->minImageCount;
+     if (count < 2 || count > 8) return VK_ERROR_INITIALIZATION_FAILED;
+     fprintf(stderr, "hybris WSI: %u buffers of %ux%u, Vulkan format %d, gralloc usage 0x%x\n", count,

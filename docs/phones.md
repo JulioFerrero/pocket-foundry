@@ -71,8 +71,9 @@ Status and reports: [Mali GPUs](https://github.com/JulioFerrero/pocket-foundry/i
 
 ## PowerVR and Adreno 5xx
 
-PowerVR (Pixel 10) starts on the [Phone's driver](#the-phones-driver-any-gpu), untested there so far. Adreno 5xx and
-older can't run Turnip, and their kernels lack what freedreno needs: they use the [CPU](#any-other-phone-the-cpu).
+PowerVR (Pixel 10 and 11) plays on the [Phone's driver](#the-phones-driver-any-gpu): a Pixel 10 Pro with Android 17
+at 58-60 FPS with High sprites and Full graphics. Adreno 5xx and older can't run Turnip, and their kernels lack what
+freedreno needs: they use the [CPU](#any-other-phone-the-cpu).
 
 ## Any other phone: the CPU
 

@@ -35,10 +35,10 @@ Pocket Foundry picks the driver for the phone's GPU by itself. If it doesn't sta
 | Adreno 6xx and newer | Snapdragon | Turnip, downloaded by the app, tested |
 | Mali | MediaTek, Google Tensor, older Exynos | The phone's own driver (experimental), or a community driver |
 | Xclipse | Exynos (Galaxy S24, S25) | The phone's own driver (experimental), or a community driver |
-| PowerVR | Pixel 10 | The phone's own driver (experimental) |
+| PowerVR | Pixel 10, 11 | The phone's own driver, tested on a Pixel 10 Pro |
 | Adreno 5xx and older | Older Snapdragon | The CPU |
 
-The phone's own driver is new and only tested on an Adreno so far: reports from Mali, Xclipse and PowerVR phones help.
+The phone's own driver is new: reports from Mali, Xclipse and PowerVR phones help.
 
 **Loads, but slow?** It may be on the CPU, where the game ends up when no GPU driver starts. **Settings -> Driver**
 shows which one is in use and how the last game with each went. [Phones and drivers](docs/phones.md) has the
