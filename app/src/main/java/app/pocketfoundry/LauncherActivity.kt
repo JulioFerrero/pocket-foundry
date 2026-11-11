@@ -323,8 +323,7 @@ class LauncherActivity : Activity() {
             try {
                 start(args)
             } catch (e: Session.NoOpenGL) {
-                // Passed over now: the next driver in line, downloaded first if it has to be. A driver the player
-                // chose stays chosen and says so.
+                // Passed over now, and no longer chosen: the next driver in line, downloaded first if it has to be.
                 start(args)
             }
         }) { result ->

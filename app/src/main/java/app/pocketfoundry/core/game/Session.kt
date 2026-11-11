@@ -7,6 +7,7 @@ import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.gamepadConnected
 import app.pocketfoundry.core.controller.keyboardConnected
 import app.pocketfoundry.core.drivers.DriverCheck
+import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.logs.DetailedLogs
 import app.pocketfoundry.core.logs.ScreenLog
@@ -180,6 +181,9 @@ object Session {
                       else DriverCheck.apply(context, paths, driver, environment)
         if (!applied.opens) {
             Drivers.record(context, driver, Drivers.Outcome.DIDNT_START)
+            // A driver that can't run here isn't a choice any more: before 0.8.17 Mesa fell back to the CPU on its
+            // own, so a player may have picked one that "worked".
+            if (DriverRecords.choice(context) == driver) Drivers.choose(context, null)
             ScreenLog.add("not started: the driver gives no OpenGL, the next game skips it")
             throw NoOpenGL(Drivers.find(context, driver)?.name ?: driver)
         }
