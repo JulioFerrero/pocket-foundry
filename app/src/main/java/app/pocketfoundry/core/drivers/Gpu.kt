@@ -30,6 +30,12 @@ object Gpu {
     /** Arm's Mali, which the phone's driver sets up for OpenGL 3.3 and uncompressed textures. */
     val mali: Boolean get() = name?.contains("Mali") == true
 
+    /**
+     * A Mali from the G31 to the G78. From the G310 on, PanVK-kbase keeps the game's BC textures compressed itself,
+     * as ETC2; on these it keeps them unpacked.
+     */
+    val olderMali: Boolean get() = name?.let { Regex("""Mali-G\d\d\b""").containsMatchIn(it) } == true
+
     /** Imagination's PowerVR (Pixel 10 and 11), whose buffers the X server can lock only if asked for (Drivers). */
     val powervr: Boolean get() = name?.contains("PowerVR") == true
 

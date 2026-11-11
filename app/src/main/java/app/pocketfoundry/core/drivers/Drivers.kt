@@ -176,8 +176,23 @@ object Drivers {
         else -> Compression.GPU
     }
 
-    /** Whether the game's BC textures on [id] go through the compat layer's transcoder, if the driver check allows. */
-    fun transcodable(id: String) = isPhone(id) && Gpu.mali
+    /**
+     * Whether the game's BC textures on [id] can go through the compat layer's transcoder, if the driver check finds
+     * it draws them right. PanVK on an older Mali keeps them unpacked too, about five times the room: a Mali-G52 with
+     * 3.7 GB ran out of memory loading the base game.
+     */
+    fun transcodable(id: String) = Gpu.mali && (isPhone(id) || DriverImport.isPanVK(id) && Gpu.olderMali)
+
+    /**
+     * What turns the transcoder on for [id] over its game [environment]. PanVK gets the compat layer, with its own
+     * unpacking off so the layer sees a driver without BC, and without the layer's fixes for Arm's shader compiler.
+     */
+    fun transcoder(paths: Paths, id: String, environment: Map<String, String>): Map<String, String> =
+        mapOf(DriverCheck.TRANSCODER to "1") + if (!DriverImport.isPanVK(id)) emptyMap() else mapOf(
+            "VK_LAYER_PATH" to listOfNotNull(environment["VK_LAYER_PATH"], paths.hybris.path).joinToString(":"),
+            "VK_INSTANCE_LAYERS" to listOfNotNull(environment["VK_INSTANCE_LAYERS"], COMPAT_LAYER).joinToString(":"),
+            "PANVK_DEBUG" to listOfNotNull(environment["PANVK_DEBUG"], "no_bc_emul").joinToString(","),
+            "HYBRIS_MALI_SPEC_CONSTANTS" to "0")
 
     /**
      * Off the main thread: the newest catalog, which can change the recommended driver (a first start without it
@@ -261,7 +276,7 @@ object Drivers {
                            HYBRIS_PROPERTIES to paths.androidProperties.path,
                            // Android 10's linker config is named by it: libhybris's linker can't read properties.
                            HYBRIS_VNDK to Runtime.properties["ro.vndk.version"].orEmpty(),
-                           "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat") +
+                           "VK_INSTANCE_LAYERS" to COMPAT_LAYER) +
                 (if (Gpu.mali) MALI else emptyMap()) + (if (Gpu.powervr) POWERVR else emptyMap())
             else -> if (installed != null) {
                 val icd = DriverImport.icd(paths, id).path
@@ -285,6 +300,8 @@ object Drivers {
      * The X server copies a frame it doesn't flip with the CPU, which Google's allocator on PowerVR allows only for
      * buffers made for it: without them it stopped at the first frame (runtime/hybris patch 0006).
      */
+    private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
+
     private val POWERVR = mapOf("HYBRIS_WSI_CPU_ACCESS" to "1")
 
     private val MALI = mapOf("MESA_GL_VERSION_OVERRIDE" to "3.3",

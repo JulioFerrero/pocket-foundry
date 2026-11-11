@@ -93,6 +93,18 @@ class DriversTest {
                                                      entry = entry("turnip", "vulkan"))))
     }
 
+    @Test fun `the phone's driver turns the transcoder on with a switch`() {
+        assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "1"), Drivers.transcoder(paths, Drivers.PHONE, mapOf("A" to "1")))
+    }
+
+    @Test fun `PanVK gets the compat layer for the transcoder, with its own unpacking off`() {
+        val environment = mapOf("PANVK_DEBUG" to "sync", "MESA_VK_WSI_DEBUG" to "sw")
+        assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "1", "VK_LAYER_PATH" to "/files/usr/lib/hybris",
+                           "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat", "PANVK_DEBUG" to "sync,no_bc_emul",
+                           "HYBRIS_MALI_SPEC_CONSTANTS" to "0"),
+                     Drivers.transcoder(paths, "panvk-kbase-26", environment))
+    }
+
     @Test fun `an imported driver draws through Zink on its own Vulkan driver, presenting in software`() {
         val environment = Drivers.environment(paths, "my-turnip", null, emptyMap())
         assertEquals("zink", environment["MESA_LOADER_DRIVER_OVERRIDE"])

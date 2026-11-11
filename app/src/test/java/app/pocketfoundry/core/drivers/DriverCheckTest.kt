@@ -113,12 +113,19 @@ class DriverCheckTest {
         val found = JSONObject().put("timelines", true).put("off", "$eds2,$eds1").put("transcode", true)
         assertEquals(mapOf("VK_INSTANCE_LAYERS" to "VK_LAYER_KHRONOS_timeline_semaphore:VK_LAYER_HYBRIS_compat",
                            "A" to "1", "ZINK_HIDE_EXTENSIONS" to "$eds2,$eds1", "HYBRIS_BC_TEXTURES" to "1"),
-                     DriverCheck.withFindings(environment, found))
+                     DriverCheck.withFindings(environment, found) { mapOf("HYBRIS_BC_TEXTURES" to "1") })
+    }
+
+    @Test fun `the transcoder goes on over what else the check found`() {
+        val found = JSONObject().put("off", eds1).put("transcode", true)
+        assertEquals(mapOf("ZINK_HIDE_EXTENSIONS" to eds1, "SEEN" to eds1),
+                     DriverCheck.withFindings(emptyMap(), found) { mapOf("SEEN" to it["ZINK_HIDE_EXTENSIONS"]!!) })
     }
 
     @Test fun `a check that found nothing off leaves the environment as it is`() {
         val environment = mapOf("HYBRIS_BC_TEXTURES" to "0")
-        assertEquals(environment, DriverCheck.withFindings(environment, JSONObject().put("off", "")))
+        val found = JSONObject().put("off", "")
+        assertEquals(environment, DriverCheck.withFindings(environment, found) { mapOf("X" to "1") })
     }
 
     @Test fun `the driver screen gets the check in a few words`() {

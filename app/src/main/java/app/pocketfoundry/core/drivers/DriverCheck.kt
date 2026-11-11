@@ -14,9 +14,9 @@ import org.json.JSONObject
  * driver on a Mali-G610 draws only black with extended dynamic state; a Mali-G72's crashes with it). Games on that
  * driver then run without what it gets wrong; drivers that draw right keep everything.
  *
- * On a Mali the check then tries the compat layer's transcoder, which keeps the game's BC textures compressed as ASTC
- * and EAC: if its squares come out right too, games use it; if they're wrong, or the check crashes, games load the
- * textures unpacked as before. Either way the game itself never runs into it.
+ * On a Mali's own driver, and PanVK on an older one, the check then tries the compat layer's transcoder, which keeps
+ * the game's BC textures compressed as ASTC and EAC: if its squares come out right too, games use it; if they're wrong,
+ * or the check crashes, games load the textures unpacked as before. Either way the game itself never runs into it.
  */
 object DriverCheck {
     /** Our Mesa patch 0005: the Vulkan extensions Zink treats as missing, comma-separated. */
@@ -31,7 +31,7 @@ object DriverCheck {
     private val NO_CONTEXT = listOf("drivercheck: no OpenGL configuration", "drivercheck: no OpenGL 3.3 context")
     private const val TIMEOUT_S = 20L
     /** How the check searches: a new one checks every driver again, those an older one gave up on too. */
-    private const val REVISION = 2
+    private const val REVISION = 3
     /** The program's exits (pocketfoundry-drivercheck.c); any other is a failure: no OpenGL, or a crash. */
     internal const val RIGHT = 0
     internal const val WRONG = 1
@@ -84,13 +84,17 @@ object DriverCheck {
         val saved = current(context, driver)
         val found = saved ?: check(context, paths, driver, environment)
         if (saved != null) ScreenLog.add("driver check: ${summary(saved)}")
-        return Applied(withFindings(environment, found), transcodes = found.optBoolean("transcode"),
+        return Applied(withFindings(environment, found) { Drivers.transcoder(paths, driver, it) },
+                       transcodes = found.optBoolean("transcode"),
                        opens = !found.optBoolean("noOpenGL"))
     }
 
-    internal fun withFindings(environment: Map<String, String>, found: JSONObject): Map<String, String> {
+    /** [transcoder]: what turns the transcoder on over an environment, for when the check found it draws right. */
+    internal fun withFindings(environment: Map<String, String>, found: JSONObject,
+                              transcoder: (Map<String, String>) -> Map<String, String>): Map<String, String> {
         val base = if (found.optBoolean("timelines")) withTimelines(environment) else environment
-        return hiding(base, offIn(found)) + if (found.optBoolean("transcode")) mapOf(TRANSCODER to "1") else emptyMap()
+        val withOff = hiding(base, offIn(found))
+        return if (found.optBoolean("transcode")) withOff + transcoder(withOff) else withOff
     }
 
     /** How fast this version of [driver] drew the speed test; empty if it hasn't, or couldn't. */
@@ -167,7 +171,8 @@ object DriverCheck {
             .put("noOpenGL", found == Found.NoOpenGL).put("wrong", found == Found.Wrong).put("timelines", timelines)
         // On what draws right, with what the game gets.
         if (found is Found.Right) {
-            val speed = SpeedTest.measure(context, paths, driver, withFindings(environment, result))
+            val speed = SpeedTest.measure(context, paths, driver,
+                                          withFindings(environment, result) { Drivers.transcoder(paths, driver, it) })
             result.put("speed", SpeedTest.toJson(speed))
             if (speed.isNotEmpty()) ScreenLog.add("speed test: ${SpeedTest.summary(speed)}")
         }
@@ -178,7 +183,7 @@ object DriverCheck {
 
     private fun transcoderDraws(paths: Paths, driver: String, environment: Map<String, String>): Boolean {
         paths.driverCheckLog.appendText("── compressed textures through the transcoder\n")
-        return draw(paths, driver, environment + (TRANSCODER to "1")) == Result.RIGHT
+        return draw(paths, driver, environment + Drivers.transcoder(paths, driver, environment)) == Result.RIGHT
     }
 
     private fun draw(paths: Paths, driver: String, environment: Map<String, String>): Result {

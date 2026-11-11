@@ -9,8 +9,9 @@ phone's GPU by itself, marked Recommended in **Settings -> Driver**:
 - **A driver that doesn't start:** the next game uses the next one, down to the [CPU](#any-other-phone-the-cpu).
 - **A driver that draws wrong:** before the first game on a driver, Pocket Foundry draws a small test picture with
   it. If the picture comes out wrong, the newer driver features it gets wrong are turned off for every game on it,
-  and Logs says which. On a Mali it also tries keeping the game's compressed textures compressed (Malis lack the
-  game's format); if they draw right, games use about a third of the texture memory.
+  and Logs says which. On a Mali, with its own driver or with PanVK on a G31 to G78, it also tries keeping the game's
+  compressed textures compressed (Malis lack the game's format); if they draw right, games use about a third of the
+  texture memory.
 
 The GPU drivers aren't in the app: they come from
 [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers), where CI builds each one from
@@ -58,7 +59,7 @@ Malis start on the [Phone's driver](#the-phones-driver-any-gpu). The community d
 | G615 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase v26.3.1](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v26.3.1), with `DRIRC_CONFIGURATION=pan_enable_vertex_pipeline_stores_atomics=false` in **Settings -> Driver -> Options** (without it the game freezes once a save loads) | Plays. The Phone's driver plays on a G615 too, 60 FPS at native resolution ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)) |
 | G610, G710 | The G615's, worth a try | The Phone's driver plays on a G710, about 40 FPS with High sprites ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)), and on a G610 since 0.8.16, 30–46 FPS with Medium sprites ([#27](https://github.com/JulioFerrero/pocket-foundry/issues/27)). With PanVK, the G615's stops halfway through the sprites on a G710, and the older [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) gets past the sprites on a G610, then stops |
 | G715, G720, G925 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3), with `PANVK_DEBUG=noafbc,bc_compute` in **Settings -> Driver -> Options** | Reaches the main menu on a G720, slowly. The Phone's driver plays on a G715 ([#13](https://github.com/JulioFerrero/pocket-foundry/issues/13)) and a G925 ([#2](https://github.com/JulioFerrero/pocket-foundry/issues/2)) |
-| G52, G72 | The G76's PanVK, under To try: it plays on a G52, 25–32 FPS on a Redmi Note 9 ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)) | The Phone's driver plays on a G52, 35–52 FPS with Medium sprites and Light graphics ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)), and on a G72 since 0.8.16 ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
+| G52, G72 | The G76's PanVK, under To try: it plays on a G52, 25–32 FPS on a Redmi Note 9 ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)). Since 0.8.18 it keeps the textures compressed, with less than half the memory. PanVK-kbase 26.3.1 doesn't draw on a G52 | The Phone's driver plays on a G52, 35–52 FPS with Medium sprites and Light graphics ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)), and on a G72 since 0.8.16 ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
 | G76 | [soulexit/panvk-kirin990](https://github.com/soulexit/panvk-kirin990) v1.2.8, which the app downloads by itself | Plays on a Kirin 980, about 60 FPS ([#56](https://github.com/JulioFerrero/pocket-foundry/issues/56)), and on a Galaxy S10 (Exynos 9820), 29–37 FPS. Reaches the main menu on a Kirin 990, where the Phone's driver loses the GPU |
 
 These are community builds from
@@ -118,6 +119,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Poco M6 Pro 4G | Mali-G57 | Phone's driver | 50–60 FPS, 60 UPS ([#51](https://github.com/JulioFerrero/pocket-foundry/issues/51)). 25–30 FPS with [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) ([#25](https://github.com/JulioFerrero/pocket-foundry/issues/25)) |
 | Infinix Hot 60i | Mali-G52 | Phone's driver | 35–52 FPS, Medium sprites, Light graphics ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)) |
 | Redmi Note 9 | Mali-G52 | soulexit's PanVK | 25–32 FPS, Medium sprites, Light graphics ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)) |
+| Redmi 12 | Mali-G52 | soulexit's PanVK | 26–33 FPS, Medium sprites, textures kept compressed, since 0.8.18-beta.1 |
 | Galaxy Tab S6 Lite | Mali-G72 | Phone's driver | 29–60 FPS at 1000×600, Medium sprites, Light graphics, since 0.8.16 ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
 | Pixel 6 | Mali-G78 | [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
 | realme 16 Pro | Mali-G615 | [PanVK-kbase v26.3.1](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v26.3.1) with the G615's Options | 60 FPS, High sprites ([#35](https://github.com/JulioFerrero/pocket-foundry/issues/35)) |
