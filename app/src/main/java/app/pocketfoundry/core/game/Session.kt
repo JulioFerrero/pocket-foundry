@@ -54,6 +54,10 @@ object Session {
     private val NO_WINDOW = listOf("Failed to create an application window", "Failed to create OpenGL context",
                                    "Factorio crashed")
 
+    /** The driver check got no OpenGL from [driverName]: the game wasn't started on it, and it's passed over. */
+    class NoOpenGL(driverName: String) :
+        IOException("$driverName gives the game no OpenGL on this phone: choose another in Settings -> Driver.")
+
     @Volatile var state = State.STOPPED
         private set
     val inGame get() = state != State.STOPPED
@@ -174,6 +178,11 @@ object Session {
         val environment = gameEnvironment(context, paths, driver)
         val applied = if (testing) DriverCheck.Applied(environment, transcodes = false)
                       else DriverCheck.apply(context, paths, driver, environment)
+        if (!applied.opens) {
+            Drivers.record(context, driver, Drivers.Outcome.DIDNT_START)
+            ScreenLog.add("not started: the driver gives no OpenGL, the next game skips it")
+            throw NoOpenGL(Drivers.find(context, driver)?.name ?: driver)
+        }
         // Before the game's config and its UI scale, which follow the graphics and resolution.
         if (!testing) Drivers.useSpeedTest(context, driver)
         FactorioConfig.write(context, paths, keyboard, Drivers.compression(paths, driver, applied.transcodes))

@@ -27,6 +27,8 @@ object DriverCheck {
     internal const val TIMELINE_LAYER = "VK_LAYER_KHRONOS_timeline_semaphore"
     /** What Zink says on such a driver. */
     private const val NO_TIMELINES = "KHR_timeline_semaphore is required"
+    /** What the test program says when Zink gives it no OpenGL at all: the game can't open its window either. */
+    private val NO_CONTEXT = listOf("drivercheck: no OpenGL configuration", "drivercheck: no OpenGL 3.3 context")
     private const val TIMEOUT_S = 20L
     /** How the check searches: a new one checks every driver again, those an older one gave up on too. */
     private const val REVISION = 2
@@ -43,13 +45,15 @@ object DriverCheck {
 
     private val steps = SUSPECTS.runningFold(emptyList<String>()) { off, step -> off + step }
 
-    enum class Result { RIGHT, WRONG, FAILED, HUNG }
+    enum class Result { RIGHT, WRONG, FAILED, NO_OPENGL, HUNG }
 
     sealed interface Found {
         data class Right(val off: List<String>) : Found
         data object Wrong : Found
         /** The game likely won't draw either: that's for the driver's game outcome to tell. */
         data object Failed : Found
+        /** Zink gave no OpenGL at all, which fewer features can't change: the game wouldn't open. */
+        data object NoOpenGL : Found
     }
 
     /** A crash goes on to the next step like a wrong picture, since what's off may be what crashed. */
@@ -59,13 +63,17 @@ object DriverCheck {
             Result.RIGHT -> return Found.Right(step)
             Result.WRONG -> drew = true
             Result.FAILED -> {}
+            Result.NO_OPENGL -> return if (drew) Found.Wrong else Found.NoOpenGL
             Result.HUNG -> return Found.Failed
         }
         return if (drew) Found.Wrong else Found.Failed
     }
 
-    /** A game's [environment] with what the check found, and whether its compressed textures stay compressed. */
-    class Applied(val environment: Map<String, String>, val transcodes: Boolean)
+    /**
+     * A game's [environment] with what the check found, whether its compressed textures stay compressed, and whether
+     * it gets OpenGL at all.
+     */
+    class Applied(val environment: Map<String, String>, val transcodes: Boolean, val opens: Boolean = true)
 
     /**
      * [driver]'s game [environment] with what its check found, checking first if it hasn't for this version of it.
@@ -76,7 +84,8 @@ object DriverCheck {
         val saved = current(context, driver)
         val found = saved ?: check(context, paths, driver, environment)
         if (saved != null) ScreenLog.add("driver check: ${summary(saved)}")
-        return Applied(withFindings(environment, found), transcodes = found.optBoolean("transcode"))
+        return Applied(withFindings(environment, found), transcodes = found.optBoolean("transcode"),
+                       opens = !found.optBoolean("noOpenGL"))
     }
 
     internal fun withFindings(environment: Map<String, String>, found: JSONObject): Map<String, String> {
@@ -92,6 +101,7 @@ object DriverCheck {
     fun brief(context: Context, driver: String) = current(context, driver)?.let(::brief)
 
     internal fun brief(saved: JSONObject): String = when {
+        saved.optBoolean("noOpenGL") -> "No OpenGL"
         saved.optBoolean("failed") -> "Couldn't draw"
         saved.optBoolean("wrong") -> "Wrong picture"
         else -> listOfNotNull(
@@ -111,7 +121,8 @@ object DriverCheck {
         DriverRecords.check(context, driver)?.takeIf { it.optString("version") == version(context, driver) }
 
     internal fun summary(saved: JSONObject) = listOfNotNull(
-        "the test couldn't draw".takeIf { saved.optBoolean("failed") },
+        "Zink got no OpenGL from the driver".takeIf { saved.optBoolean("noOpenGL") },
+        "the test couldn't draw".takeIf { saved.optBoolean("failed") && !saved.optBoolean("noOpenGL") },
         "the test picture is wrong whatever is off".takeIf { saved.optBoolean("wrong") },
         "timeline semaphores from Khronos's layer".takeIf { saved.optBoolean("timelines") },
         offIn(saved).takeIf { it.isNotEmpty() }?.let { it.joinToString(", ") + " off" },
@@ -141,7 +152,7 @@ object DriverCheck {
             val result = draw(paths, driver, hiding(base, step))
             // A driver from before Vulkan 1.2 without timeline semaphores (a Huawei P40's Mali-G76 r18p0): Khronos's
             // layer adds them, for this try and every one after.
-            if (result != Result.FAILED || timelines || !Drivers.isPhone(driver) ||
+            if ((result != Result.FAILED && result != Result.NO_OPENGL) || timelines || !Drivers.isPhone(driver) ||
                 NO_TIMELINES !in paths.driverCheckLog.readText()) return@search result
             timelines = true
             base = withTimelines(environment)
@@ -152,8 +163,8 @@ object DriverCheck {
                          transcoderDraws(paths, driver, hiding(base, found.off))
         val off = (found as? Found.Right)?.off.orEmpty()
         val result = JSONObject().put("version", version(context, driver)).put("off", off.joinToString(","))
-            .put("transcode", transcoded).put("failed", found == Found.Failed).put("wrong", found == Found.Wrong)
-            .put("timelines", timelines)
+            .put("transcode", transcoded).put("failed", found == Found.Failed || found == Found.NoOpenGL)
+            .put("noOpenGL", found == Found.NoOpenGL).put("wrong", found == Found.Wrong).put("timelines", timelines)
         // On what draws right, with what the game gets.
         if (found is Found.Right) {
             val speed = SpeedTest.measure(context, paths, driver, withFindings(environment, result))
@@ -183,7 +194,11 @@ object DriverCheck {
         return when (exit.status) {
             RIGHT -> Result.RIGHT
             WRONG -> Result.WRONG
-            else -> Result.FAILED.also { paths.driverCheckLog.appendText("── exited with $exit\n") }
+            else -> {
+                val run = paths.driverCheckLog.readText().substringAfterLast("\n── ")
+                paths.driverCheckLog.appendText("── exited with $exit\n")
+                if (NO_CONTEXT.any { it in run }) Result.NO_OPENGL else Result.FAILED
+            }
         }
     }
 

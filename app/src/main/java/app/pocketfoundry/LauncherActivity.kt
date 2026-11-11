@@ -319,14 +319,14 @@ class LauncherActivity : Activity() {
                 runOnUiThread { loading = true; startScreen.show("Fetching the driver list", 0f); refresh() }
                 Drivers.refreshCatalog(this)
             }
-            Drivers.prepare(this, ::download)
-            runOnUiThread {
-                loading = false
-                refresh()
+            val args = if (save != null) listOf("--load-game", save.path) else emptyList()
+            try {
+                start(args)
+            } catch (e: Session.NoOpenGL) {
+                // Passed over now: the next driver in line, downloaded first if it has to be. A driver the player
+                // chose stays chosen and says so.
+                start(args)
             }
-            // The first start after an update unpacks the runtime.
-            if (!Runtime.isInstalled(this)) runOnUiThread { busy = "Getting ready…"; refresh() }
-            Session.start(this, if (save != null) listOf("--load-game", save.path) else emptyList())
         }) { result ->
             busy = null
             loading = false   // a driver that didn't download
@@ -335,6 +335,18 @@ class LauncherActivity : Activity() {
             refresh()
             if (result.isSuccess) showGame()
         }
+    }
+
+    /** Off the main thread: the chosen driver, downloaded if it has to be, then the game. */
+    private fun start(args: List<String>) {
+        Drivers.prepare(this, ::download)
+        runOnUiThread {
+            loading = false
+            refresh()
+        }
+        // The first start after an update unpacks the runtime.
+        if (!Runtime.isInstalled(this)) runOnUiThread { busy = "Getting ready…"; refresh() }
+        Session.start(this, args)
     }
 
     /** The session's notification carries Quit, so it's worth asking for. */
