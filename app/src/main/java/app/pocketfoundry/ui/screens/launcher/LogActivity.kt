@@ -122,7 +122,8 @@ class LogActivity : Activity() {
                             "graphics " + if (settings.lightGraphics) "light" else "full",
                             "FPS counter ${onOff(settings.fpsCounter)}",
                             "pause in background ${onOff(settings.pauseInBackground)}",
-                            "detailed logs ${onOff(settings.detailedLogs)}")
+                            "detailed logs ${onOff(settings.detailedLogs)}",
+                            "fast start ${onOff(settings.fastStart)}")
         "── phone ──\n" + facts.joinToString(" · ") + "\n" +
             "Settings: ${chosen.joinToString(" · ")}\n" +
             (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +

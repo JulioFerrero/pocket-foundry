@@ -4,9 +4,11 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.GameFilesProvider
 import app.pocketfoundry.core.system.GITHUB
+import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.ResolutionScale
 import app.pocketfoundry.core.system.Settings
@@ -42,9 +44,11 @@ import app.pocketfoundry.ui.screens.saves.SavesDialog
 
 class SettingsScreen(private val launcher: LauncherActivity) {
     private val settings = Settings(launcher)
+    private val paths = Paths(launcher)
     private val x11 = X11Prefs(launcher)
-    private val note = label(launcher, "Resolution, sprites, graphics, the FPS counter and detailed logs change when " +
-                             "Factorio next starts.", 13f, Factorio.MUTED)
+    private val note = label(launcher, "Resolution, sprites, graphics, the FPS counter, detailed logs and fast start " +
+                             "change when Factorio next starts.", 13f, Factorio.MUTED)
+    private val fastStart = label(launcher, FAST_START, 15f)
     private val resolution = Dropdown(launcher, resolutionNames()) {
         x11.resolutionScale = x11.resolutionScales[it]
         settings.graphicsChosen = true
@@ -104,6 +108,11 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         checkSetting("Pause in background", settings.pauseInBackground) { settings.pauseInBackground = it },
         checkSetting("Vibration", settings.vibration) { settings.vibration = it },
         checkSetting("FPS counter", settings.fpsCounter) { settings.fpsCounter = it },
+        setting(fastStart, checkBox(launcher, settings.fastStart) {
+            settings.fastStart = it
+            if (!it) paths.atlasCache.delete()
+            showFastStart()
+        }, controlHeight = CONTROL_HEIGHT),
         checkSetting("Detailed logs", settings.detailedLogs) { settings.detailedLogs = it },
         checkSetting("Check for updates", settings.checkForUpdates) {
             settings.checkForUpdates = it
@@ -125,9 +134,19 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         }, height = 0, weight = 1f)
     }
 
-    private fun setting(text: String, control: View, controlWidth: Int = WRAP, controlHeight: Int = 40) = row(launcher) {
-        add(label(launcher, text, 15f), width = 0, weight = 1f)
-        add(control, controlWidth, controlHeight)
+    private fun setting(text: String, control: View, controlWidth: Int = WRAP, controlHeight: Int = 40) =
+        setting(label(launcher, text, 15f), control, controlWidth, controlHeight)
+
+    private fun setting(name: TextView, control: View, controlWidth: Int = WRAP, controlHeight: Int = 40) =
+        row(launcher) {
+            add(name, width = 0, weight = 1f)
+            add(control, controlWidth, controlHeight)
+        }
+
+    /** With the room its atlases take, once Factorio has kept them. */
+    private fun showFastStart() {
+        val size = paths.atlasCache.length()
+        fastStart.text = if (size > 0) withNote(FAST_START, "${size / 1_000_000} MB", Factorio.FAINT) else FAST_START
     }
 
     private fun dropdownSetting(text: String, dropdown: Dropdown) = setting(text, dropdown, CONTROL_WIDTH, CONTROL_HEIGHT)
@@ -156,6 +175,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         frameRate.selected = Settings.FRAME_RATES.indexOf(settings.frameRate)
         sprites.selected = Settings.SPRITE_QUALITIES.indexOf(settings.spriteQuality).coerceAtLeast(0)
         graphics.selected = if (settings.lightGraphics) LIGHT else FULL
+        showFastStart()
         note.shown = Session.inGame
         credit.shown = !Session.inGame
         editLayout.shown = Session.live
@@ -176,6 +196,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         const val CONTROL_HEIGHT = 34
         const val FULL = 0
         const val LIGHT = 1
+        const val FAST_START = "Fast start"
         /** Settings.border's choices. */
         val BORDERS = listOf(0 to "Off", 10 to "Thin", 20 to "Wide")
     }

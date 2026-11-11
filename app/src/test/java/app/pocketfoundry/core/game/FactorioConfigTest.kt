@@ -9,8 +9,9 @@ import org.junit.Test
 
 class FactorioConfigTest {
     private fun update(ini: String, keyboard: Boolean = false, compression: Compression = Compression.GPU,
-                       textures: String? = null, effects: Boolean? = null) =
-        FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", compression, textures, effects)
+                       textures: String? = null, effects: Boolean? = null, atlasCache: Boolean = true) =
+        FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", compression, textures, effects,
+                              atlasCache)
 
     /** [key]'s value in [section], or null. */
     private fun value(ini: String, section: String, key: String) = ini.lines()
@@ -85,6 +86,13 @@ class FactorioConfigTest {
     @Test fun `updating twice gives the same file`() {
         val once = update("; version=13\n[general]\nlocale=es\n", effects = false)
         assertEquals(once, update(once, effects = false))
+    }
+
+    @Test fun `fast start keeps the atlases on storage, compressed`() {
+        val config = update("")
+        assertEquals("true", value(config, "graphics", "cache-sprite-atlas"))
+        assertEquals("true", value(config, "graphics", "compress-sprite-atlas-cache"))
+        assertEquals("false", value(update(config, atlasCache = false), "graphics", "cache-sprite-atlas"))
     }
 
     @Test fun `keyboard picks keyboard and mouse`() {

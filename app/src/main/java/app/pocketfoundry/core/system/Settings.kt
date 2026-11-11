@@ -22,6 +22,11 @@ class Settings(context: Context) {
     var border by prefs.int("border", 0)
     /** Factorio's graphics-quality, missing from its menus: "medium" halves the sprites, ~600 MB less memory. */
     var spriteQuality by prefs.string(SPRITE_QUALITY, HIGH)
+    /**
+     * Factorio keeps the sprite atlases it builds on storage (Paths.atlasCache), so the next start reads them instead
+     * of building them again: on the vivo X200 Ultra 3 s instead of 20, with a third less memory.
+     */
+    var fastStart by prefs.bool("fastStart", true)
     /** Factorio's extra effects off (smoke, clouds, decoratives, shadows, terrain effects…): fewer pixels to draw. */
     var lightGraphics by prefs.bool(LIGHT_GRAPHICS, false)
     /** The player set the resolution, sprites or graphics: a driver's speed test leaves them as they are. */

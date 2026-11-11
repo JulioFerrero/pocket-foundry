@@ -55,6 +55,8 @@ class Paths(val files: File, nativeLibs: File) {
 
     val gameData = File(files, "factorio")
     val config = File(gameData, "config/config.ini")
+    /** Factorio's sprite atlases, kept when Settings.fastStart is on. */
+    val atlasCache = File(gameData, "atlas-cache.dat")
     val saves = File(gameData, "saves")
 
     val drivers = File(files, "drivers")

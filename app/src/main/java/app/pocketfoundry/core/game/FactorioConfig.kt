@@ -30,7 +30,7 @@ object FactorioConfig {
         // Factorio derives its paths from its executable (here the loader), so name them.
         val config = update(old, paths.gameReadData.path, paths.gameData.path, keyboard, settings.spriteQuality,
                             compression, textures(uncompressed, prefs.getBoolean(UNCOMPRESSED_APPLIED, true)),
-                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)))
+                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), settings.fastStart)
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
         prefs.edit().putBoolean(LIGHT_APPLIED, light).putBoolean(UNCOMPRESSED_APPLIED, uncompressed).apply()
@@ -53,7 +53,7 @@ object FactorioConfig {
     internal fun effects(light: Boolean, lightApplied: Boolean): Boolean? = if (light || lightApplied) !light else null
 
     internal fun update(ini: String, readData: String, writeData: String, keyboard: Boolean, spriteQuality: String,
-                        compression: Compression, textures: String?, effects: Boolean?): String {
+                        compression: Compression, textures: String?, effects: Boolean?, atlasCache: Boolean): String {
         var config = if (ini.startsWith("; version=")) ini else VERSION_HEADER
         config = setIni(config, "path", "read-data", readData)
         config = setIni(config, "path", "write-data", writeData)
@@ -69,6 +69,10 @@ object FactorioConfig {
             config = setIni(config, "graphics", key, (compression == Compression.GPU).toString())
         if (textures != null) config = setIni(config, "graphics", "texture-compression-level", textures)
         if (effects != null) for (key in EFFECTS) config = setIni(config, "graphics", key, effects.toString())
+        // Compressed, the cache takes a third of the room and loads as fast. Factorio builds it again when the sprites,
+        // their compression or the mods change.
+        config = setIni(config, "graphics", "cache-sprite-atlas", atlasCache.toString())
+        config = setIni(config, "graphics", "compress-sprite-atlas-cache", "true")
         return config
     }
 
