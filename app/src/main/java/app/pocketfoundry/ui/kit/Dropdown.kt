@@ -58,7 +58,6 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
         val frame = stack(context, Frame.PANEL, padding = 2) { add(scroll, height = 0, weight = 1f) }
         // Not focusable: a focused popup brings back the system bars. Keys stay with this button (onKeyDown).
         val window = PopupWindow(frame, width, WRAP, false)
-        // A list longer than the room below the button scrolls.
         val at = IntArray(2).also { getLocationInWindow(it) }
         val room = rootView.height - at[1] - height - context.dpi(12)
         frame.measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.UNSPECIFIED)
@@ -92,7 +91,8 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> highlight((highlighted - 1).coerceAtLeast(0))
             KeyEvent.KEYCODE_DPAD_DOWN -> highlight((highlighted + 1).coerceAtMost(items.lastIndex))
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {}   // swallowed, so focus can't leave the button while the list is open
+            // Swallowed, so focus can't leave the button while the list is open.
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {}
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_BUTTON_A ->
                 items.getOrNull(highlighted)?.performClick() ?: popup.dismiss()
             KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_BUTTON_B -> popup.dismiss()
@@ -105,7 +105,6 @@ class Dropdown(context: Context, private val options: List<CharSequence>, privat
         /** The open list. It is a window of its own: hiding the screen it opened from leaves it showing. */
         private var showing: PopupWindow? = null
 
-        /** Closes the open list, if any. True when there was one. */
         fun dismissOpen(): Boolean {
             val popup = showing?.takeIf { it.isShowing } ?: return false
             popup.dismiss()

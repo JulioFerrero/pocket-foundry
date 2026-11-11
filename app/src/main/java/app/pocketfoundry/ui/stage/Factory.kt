@@ -45,13 +45,14 @@ class Factory(private val graphics: File) : Drawing() {
         init { belt.workers[slot] = this }
     }
 
-    /** [direction] is one of the sheet's 16, clockwise from north; [y] in tiles; [phase], of the loop, where it starts. */
+    /**
+     * [direction] is one of the sheet's 16, clockwise from north; [y] in tiles; [phase], of the loop, where it starts.
+     */
     private class Robot(val direction: Int, val y: Float, val phase: Float)
 
     /** Frames [w] × [h] px, [perRow] to a row, drawn moved by ([shiftX], [shiftY]) in util.by_pixel units. */
     private class Sprite(val sheet: Bitmap, val w: Int, val h: Int, val perRow: Int = 1, val shiftX: Float = 0f, val shiftY: Float = 0f)
 
-    /** Every bitmap read, for release(). */
     private val sheets = ArrayList<Bitmap>()
 
     // Frame sizes, frames per row and shifts are the game's own, from its entity prototypes. The grass is its 16
@@ -73,8 +74,8 @@ class Factory(private val graphics: File) : Drawing() {
     private val robot = Sprite(load("entity/construction-robot/construction-robot.png"), 66, 76, 16, shiftY = -4.5f)
     private val robotShadow = Sprite(load("entity/construction-robot/construction-robot-shadow.png"), 104, 49, 16, 33.5f, 18.75f)
 
-    // The layout, in tiles, north to south: the gear belt (row 0.5), the assemblers (3.5) with an inserter above and
-    // below each, the plate belt (6.5), the science belt (8.5), and the labs (11.5) with an inserter above each.
+    // The layout, in tiles, north to south: the gear belt, the assemblers with an inserter above and below each, the
+    // plate belt, the science belt, and the labs with an inserter above each.
     private val gearBelt = Belt(0.5f, east = true, full = false, load("icons/iron-gear-wheel.png"))
     private val plateBelt = Belt(6.5f, east = true, full = true, load("icons/iron-plate.png"))
     private val scienceBelt = Belt(8.5f, east = false, full = true, load("icons/automation-science-pack.png"))
@@ -127,7 +128,7 @@ class Factory(private val graphics: File) : Drawing() {
     }
 
     private fun drawBelt(c: Canvas, belt: Belt, f: Int) {
-        // transport-belt.png's first row runs east, its second west; ours moves 2 of its frames each frame.
+        // transport-belt.png's first row runs east, its second west.
         val frame = (if (belt.east) 0 else 16) + 2 * f % 16
         for (tx in -1..(W / TILE).toInt() + 1) put(c, beltAnim, frame, tx + 0.5f, belt.y)
         val travel = SPEED * f
@@ -135,12 +136,11 @@ class Factory(private val graphics: File) : Drawing() {
             val along = k * GAP + travel
             if (!carries(belt, belt.workers[Math.floorMod(k, PER_SWING)], along)) continue
             val x = if (belt.east) along else W - along
-            val lane = if (Math.floorMod(k, 2) != 0) 0.25f else -0.25f   // items alternate between the two lanes
+            val lane = if (Math.floorMod(k, 2) != 0) 0.25f else -0.25f
             icon(c, belt.icon, x / TILE, belt.y + lane)
         }
     }
 
-    /** Whether there's an item [along] the belt: a full belt loses it at its inserter's hand, an empty one gains it there. */
     private fun carries(belt: Belt, worker: Inserter?, along: Int): Boolean {
         if (worker == null) return belt.full
         return if (belt.full) along < worker.hand else along >= worker.hand
@@ -165,7 +165,7 @@ class Factory(private val graphics: File) : Drawing() {
         if (holding) icon(c, s.belt.icon, handX / TILE, handY / TILE, 26)
     }
 
-    /** 1 over the pickup, 0 over the drop, [at] frames into a swing: out with the item, a rest, back, and a wait. */
+    /** 1 over the pickup, 0 over the drop, [at] frames into a swing. */
     private fun towardPickup(at: Float) = when {
         at < DROP -> 1 - smooth(at / SWING)
         at < GRAB - SWING -> 0f
@@ -185,7 +185,6 @@ class Factory(private val graphics: File) : Drawing() {
         }
     }
 
-    /** Across the screen and a bit beyond, once a loop, bobbing as it flies. */
     private fun drawRobot(c: Canvas, r: Robot, f: Int) {
         val travel = ((f.toFloat() / LOOP + r.phase) % 1) * (W + 6 * TILE)
         val x = if (r.direction == WEST) W + 3 * TILE - travel else travel - 3 * TILE
@@ -194,7 +193,6 @@ class Factory(private val graphics: File) : Drawing() {
         put(c, robot, 16 + r.direction, x / TILE, r.y - 0.9f + bob / TILE)   // the sheet's second row: in flight
     }
 
-    /** Draws [s]'s [frame] centred on tile (cx, cy). */
     private fun put(c: Canvas, s: Sprite, frame: Int, cx: Float, cy: Float, p: Paint = paint) =
         blit(c, s.sheet, frame % s.perRow * s.w, frame / s.perRow * s.h, s.w, s.h,
              start(cx, s.shiftX, s.w), start(cy, s.shiftY, s.h), s.w.toFloat(), s.h.toFloat(), p)
@@ -207,7 +205,9 @@ class Factory(private val graphics: File) : Drawing() {
         else blit(c, sheet, 0, 0, 64, 64, x, y, size.toFloat(), size.toFloat(), paint)
     }
 
-    /** Where a [size]-px sprite starts when centred on tile [at], moved by [shift] in util.by_pixel units: 1/32 tile. */
+    /**
+     * Where a [size]-px sprite starts when centred on tile [at], moved by [shift] in util.by_pixel units: 1/32 tile.
+     */
     private fun start(at: Float, shift: Float, size: Int) = floor(at * TILE + shift * TILE / 32 - size / 2f + 0.5f)
 
     private fun blit(c: Canvas, sheet: Bitmap, sx: Int, sy: Int, sw: Int, sh: Int, x: Float, y: Float, dw: Float, dh: Float, p: Paint) {
@@ -229,7 +229,7 @@ class Factory(private val graphics: File) : Drawing() {
         c.restore()
     }
 
-    /** Copper wires sagging from pole top to pole top. The top row runs on to poles out of sight past both edges. */
+    /** The top row of wires runs on to poles out of sight past both edges. */
     private fun wires(): Array<Path> {
         val top = floatArrayOf(-1.5f) + TOP_POLES + floatArrayOf(29.5f)
         return Array(top.size - 1) { wire(top[it], top[it + 1], ASSEMBLER_Y) } +
@@ -246,7 +246,7 @@ class Factory(private val graphics: File) : Drawing() {
         if (width != vignetteWidth || height != vignetteHeight) {
             vignetteWidth = width
             vignetteHeight = height
-            // Centred at 60% 40% and reaching the farthest corner: radii 0.6 × √2 of each side.
+            // Its radii reach the farthest corner.
             val clear = GROUND and 0xFFFFFF
             vignette.shader = elliptical(0.6f * width, 0.4f * height, 0.6f * width * SQRT2, 0.6f * height * SQRT2,
                                          intArrayOf(clear, clear, clear or 0xB3000000.toInt()), floatArrayOf(0f, 0.4f, 1f))
@@ -256,7 +256,6 @@ class Factory(private val graphics: File) : Drawing() {
 
     private fun load(path: String) = kept(BitmapFactory.decodeFile(File(graphics, path).path), path)
 
-    /** Only rows [top] to [top] + [height] of the sheet. */
     private fun loadBand(path: String, top: Int, height: Int): Bitmap {
         @Suppress("DEPRECATION")   // its replacement is Android 12's
         val decoder = BitmapRegionDecoder.newInstance(File(graphics, path).path, false)

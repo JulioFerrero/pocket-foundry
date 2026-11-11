@@ -18,14 +18,26 @@
 
 ```sh
 tools/setup.sh                                       # Termux:X11 with Pocket Foundry's patches
-runtime/build.sh glibc mesa sdl wm hybris assemble   # the Linux runtime, built in Docker
+runtime/build.sh all                                 # the Linux runtime, built in Docker
 tools/build.sh                                       # the debug APK
 tools/build.sh :app:assembleRelease                  # the release APK
 ```
 
 Builds are signed with Pocket Foundry's key when `../pocketfoundry-keys/keystore.properties` exists (or
 `$POCKETFOUNDRY_SIGNING` points at one; relative paths start at the repo root), otherwise with the usual debug
-key. `tools/icon_png.py` regenerates the icon.
+key.
+
+## Releasing
+
+Changes go to `dev` first. There, `tools/release.sh 0.8.17-beta.1` bumps the version and pushes a tag; GitHub
+builds it from source ([release.yml](../.github/workflows/release.yml): the runtime on arm64, the APK, the tests) and
+publishes a pre-release, which the app's update check skips. Once the betas work, merge `dev` into `main` and run
+`tools/release.sh 0.8.17` there for the release.
+
+Every APK carries a build attestation: `gh attestation verify pocket-foundry-0.8.17.apk -R JulioFerrero/pocket-foundry`
+shows the commit and the run that built it. The build signs with Pocket Foundry's key from the repository's Actions
+secrets: `POCKETFOUNDRY_KEYSTORE` (the keystore, base64) and `POCKETFOUNDRY_STORE_PASSWORD`, `_KEY_ALIAS`,
+`_KEY_PASSWORD`.
 
 ## Helping
 

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Termux:X11's launcher icons: its activity shows Pocket Foundry's (AndroidManifest.xml), so nothing uses them. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:discard="@mipmap/lorie_ic_launcher*" />

@@ -17,7 +17,7 @@ import android.widget.LinearLayout
 
 enum class Arrow { NONE, LEFT, RIGHT }
 
-/** A button's face: the game's sprites once it's imported, a drawn look before. It reads its state as it draws. */
+/** A button's face: the game's sprites once it's imported, a drawn look before. */
 open class ButtonDrawable(context: Context, tone: Tone, private val arrow: Arrow = Arrow.NONE) : PlainDrawable() {
     private val app = context.applicationContext
     protected val density = context.resources.displayMetrics.density
@@ -43,7 +43,6 @@ open class ButtonDrawable(context: Context, tone: Tone, private val arrow: Arrow
     override fun onBoundsChange(bounds: Rect) {
         val m = MARGIN * density
         face.set(bounds.left + m, bounds.top + m, bounds.right - m, bounds.bottom - m)
-        // The dropdown's caret: a 16-dp square 6 dp in from the right. Drawn, it's a 9 × 5.5 dp triangle in the middle.
         caretBox.set(face.right - 22 * density, face.centerY() - 8 * density, face.right - 6 * density, face.centerY() + 8 * density)
         val w = 9 * density
         val h = 5.5f * density
@@ -51,7 +50,7 @@ open class ButtonDrawable(context: Context, tone: Tone, private val arrow: Arrow
         val y = face.centerY() - h / 3
         caretPath.reset()
         caretPath.moveTo(x - w / 2, y); caretPath.lineTo(x + w / 2, y); caretPath.lineTo(x, y + h); caretPath.close()
-        val edge = 5 * density / face.width()   // the shaded band down each side
+        val edge = 5 * density / face.width()
         sides = LinearGradient(face.left, 0f, face.right, 0f, intArrayOf(SIDE, 0, 0, SIDE),
                                floatArrayOf(0f, edge, 1 - edge, 1f), Shader.TileMode.CLAMP)
     }
@@ -68,7 +67,6 @@ open class ButtonDrawable(context: Context, tone: Tone, private val arrow: Arrow
         else -> GuiSheet.IDLE
     }
 
-    /** The face's outline, with a point [tip] long on the arrow's side. */
     private fun outline(tip: Float): Path {
         val left = face.left + if (arrow == Arrow.LEFT) tip else 0f
         val right = face.right - if (arrow == Arrow.RIGHT) tip else 0f
@@ -94,7 +92,7 @@ open class ButtonDrawable(context: Context, tone: Tone, private val arrow: Arrow
     protected open fun drawPlain(canvas: Canvas) {
         val path = outline(TIP * density)
         val lit = hovered && !pressed && enabled
-        // Grey turns orange when lit or pressed, as the game's does; the other tones go lighter, or darker.
+        // Grey turns orange when lit or pressed, as the game's does.
         val shown = if ((pressed || lit) && tone == Tone.GREY) Tone.ORANGE else tone
         canvas.drawPath(path, glow(shown.face, lit))
         paint.shader = null
@@ -122,7 +120,6 @@ open class ButtonDrawable(context: Context, tone: Tone, private val arrow: Arrow
         }
     }
 
-    /** Fills with [fill], casting the tone's glow round the face when [lit], else a shadow. */
     private fun glow(fill: Int, lit: Boolean) = glowPaint.also {
         it.color = fill
         it.setShadowLayer(MARGIN * density, 0f, 0f, if (lit) tone.glow else SHADOW)
@@ -173,11 +170,11 @@ open class FButton(context: Context, label: CharSequence, tone: Tone = Tone.GREY
 fun button(context: Context, text: CharSequence, tone: Tone = Tone.GREY, arrow: Arrow = Arrow.NONE, size: Float = 16f,
            onClick: () -> Unit) = FButton(context, text, tone, arrow, size).apply { setOnClickListener { onClick() } }
 
-/** Buttons side by side with the selected one lit: the game's toggle. */
+/** The game's toggle. [width]: each button's, in dp. */
 @SuppressLint("ViewConstructor")
-class Choice(context: Context, labels: List<String>, onSelect: (Int) -> Unit) : LinearLayout(context) {
+class Choice(context: Context, labels: List<String>, width: Int = 84, onSelect: (Int) -> Unit) : LinearLayout(context) {
     private val buttons = labels.mapIndexed { i, label ->
-        add(button(context, label, size = 15f) { selected = i; onSelect(i) }, 84, 34, start = if (i > 0) 2 else 0)
+        add(button(context, label, size = 15f) { selected = i; onSelect(i) }, width, 34, start = if (i > 0) 2 else 0)
     }
     var selected = -1
         set(value) {

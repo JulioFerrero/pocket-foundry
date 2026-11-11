@@ -17,7 +17,6 @@ Java_app_pocketfoundry_core_system_NativeXz_open(JNIEnv *env, jclass cls) {
     return (jlong) (intptr_t) s;
 }
 
-// Decodes in[inOff, inOff + inLen) into out[outOff, outOff + outLen).
 // Returns consumed << 32 | produced, with bit 62 set at the end of the data,
 // or -(liblzma error code) on failure.
 JNIEXPORT jlong JNICALL

@@ -35,7 +35,22 @@ class UpdatesTest {
     @Test fun `a part that isn't a number counts as zero`() {
         // newest strips the v from tags first; the installed versionName has none.
         assertTrue(Updates.compareVersions("v1.0", "0.9") < 0)
-        assertEquals(0, Updates.compareVersions("0.7.5-beta", "0.7.0"))
+    }
+
+    @Test fun `a version comes after its betas`() {
+        assertTrue(Updates.compareVersions("0.8.17", "0.8.17-beta.2") > 0)
+        assertTrue(Updates.compareVersions("0.8.17-beta.2", "0.8.17-beta.1") > 0)
+        assertTrue(Updates.compareVersions("0.8.17-beta.10", "0.8.17-beta.9") > 0)
+        assertTrue(Updates.compareVersions("0.8.17-beta.1", "0.8.16") > 0)
+        assertTrue(Updates.compareVersions("0.8.16", "0.8.17-beta.1") < 0)
+        assertEquals(0, Updates.compareVersions("0.8.17-beta.1", "0.8.17-beta.1"))
+    }
+
+    @Test fun `a beta is offered its release, not an older one`() {
+        val list = JSONArray(listOf(release("v0.8.17-beta.1", prerelease = true), release("v0.8.16")))
+        assertNull(Updates.newest(list, "0.8.17-beta.1"))
+        list.put(release("v0.8.17"))
+        assertEquals("0.8.17", Updates.newest(list, "0.8.17-beta.1")!!.version)
     }
 
     @Test fun `changes are the Since list as plain text`() {

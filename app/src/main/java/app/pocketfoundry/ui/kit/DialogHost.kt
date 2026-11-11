@@ -10,22 +10,30 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 
-/** One dialog at a time over the activity's screens, which keep no focus while it's open. */
-class DialogHost(private val activity: Activity) {
+/**
+ * One dialog at a time over the activity's screens. [onClosed] runs after each one closes: what a dialog changed shows
+ * on the screens then.
+ */
+class DialogHost(private val activity: Activity, private val onClosed: () -> Unit) {
     private var scrim: View? = null
     private var beforeDialog: View? = null
-    private var onClose: (() -> Unit)? = null
 
     val isOpen get() = scrim != null
 
     /**
-     * A [panel] titled [title], built by [build], with a [buttonBar] at the bottom: [back], which closes it, and [actions].
-     * [onClose] runs once it's closed, by a tap beside it, Back, or [close].
+     * Closed by a tap beside it, Back, or [close]. On a screen too short for it, the parts [build] adds with a weight
+     * shrink to fit. [titleEnd] sits at the title's far end.
      */
-    fun show(title: CharSequence, widthDp: Int, back: CharSequence, vararg actions: View, onClose: () -> Unit = {},
+    fun show(title: CharSequence, widthDp: Int, back: CharSequence, vararg actions: View, titleEnd: View? = null,
              build: LinearLayout.() -> Unit) {
         Dropdown.dismissOpen()
-        val panel = panel(activity, title) {
+        val heading = heading(activity, title)
+        val top = if (titleEnd == null) heading else row(activity) {
+            add(heading)
+            spacer()
+            add(titleEnd)
+        }
+        val panel = panel(activity, top) {
             build()
             add(buttonBar(activity, back, ::close, *actions))
         }
@@ -33,10 +41,11 @@ class DialogHost(private val activity: Activity) {
             setBackgroundColor(0x99000000.toInt())
             setOnClickListener { close() }
             isFocusable = false
-            add(panel.apply { isClickable = true; isFocusable = false }, widthDp, WRAP, Gravity.CENTER)
+            add(panel.apply { isClickable = true; isFocusable = false }, widthDp, WRAP, Gravity.CENTER,
+                top = SCREEN_MARGIN, bottom = SCREEN_MARGIN)
         }
-        // Full screen, Android makes no room for the keyboard: the dialog moves up until the field being typed in clears it.
-        // Android 10 doesn't tell full-screen windows where the keyboard is, so there it stays put.
+        // Full screen, Android makes no room for the keyboard: the dialog moves up until the field being typed in
+        // clears it. Android 10 doesn't tell full-screen windows where the keyboard is, so there it stays put.
         scrim.setOnApplyWindowInsetsListener { _, insets ->
             val keyboard = if (Build.VERSION.SDK_INT >= 30) insets.getInsets(WindowInsets.Type.ime()).bottom else 0
             val field = activity.currentFocus.takeIf { keyboard > 0 && it is EditText }
@@ -48,7 +57,6 @@ class DialogHost(private val activity: Activity) {
         content().descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         (activity.window.decorView as FrameLayout).add(scrim)
         this.scrim = scrim
-        this.onClose = onClose
         scrim.requestFocus()
     }
 
@@ -58,8 +66,12 @@ class DialogHost(private val activity: Activity) {
         scrim = null
         beforeDialog?.takeIf { it.isShown }?.requestFocus()
         beforeDialog = null
-        onClose?.also { onClose = null }?.invoke()
+        onClosed()
     }
 
     private fun content() = activity.findViewById<ViewGroup>(android.R.id.content)
+
+    private companion object {
+        const val SCREEN_MARGIN = 8
+    }
 }

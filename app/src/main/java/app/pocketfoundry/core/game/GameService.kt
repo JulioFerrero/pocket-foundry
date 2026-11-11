@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import com.termux.x11.MainActivity
-import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.R
 
 /** In the foreground while a game runs, so Android doesn't reclaim a paused game. */
@@ -49,7 +48,7 @@ class GameService : Service() {
     }
 
     private fun notification(): Notification {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, LauncherActivity::class.java),
+        val open = PendingIntent.getActivity(this, 0, packageManager.getLaunchIntentForPackage(packageName),
                                              PendingIntent.FLAG_IMMUTABLE)
         val quit = PendingIntent.getService(this, 1, Intent(this, GameService::class.java).setAction(ACTION_QUIT),
                                             PendingIntent.FLAG_IMMUTABLE)

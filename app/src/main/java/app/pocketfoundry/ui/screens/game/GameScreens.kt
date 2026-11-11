@@ -20,14 +20,14 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.ui.controller.ControllerView
 import app.pocketfoundry.core.controller.Gamepads
-import app.pocketfoundry.core.game.ScreenLog
+import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.ui.controller.InputRouter
 import app.pocketfoundry.ui.controller.PointerGestures
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.core.saves.Saves
 import app.pocketfoundry.ui.kit.MATCH
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.displayCompat
 import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.shown
@@ -42,10 +42,18 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
     private val screens = WeakHashMap<Activity, GameScreen>()
     private var resumed: Activity? = null
 
+    /** Settings' Edit layout: the game screen opens with the editor, the next time it shows. */
+    fun openEditor() {
+        editorRequested = true
+    }
+
+    private var editorRequested = false
+
     fun install(app: Application) {
         app.registerActivityLifecycleCallbacks(this)
         Session.addListener {
             if (Session.inGame) return@addListener
+            editorRequested = false
             // The game has its own task: finishing it alone wouldn't bring the launcher back.
             resumed?.let { toLauncher(it) }
             screens.keys.toList().forEach { it.finish() }
@@ -94,16 +102,19 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
         applyRefreshRate(activity)
         val screen = screens[activity]
         screen?.border?.apply()
-        if (Settings(activity).takeLayoutEditorRequest()) screen?.view?.startEditing()
+        if (editorRequested) {
+            editorRequested = false
+            screen?.view?.startEditing()
+        }
     }
 
-    /** 60 Hz: the game draws at most 60 frames a second, and 30 divides it evenly. */
+    /** The game's highest frame rate, which the others divide evenly. */
     private fun applyRefreshRate(activity: Activity) {
         val display = activity.displayCompat() ?: return
         val now = display.mode
         val mode = display.supportedModes
             .filter { it.physicalWidth == now.physicalWidth && it.physicalHeight == now.physicalHeight }
-            .minByOrNull { abs(it.refreshRate - 60f) } ?: return
+            .minByOrNull { abs(it.refreshRate - Settings.FRAME_RATES.max()) } ?: return
         activity.window.attributes = activity.window.attributes.apply { preferredDisplayModeId = mode.modeId }
     }
 
@@ -199,7 +210,7 @@ private class GameBorder(private val activity: MainActivity) {
         showing = key
         background("border", {
             val picture = save?.let { Saves.preview(it, SAMPLE_SIZE) }
-                ?: BitmapFactory.decodeFile(File(paths.game, TERRAIN).path,
+                ?: BitmapFactory.decodeFile(File(paths.baseGraphics, GRASS).path,
                                             BitmapFactory.Options().apply { inSampleSize = SAMPLE_SIZE })
             picture?.let(::soften)
         }) { soft -> if (showing == key) backdrop.setImageBitmap(soft.getOrNull()) }
@@ -218,7 +229,6 @@ private class GameBorder(private val activity: MainActivity) {
         return Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
     }
 
-    /** One row or column: [length] pixels from [start], [step] apart, each averaged with [BLUR_RADIUS] either side. */
     private fun blurLine(src: IntArray, dst: IntArray, start: Int, step: Int, length: Int) {
         for (i in 0 until length) {
             var r = 0; var g = 0; var b = 0; var n = 0
@@ -238,7 +248,7 @@ private class GameBorder(private val activity: MainActivity) {
         private const val SAMPLE_SIZE = 2
         private const val BLUR_RADIUS = 2
         private const val BLUR_PASSES = 2
-        private const val TERRAIN = "data/base/graphics/terrain/grass-1.png"
+        private const val GRASS = "terrain/grass-1.png"
     }
 }
 

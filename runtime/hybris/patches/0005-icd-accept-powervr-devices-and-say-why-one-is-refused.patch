@@ -1,0 +1,31 @@
+--- a/hybris/vulkan/icd/icd.c
++++ b/hybris/vulkan/icd/icd.c
+@@ -119,11 +119,27 @@
+     }
+     int result = module->methods->open(module, HWVULKAN_DEVICE_0,
+                                       (hw_device_t **)&candidate);
++    /* Pocket Foundry: PowerVR's D-Series HAL (Pixel 10 and 11, Android 17) gives its device's version 0.1 in the
++     * older form, HARDWARE_DEVICE_API_VERSION(0, 1); Android's own loader accepts it, so this does too. */
+     if (result || !candidate || candidate->common.tag != HARDWARE_DEVICE_TAG ||
+-        candidate->common.version != HWVULKAN_DEVICE_API_VERSION_0_1 ||
++        (candidate->common.version != HWVULKAN_DEVICE_API_VERSION_0_1 &&
++         candidate->common.version != HARDWARE_DEVICE_API_VERSION(0, 1)) ||
+         !candidate->CreateInstance || !candidate->GetInstanceProcAddr ||
+         !candidate->EnumerateInstanceExtensionProperties) {
+         fprintf(stderr, "hybris ICD: incompatible Vulkan HAL device (open=%d)\n", result);
++        /* What the driver gave, to tell which of the checks it fails. */
++        fprintf(stderr, "hybris ICD: module %s by %s, module API 0x%x, HAL API 0x%x\n",
++                module->name ? module->name : "(none)", module->author ? module->author : "(none)",
++                module->module_api_version, module->hal_api_version);
++        if (candidate)
++            fprintf(stderr, "hybris ICD: device tag 0x%x (wanted 0x%x), version 0x%x (wanted 0x%x), "
++                    "CreateInstance %p, GetInstanceProcAddr %p, EnumerateInstanceExtensionProperties %p\n",
++                    candidate->common.tag, HARDWARE_DEVICE_TAG, candidate->common.version,
++                    HWVULKAN_DEVICE_API_VERSION_0_1, (void *)candidate->CreateInstance,
++                    (void *)candidate->GetInstanceProcAddr,
++                    (void *)candidate->EnumerateInstanceExtensionProperties);
++        else
++            fprintf(stderr, "hybris ICD: the driver gave no device\n");
+         return;
+     }
+ 

@@ -1,6 +1,8 @@
 package app.pocketfoundry.core.saves
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -35,5 +37,27 @@ class SavesTest {
         assertFalse(Saves.isSave(temp.newFile().apply { writeText("level.dat0") }))
         assertFalse(Saves.isSave(temp.newFile()))
         assertFalse(Saves.isSave(File(temp.root, "missing.zip")))
+    }
+
+    private fun file(dir: File, name: String, text: String) = File(dir, name).apply { writeText(text) }
+
+    @Test fun `an imported save keeps its name`() {
+        val dir = temp.newFolder()
+        assertEquals("base.zip", Saves.freeName(dir, "base.zip", file(temp.root, "in", "new"))?.name)
+        assertEquals("base.zip", Saves.freeName(dir, "base", file(temp.root, "in", "new"))?.name)
+    }
+
+    @Test fun `another save by that name is kept beside it`() {
+        val dir = temp.newFolder()
+        file(dir, "base.zip", "old")
+        file(dir, "base (2).zip", "older")
+        assertEquals("base (3).zip", Saves.freeName(dir, "base.zip", file(temp.root, "in", "new"))?.name)
+    }
+
+    @Test fun `the same save again isn't added`() {
+        val dir = temp.newFolder()
+        file(dir, "base.zip", "old")
+        file(dir, "base (2).zip", "same")
+        assertNull(Saves.freeName(dir, "base.zip", file(temp.root, "in", "same")))
     }
 }

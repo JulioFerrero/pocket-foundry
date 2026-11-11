@@ -2,6 +2,7 @@ package app.pocketfoundry
 
 import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,19 +12,22 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import com.termux.x11.MainActivity
+import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
+import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.GameImport
-import app.pocketfoundry.core.game.Runtime
-import app.pocketfoundry.core.game.ScreenLog
 import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.GITHUB
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
-import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.system.isStock
+import app.pocketfoundry.ui.screens.game.GameScreens
 import app.pocketfoundry.ui.screens.launcher.HomeScreen
 import app.pocketfoundry.ui.screens.launcher.ImportScreen
 import app.pocketfoundry.ui.screens.launcher.SettingsScreen
+import app.pocketfoundry.ui.screens.launcher.StartScreen
 import app.pocketfoundry.ui.screens.launcher.WelcomeScreen
 import app.pocketfoundry.ui.stage.Stage
 import app.pocketfoundry.ui.kit.Arrow
@@ -37,34 +41,42 @@ import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.label
 import app.pocketfoundry.ui.kit.stack
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.edgeToEdge
 import app.pocketfoundry.ui.kit.immersive
 import app.pocketfoundry.ui.kit.padForCutout
+import app.pocketfoundry.ui.kit.scaleUi
 import app.pocketfoundry.ui.kit.shown
 import app.pocketfoundry.ui.screens.updates.UpdateDialog
-import app.pocketfoundry.ui.screens.updates.UpdateFlow
+import app.pocketfoundry.core.updates.UpdateFlow
 import app.pocketfoundry.core.updates.Updates
 import java.io.File
 
-/** Welcome, Importing, Home and Settings, and their dialogs, which call back into it. In a game, Home is the pause menu. */
+/** Its screens and their dialogs call back into it. In a game, Home is the pause menu. */
 class LauncherActivity : Activity() {
-    val paths by lazy { Paths(this) }
+    private val paths by lazy { Paths(this) }
     private val settings by lazy { Settings(this) }
-    val host = DialogHost(this)
-    val updates = UpdateFlow(this, onChanged = ::refreshUpdates, onFound = { if (!host.isOpen && !importingNow) showUpdate(it) })
+    val host = DialogHost(this, onClosed = {
+        updateDialog = null
+        refresh()
+    })
+    val updates = UpdateFlow(this, onChanged = ::refreshUpdates, onFound = {
+        if (!host.isOpen && !importingNow && !Session.inGame) showUpdate(it)
+    })
     // Only while on screen: onStop frees its sprites for the game.
-    var stage: Stage? = null
-        private set
+    private var stage: Stage? = null
     private val stageHolder by lazy { FrameLayout(this) }
 
     private val welcome by lazy { WelcomeScreen(this) }
-    private val importing by lazy { ImportScreen(this) }
+    private val startScreen by lazy { StartScreen(this) }
+    private val importing by lazy { ImportScreen(this) { stage?.progress(it) } }
     private val home by lazy { HomeScreen(this) }
     private val settingsScreen by lazy { SettingsScreen(this) }
     private var updateDialog: UpdateDialog? = null
     private var focusedFor: Pair<View, Boolean>? = null
     private var importingNow = false
+    /** The start screen shows: the app's start, or a driver downloading before a game. */
+    private var loading = false
     private var settingsOpen = false
     private var busy: String? = null
     private var error: String? = null
@@ -72,17 +84,20 @@ class LauncherActivity : Activity() {
     private var onPicked: ((List<Uri>) -> Unit)? = null
     private val sessionChanged: () -> Unit = { refresh() }
 
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        scaleUi(base)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        X11Prefs(this).setUp()
-        Drivers.fillDefaults(this)
-        Drivers.moveOldOptions(this)
-        updates.check()
+        if (!started) startUp() else updates.check()
         edgeToEdge()
         val overlay = FrameLayout(this).apply {
             padForCutout()
             add(welcome.view, 460, WRAP, Gravity.CENTER)
             add(importing.view, 560, WRAP, Gravity.CENTER)
+            add(startScreen.view, 560, WRAP, Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM, bottom = 24)
             add(home.view)
             add(settingsScreen.view, start = 24, top = 16, end = 24, bottom = 16)
         }
@@ -144,7 +159,7 @@ class LauncherActivity : Activity() {
             Dropdown.dismissOpen() -> {}
             host.isOpen -> host.close()
             settingsOpen -> showSettings(false)
-            importingNow -> {}                       // an import can't be cancelled
+            importingNow || loading -> {}            // an import or a download can't be cancelled
             else -> @Suppress("DEPRECATION") super.onBackPressed()
         }
     }
@@ -162,13 +177,17 @@ class LauncherActivity : Activity() {
 
     private fun showScreen(version: String?, inGame: Boolean) {
         val screen = when {
+            loading -> startScreen.view
             importingNow -> importing.view
             version == null -> welcome.view
             settingsOpen -> settingsScreen.view
             else -> home.view
         }
-        for (view in listOf(welcome.view, importing.view, home.view, settingsScreen.view)) view.shown = view === screen
-        // Home and the pause menu are one view with different first buttons (Continue, Resume), so either change moves focus.
+        for (view in listOf(startScreen.view, welcome.view, importing.view, home.view, settingsScreen.view)) {
+            view.shown = view === screen
+        }
+        // Home and the pause menu are one view with different first buttons (Continue, Resume), so either change
+        // moves focus.
         if (screen to inGame != focusedFor) {
             if (screen !== focusedFor?.first) Dropdown.dismissOpen()
             focusedFor = screen to inGame
@@ -176,6 +195,8 @@ class LauncherActivity : Activity() {
             if (!host.isOpen) if (screen === welcome.view) welcome.focus() else screen.requestFocus()
         }
         when {
+            loading && version == null -> stage?.show(Stage.Scene.WELCOME)
+            loading -> stage?.show(Stage.Scene.FACTORY, dim = 0.75f)
             importingNow -> stage?.show(Stage.Scene.IMPORT)
             version == null -> stage?.show(Stage.Scene.WELCOME)
             settingsOpen -> stage?.show(Stage.Scene.FACTORY, dim = 0.55f)
@@ -191,23 +212,24 @@ class LauncherActivity : Activity() {
 
     /** Settings' Edit layout: the game with the editor open. Home is under it for when the game closes. */
     fun editLayout() {
-        settings.editLayout = true
+        GameScreens.openEditor()
         settingsOpen = false
         showGame()
     }
 
     /** Only the update's views: a download changes them on every percent. */
     private fun refreshUpdates() {
-        settingsScreen.showRelease(Session.inGame, busy == null)
-        updateDialog?.update(Session.inGame, busy == null)
+        // An update closes the app: not during a game or anything else.
+        val canUpdate = busy == null && !Session.inGame && updates.progress == null
+        settingsScreen.showRelease(canUpdate)
+        updateDialog?.update(canUpdate, Session.inGame)
     }
 
     fun showUpdate(release: Updates.Release) {
-        updateDialog = UpdateDialog(this, release).also { it.show { updateDialog = null } }
+        updateDialog = UpdateDialog(this, release).also { it.show() }
         refreshUpdates()
     }
 
-    /** The system's file picker; [onPicked] gets the chosen files, and isn't called if none were. */
     fun pickFiles(mimeTypes: List<String> = emptyList(), multiple: Boolean = false, onPicked: (List<Uri>) -> Unit) {
         this.onPicked = onPicked
         pick(PICK_FILES, mimeTypes, multiple)
@@ -248,19 +270,66 @@ class LauncherActivity : Activity() {
 
     fun showGame() = startActivity(Intent(this, MainActivity::class.java))
 
+    /**
+     * Once per launch, on the start screen: the newest driver list, the driver for this GPU (downloaded if it's
+     * missing or the list has a newer build), then updates. Offline, the game's start tries the driver again.
+     */
+    private fun startUp() {
+        started = true
+        loading = true
+        val checkUpdates = updates.wanted
+        startScreen.show("Fetching the driver list", 0f)
+        refresh()
+        background("start-up", {
+            Drivers.refreshCatalog(this)
+            step("Finding the driver for your ${Gpu.name ?: "GPU"}", 0.1f)
+            val driver = runCatching {
+                Drivers.prepare(this) { name, percent -> step("Downloading $name", 0.15f + 0.7f * percent / 100) }
+            }
+            if (checkUpdates) step("Checking for updates", 0.9f)
+            driver to if (checkUpdates) updates.checkNow() else null
+        }) { result ->
+            loading = false
+            val (driver, update) = result.getOrThrow()
+            driver.onFailure { error = it.message }
+            refresh()
+            update?.let(updates::checked)
+        }
+    }
+
+    private fun step(text: String, done: Float) = runOnUiThread { startScreen.show(text, done) }
+
+    /** Before a game, a driver it doesn't have yet: on the start screen too. */
+    private fun download(name: String, percent: Int) = runOnUiThread {
+        startScreen.show("Downloading $name", percent / 100f)
+        if (!loading) {
+            loading = true
+            refresh()
+        }
+    }
+
     fun play(save: File?) {
         if (askForNotifications(then = { play(save) })) return
         error = null
         busy = "Starting…"
         refresh()
         background("start", {
-            if (!Runtime.isInstalled(this)) {
-                runOnUiThread { busy = "Getting ready…"; refresh() }
-                Runtime.install(this)
+            // The start couldn't get the driver list (no connection yet): without it the GPU may get no driver.
+            if (!Catalog.fetched) {
+                runOnUiThread { loading = true; startScreen.show("Fetching the driver list", 0f); refresh() }
+                Drivers.refreshCatalog(this)
             }
+            Drivers.prepare(this, ::download)
+            runOnUiThread {
+                loading = false
+                refresh()
+            }
+            // The first start after an update unpacks the runtime.
+            if (!Runtime.isInstalled(this)) runOnUiThread { busy = "Getting ready…"; refresh() }
             Session.start(this, if (save != null) listOf("--load-game", save.path) else emptyList())
         }) { result ->
             busy = null
+            loading = false   // a driver that didn't download
             // Logs keeps the whole of it: Home has room for two lines.
             result.onFailure { error = it.message ?: "Factorio didn't start. See Logs."; ScreenLog.add("didn't start: $it") }
             refresh()
@@ -268,7 +337,7 @@ class LauncherActivity : Activity() {
         }
     }
 
-    /** Asks once: the session's notification carries Quit. True while asking; [then] runs on the answer. */
+    /** The session's notification carries Quit, so it's worth asking for. */
     private fun askForNotifications(then: () -> Unit): Boolean {
         if (Build.VERSION.SDK_INT < 33) return false
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return false
@@ -289,5 +358,7 @@ class LauncherActivity : Activity() {
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3
         var checked = false
+        /** The start screen's steps ran: once per launch. */
+        var started = false
     }
 }

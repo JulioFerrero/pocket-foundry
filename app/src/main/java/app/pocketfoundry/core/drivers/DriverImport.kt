@@ -2,11 +2,14 @@ package app.pocketfoundry.core.drivers
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
+import app.pocketfoundry.core.system.Http
 import app.pocketfoundry.core.system.MIB
 import app.pocketfoundry.core.system.NativeXzInputStream
 import app.pocketfoundry.core.system.Paths
+import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.Uris
-import app.pocketfoundry.core.game.Runtime
+import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.sha256
 import org.apache.commons.compress.archivers.ArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
@@ -23,21 +26,89 @@ import java.nio.ByteOrder
 
 /**
  * A Linux (glibc) build of a Mesa Vulkan driver (Turnip, PanVK…), as a .tar.gz, .tar.xz or .zip, or the library
- * alone. Other libraries in the package stay beside it, for what it needs and the runtime lacks.
+ * alone. Other libraries in the package stay beside it, for what it needs and the runtime lacks. The catalog's
+ * drivers are kept the same way once downloaded, with the catalog's entry for them.
  */
 object DriverImport {
     private val SHARED_LIBRARY = Regex("""[^/]+\.so(\.\d+)*""")
     private val KIND_PATTERN = Regex("""libvulkan_([a-z0-9]+)""")
-    private val KIND_NAMES = mapOf("freedreno" to "Turnip", "panfrost" to "PanVK", "radeon" to "RADV", "powervr" to "PowerVR")
+    private const val PANVK = "PanVK"
+    private val KIND_NAMES = mapOf("freedreno" to "Turnip", "panfrost" to PANVK, "radeon" to "RADV", "powervr" to "PowerVR")
     private val GZIP = byteArrayOf(0x1F, 0x8B.toByte())
     private val XZ = byteArrayOf(0xFD.toByte(), 0x37, 0x7A, 0x58, 0x5A, 0x00)
     private val ZIP = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
     private val ZSTD = byteArrayOf(0x28, 0xB5.toByte(), 0x2F, 0xFD.toByte())
 
+    /**
+     * Each driver's folder holds its libraries, a Vulkan driver's ICD manifest naming its own, and what the list
+     * shows: an imported one's name and the file it came from, a downloaded one's catalog entry.
+     */
+    private const val ICD = "icd.json"
+    private const val INFO = "driver.json"
+    private const val CATALOG = "catalog"
+
+    fun folder(paths: Paths, id: String) = File(paths.drivers, id)
+
+    fun icd(paths: Paths, id: String) = File(folder(paths, id), ICD)
+
+    fun has(paths: Paths, id: String) = File(folder(paths, id), INFO).exists()
+
+    fun remove(paths: Paths, id: String) = folder(paths, id).deleteRecursively()
+
+    /** The imported ones, newest first. */
+    fun all(paths: Paths): List<Drivers.Driver> = infos(paths).mapNotNull { (folder, info) ->
+        if (info.has(CATALOG)) return@mapNotNull null
+        // "detail" is "Imported · <file>" in drivers imported before 0.8.18.
+        Drivers.Driver(folder.name, info.getString("name"), Drivers.Origin.IMPORTED,
+                       info.optString("file").ifEmpty { info.optString("detail").substringAfter(" · ") })
+    }
+
+    /** The catalog's, as downloaded. */
+    fun downloaded(paths: Paths): List<Catalog.Entry> = infos(paths).mapNotNull { (_, info) ->
+        info.optJSONObject(CATALOG)?.let { runCatching { Catalog.Entry(it) }.getOrNull() }
+    }
+
+    fun downloaded(paths: Paths, id: String): Catalog.Entry? = runCatching {
+        JSONObject(File(folder(paths, id), INFO).readText()).optJSONObject(CATALOG)?.let { Catalog.Entry(it) }
+    }.getOrNull()
+
+    private fun infos(paths: Paths): List<Pair<File, JSONObject>> =
+        paths.drivers.listFiles().orEmpty().sortedByDescending { it.lastModified() }.mapNotNull { folder ->
+            try {
+                folder to JSONObject(File(folder, INFO).readText())
+            } catch (e: Exception) {
+                Log.w(TAG, "Not a driver: $folder", e)
+                null
+            }
+        }
+
+    /** Off the main thread: [entry]'s package from the catalog, checked against its SHA-256, then kept. */
+    fun download(context: Context, entry: Catalog.Entry, onPercent: (Int) -> Unit) {
+        val paths = Paths(context)
+        val archive = File(context.cacheDir, "driver-${entry.id}")
+        val staging = paths.driverStaging.apply { deleteRecursively(); mkdirs() }
+        try {
+            Http.download(entry.url, archive, onPercent)
+            if (archive.sha256() != entry.sha256) throw IOException("the download doesn't match the catalog")
+            val icd = BufferedInputStream(archive.inputStream()).use { unpack(it, staging, archive.name) }
+            val libraries = staging.listFiles().orEmpty().filter { SHARED_LIBRARY.matches(it.name) }
+            val info = JSONObject().put("name", entry.name).put(CATALOG, entry.json)
+            if (entry.kind.ownMesa) keep(entry.id, info, libraries, null, null, paths)
+            else {
+                val library = libraries.firstOrNull { it.name.startsWith("libvulkan_") }
+                    ?: throw IOException("no Vulkan driver in the download")
+                keep(entry.id, info, libraries, library, icd, paths)
+            }
+        } finally {
+            archive.delete()
+            staging.deleteRecursively()
+        }
+    }
+
     fun import(context: Context, uri: Uri): Drivers.Driver {
         val paths = Paths(context)
-        Runtime.install(context)   // to check the libraries against
-        val staging = File(paths.drivers, ".importing").apply { deleteRecursively(); mkdirs() }
+        Runtime.prepare(context)
+        val staging = paths.driverStaging.apply { deleteRecursively(); mkdirs() }
         try {
             val fileName = Uris.displayName(context, uri)
             val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Can't open the selected file")
@@ -54,15 +125,14 @@ object DriverImport {
             val kind = KIND_NAMES[KIND_PATTERN.find(named ?: library.name)?.groupValues?.get(1)] ?: "Vulkan"
             val version = mesaVersion(library) ?: "unknown"
             val id = driverId(kind, version, library.sha256())
-            val driver = Drivers.Driver(id, "$kind $version", "Imported · ${fileName ?: "driver"}")
-            keep(driver, libraries, library, icd, paths)
+            val driver = Drivers.Driver(id, "$kind $version", Drivers.Origin.IMPORTED, fileName ?: "driver")
+            keep(id, JSONObject().put("name", driver.name).put("file", driver.note), libraries, library, icd, paths)
             return driver
         } finally {
             staging.deleteRecursively()
         }
     }
 
-    /** Unpacks the shared libraries into [staging]. Returns the package's ICD manifest, if it has one. */
     private fun unpack(stream: BufferedInputStream, staging: File, fileName: String?): JSONObject? {
         if (Elf.isElf(stream)) {
             File(staging, fileName?.substringAfterLast('/')?.takeIf { SHARED_LIBRARY.matches(it) } ?: "libvulkan_driver.so")
@@ -85,12 +155,10 @@ object DriverImport {
                 }
             }
         }
-        // libfoo.so.1 -> libfoo.so.1.2 and the like: a copy under the linked name.
         for ((name, target) in links) File(staging, target).takeIf { it.exists() }?.copyTo(File(staging, name), overwrite = true)
         return icd
     }
 
-    /** A .tar.gz, .tar.xz, .zip or plain .tar, told apart by its first bytes. */
     private fun openArchive(stream: BufferedInputStream): ArchiveInputStream<*> {
         val head = stream.peek(XZ.size)
         fun starts(magic: ByteArray) = magic.indices.all { head[it] == magic[it] }
@@ -107,16 +175,25 @@ object DriverImport {
      * Different builds often share a Mesa version (PanVK forks are all 26.3.0-devel): the library's hash keeps them
      * apart, and the same file imported again still replaces itself.
      */
+    /** Factorio's GPU compressor fails on PanVK: Drivers.compression tells it apart by its id. */
+    fun isPanVK(id: String) = id.startsWith(PANVK.lowercase() + "-")
+
     internal fun driverId(kind: String, version: String, hash: String) =
         kind.lowercase() + "-" + version.lowercase().replace(Regex("[^a-z0-9.]+"), "-") + "-" + hash.take(8)
 
-    private fun keep(driver: Drivers.Driver, libraries: List<File>, library: File, icd: JSONObject?, paths: Paths) {
-        val target = File(paths.drivers, driver.id).apply { deleteRecursively(); mkdirs() }
+    /** [library]: a Vulkan driver's, which its ICD manifest names; an OpenGL driver has none. */
+    private fun keep(id: String, info: JSONObject, libraries: List<File>, library: File?, icd: JSONObject?,
+                     paths: Paths) {
+        val target = folder(paths, id).apply { deleteRecursively(); mkdirs() }
         for (file in libraries) if (!file.renameTo(File(target, file.name))) throw IOException("Couldn't keep the driver")
-        val apiVersion = icd?.optString("api_version")?.ifEmpty { null } ?: "1.4.0"
-        val icdEntry = JSONObject().put("library_path", File(target, library.name).path).put("library_arch", "64").put("api_version", apiVersion)
-        File(target, "icd.json").writeText(JSONObject().put("file_format_version", "1.0.1").put("ICD", icdEntry).toString(2))
-        File(target, "driver.json").writeText(JSONObject().put("name", driver.name).put("detail", driver.detail).toString())
+        if (library != null) {
+            val apiVersion = icd?.optString("api_version")?.ifEmpty { null } ?: "1.4.0"
+            val icdEntry = JSONObject().put("library_path", File(target, library.name).path).put("library_arch", "64")
+                .put("api_version", apiVersion)
+            val manifest = JSONObject().put("file_format_version", "1.0.1").put("ICD", icdEntry)
+            File(target, ICD).writeText(manifest.toString(2))
+        }
+        File(target, INFO).writeText(info.toString())
     }
 
     internal fun mesaVersion(library: File): String? {
@@ -128,7 +205,6 @@ object DriverImport {
                 val n = input.read(chunk)
                 if (n < 0) return pattern.find(carry)?.groupValues?.get(1)
                 val text = carry + String(chunk, 0, n, Charsets.ISO_8859_1)
-                // A match running to the end of what's read may go on in the next read.
                 pattern.find(text)?.takeIf { it.range.last < text.lastIndex }?.let { return it.groupValues[1] }
                 carry = text.takeLast(64)
             }
@@ -150,7 +226,6 @@ object Elf {
 
     fun isElf(stream: BufferedInputStream) = stream.peek(MAGIC.size).contentEquals(MAGIC)
 
-    /** DT_NEEDED: the libraries it loads. */
     fun neededLibraries(file: File): List<String> = RandomAccessFile(file, "r").use { f ->
         fun read(offset: Long, size: Int): ByteBuffer {
             val bytes = ByteArray(size)
@@ -180,7 +255,7 @@ object Elf {
             val value = entries.getLong()
             when (tag) { DT_NULL -> break; DT_NEEDED -> needed += value; DT_STRTAB -> strtab = value }
         }
-        // DT_STRTAB is an address: find the loaded segment holding it.
+        // DT_STRTAB is an address, not a file offset.
         val load = segments.firstOrNull { it.type == PT_LOAD && strtab >= it.vaddr && strtab < it.vaddr + it.size }
             ?: throw IOException("Not a usable library: its string table isn't loaded")
         val base = load.offset + (strtab - load.vaddr)
@@ -191,7 +266,6 @@ object Elf {
     }
 }
 
-/** The first [n] bytes, leaving the stream where it was. */
 private fun BufferedInputStream.peek(n: Int): ByteArray {
     mark(n)
     val head = ByteArray(n).also { read(it) }

@@ -59,6 +59,10 @@ still works as the mouse too.
   roughly halves what the phone draws. Full puts them back.
 - **Driver:** see [Phones and drivers](phones.md).
 - **FPS counter** in the game's top-left corner.
+- **Fast start:** Factorio keeps the sprite atlases it builds on the phone's storage (about 130 MB for the base game
+  with Medium sprites, shown next to it), so every start after the first loads in seconds and with a third less
+  memory. It builds them again when the sprites, the mods or the driver's texture compression change. Off, it frees
+  the room.
 - **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen, the game's
   memory and every graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.

@@ -3,6 +3,7 @@ package app.pocketfoundry.ui.screens.launcher
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -21,11 +22,16 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.DriverCheck
+import app.pocketfoundry.core.drivers.DriverRecords
+import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
-import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.drivers.SpeedTest
+import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
+import app.pocketfoundry.ui.kit.scaleUi
 import app.pocketfoundry.ui.kit.FButton
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
@@ -40,8 +46,13 @@ import app.pocketfoundry.ui.kit.stack
 import java.io.File
 import kotlin.concurrent.thread
 
-/** The phone's facts and the ends of the game's logs, every 2 s, to read or copy into a report. */
+/** The phone's facts and the ends of the game's logs, to read or copy into a report. */
 class LogActivity : Activity() {
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        scaleUi(base)
+    }
+
     private val paths by lazy { Paths(this) }
     private val text by lazy {
         TextView(this).apply {
@@ -94,16 +105,16 @@ class LogActivity : Activity() {
 
     /** What a report needs besides the logs. */
     private val phone by lazy {
-        // The last game's driver: the logs are its. Imported drivers also show their file name: PanVK builds all report
-        // the same Mesa version.
-        val played = Session.driver ?: Drivers.chosen(this)
-        val driver = Drivers.find(this, played)
-            ?.let { if (it.imported) "${it.name} (${it.detail.substringAfter(" · ")})" else it.name }
+        // The driver the logs are about, with its version as the driver screen gives it: an imported one's is its
+        // file name, as PanVK builds all report the same Mesa version.
+        val played = ScreenLog.driver ?: Drivers.chosen(this)
+        val driver = Drivers.find(this, played)?.let { "${it.name} (${Drivers.version(this, it)})" }
         val facts = listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
-        val options = Drivers.options(this, played)
+        val options = DriverRecords.options(this, played)
         val checked = DriverCheck.summary(this, played)
+        val speed = DriverCheck.speed(this, played)
         val formats = Gpu.textureFormats.joinToString(", ").ifEmpty { "none" }
         val settings = Settings(this)
         fun onOff(on: Boolean) = if (on) "on" else "off"
@@ -111,13 +122,17 @@ class LogActivity : Activity() {
                             "graphics " + if (settings.lightGraphics) "light" else "full",
                             "FPS counter ${onOff(settings.fpsCounter)}",
                             "pause in background ${onOff(settings.pauseInBackground)}",
-                            "detailed logs ${onOff(settings.detailedLogs)}")
+                            "detailed logs ${onOff(settings.detailedLogs)}",
+                            "fast start ${onOff(settings.fastStart)}")
         "── phone ──\n" + facts.joinToString(" · ") + "\n" +
             "Settings: ${chosen.joinToString(" · ")}\n" +
             (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +
             (if (options.isNotEmpty()) "Driver options: $options\n" else "") +
             "GPU's compressed textures: $formats\n" +
-            (if (checked.isNotEmpty()) "Driver check: $checked\n" else "")
+            (Runtime.misplaced(this)?.let { "Runtime: $it\n" } ?: "") +
+            (if (checked != null) "Driver check: $checked\n" else "") +
+            (if (speed.isNotEmpty()) "Speed test: ${SpeedTest.summary(speed)}\n" else "") +
+            "Driver list: ${Catalog.status ?: "not fetched yet"}\n"
     }
 
     private fun load() {
@@ -144,7 +159,6 @@ class LogActivity : Activity() {
         }
     }
 
-    /** Of a [log], its [last] lines, and its [first] too when there's more between them. */
     private class Excerpt(val log: (Paths) -> File, val last: Int, val first: Int = 0) {
         fun of(file: File): String = when {
             !file.exists() -> "(none yet)"
@@ -183,7 +197,7 @@ class LogActivity : Activity() {
         private const val LOGCAT_PIECE = 3000
         private const val LOGCAT_BURST = 100
         private const val LOGCAT_PAUSE_MS = 250L
-        /** The logs shown. Factorio's first lines say what it runs on, and a log full of errors can push them out. */
+        /** Factorio's first lines say what it runs on, and a log full of errors can push them out. */
         private val LOGS = listOf(Excerpt(Paths::gameLog, last = 340, first = 60), Excerpt(Paths::wmLog, 20),
                                   Excerpt(Paths::screenLog, 120), Excerpt(Paths::x11Log, 120),
                                   Excerpt(Paths::driverCheckLog, 40))

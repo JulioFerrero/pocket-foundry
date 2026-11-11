@@ -4,9 +4,7 @@ import android.content.Context
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.drivers.Drivers.Compression
-import java.io.File
 
-/** Writes our settings into config.ini; the player's other settings stay. */
 object FactorioConfig {
     /** Without its version header Factorio calls the file invalid and offers a reset. */
     private const val VERSION_HEADER = "; version=13\n"
@@ -15,19 +13,27 @@ object FactorioConfig {
                                  "show-particles", "show-item-shadows", "show-inserter-shadows", "additional-terrain-effects",
                                  "high-quality-terrain", "elevated-rail-shadows")
 
+    /** Whether the config has Light's effects off, so turning Light off can put them back once. */
+    private const val LIGHT_APPLIED = "lightApplied"
+    /**
+     * Whether the config has textures uncompressed for the driver, so another driver can put Factorio's default back
+     * once. True at first: 0.8.3 to 0.8.5 left them uncompressed without noting it.
+     */
+    private const val UNCOMPRESSED_APPLIED = "uncompressedApplied"
+
     fun write(context: Context, paths: Paths, keyboard: Boolean, compression: Compression) {
         val settings = Settings(context)
+        val prefs = Settings.prefs(context)
         val light = settings.lightGraphics
         val uncompressed = compression == Compression.NONE
         val old = if (paths.config.exists()) paths.config.readText() else ""
         // Factorio derives its paths from its executable (here the loader), so name them.
-        val config = update(old, File(paths.game, "data").path, paths.gameData.path, keyboard,
-                            settings.spriteQuality, compression, textures(uncompressed, settings.uncompressedApplied),
-                            effects(light, settings.lightApplied))
+        val config = update(old, paths.gameReadData.path, paths.gameData.path, keyboard, settings.spriteQuality,
+                            compression, textures(uncompressed, prefs.getBoolean(UNCOMPRESSED_APPLIED, true)),
+                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), settings.fastStart)
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
-        settings.lightApplied = light
-        settings.uncompressedApplied = uncompressed
+        prefs.edit().putBoolean(LIGHT_APPLIED, light).putBoolean(UNCOMPRESSED_APPLIED, uncompressed).apply()
     }
 
     /**
@@ -47,7 +53,7 @@ object FactorioConfig {
     internal fun effects(light: Boolean, lightApplied: Boolean): Boolean? = if (light || lightApplied) !light else null
 
     internal fun update(ini: String, readData: String, writeData: String, keyboard: Boolean, spriteQuality: String,
-                        compression: Compression, textures: String?, effects: Boolean?): String {
+                        compression: Compression, textures: String?, effects: Boolean?, atlasCache: Boolean): String {
         var config = if (ini.startsWith("; version=")) ini else VERSION_HEADER
         config = setIni(config, "path", "read-data", readData)
         config = setIni(config, "path", "write-data", writeData)
@@ -63,10 +69,13 @@ object FactorioConfig {
             config = setIni(config, "graphics", key, (compression == Compression.GPU).toString())
         if (textures != null) config = setIni(config, "graphics", "texture-compression-level", textures)
         if (effects != null) for (key in EFFECTS) config = setIni(config, "graphics", key, effects.toString())
+        // Compressed, the cache takes a third of the room and loads as fast. Factorio builds it again when the sprites,
+        // their compression or the mods change.
+        config = setIni(config, "graphics", "cache-sprite-atlas", atlasCache.toString())
+        config = setIni(config, "graphics", "compress-sprite-atlas-cache", "true")
         return config
     }
 
-    /** Sets [key] in [section], adding either where missing. */
     internal fun setIni(ini: String, section: String, key: String, value: String): String {
         val line = "$key=$value"
         val existing = Regex("(?m)^${Regex.escape(key)}=.*$")

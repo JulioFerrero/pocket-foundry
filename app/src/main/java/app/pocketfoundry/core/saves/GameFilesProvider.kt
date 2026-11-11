@@ -1,6 +1,7 @@
 package app.pocketfoundry.core.saves
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.database.MatrixCursor
@@ -48,7 +49,7 @@ class GameFilesProvider : DocumentsProvider() {
     override fun queryChildDocuments(parentId: String, projection: Array<String>?, sortOrder: String?): Cursor =
         MatrixCursor(projection ?: DOCUMENT_COLUMNS).apply {
             file(parentId).listFiles()?.filterNot(::hidden)?.forEach { add(it) }
-            setNotificationUri(context!!.contentResolver, DocumentsContract.buildChildDocumentsUri(AUTHORITY, parentId))
+            setNotificationUri(context!!.contentResolver, DocumentsContract.buildChildDocumentsUri(authority(context!!), parentId))
         }
 
     override fun openDocument(documentId: String, mode: String, signal: CancellationSignal?): ParcelFileDescriptor =
@@ -100,7 +101,6 @@ class GameFilesProvider : DocumentsProvider() {
             .add(Document.COLUMN_FLAGS, flags)
     }
 
-    /** Only paths inside the folder, never a hidden one. */
     private fun file(documentId: String): File {
         val file = File(base, documentId).canonicalFile
         if ((file != base && !file.path.startsWith(base.path + "/")) || hidden(file)) throw FileNotFoundException(documentId)
@@ -121,15 +121,15 @@ class GameFilesProvider : DocumentsProvider() {
     }
 
     private fun changed(dir: File) =
-        context!!.contentResolver.notifyChange(DocumentsContract.buildChildDocumentsUri(AUTHORITY, id(dir)), null)
+        context!!.contentResolver.notifyChange(DocumentsContract.buildChildDocumentsUri(authority(context!!), id(dir)), null)
 
     companion object {
-        private const val AUTHORITY = "app.pocketfoundry.files"
+        /** The manifest's: the app's id, then .files. */
+        private fun authority(context: Context) = "${context.packageName}.files"
         private const val ROOT = "factorio"
 
-        /** The folder in the phone's Files app, or in the file picker if that won't open. */
         fun open(activity: Activity) {
-            val root = DocumentsContract.buildRootUri(AUTHORITY, ROOT)
+            val root = DocumentsContract.buildRootUri(authority(activity), ROOT)
             runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(root, Root.MIME_TYPE_ITEM)) }
                 .recoverCatching {
                     activity.startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE)
@@ -138,7 +138,9 @@ class GameFilesProvider : DocumentsProvider() {
                 .onFailure { Log.w(TAG, "No Files app for the game's folder", it) }
         }
 
-        /** A name for a file in its folder: with a '/' or as "..", it would land in another, maybe outside the game's. */
+        /**
+         * A name for a file in its folder: with a '/' or as "..", it would land in another, maybe outside the game's.
+         */
         internal fun isPlainName(name: String) = name.isNotEmpty() && name != "." && name != ".." && '/' !in name
 
         /** Folders have no extension. */

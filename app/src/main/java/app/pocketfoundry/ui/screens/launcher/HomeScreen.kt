@@ -13,6 +13,7 @@ import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.Saves
+import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.ui.kit.Arrow
 import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
 import app.pocketfoundry.ui.kit.Factorio
@@ -21,7 +22,7 @@ import app.pocketfoundry.ui.kit.MATCH
 import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.ui.kit.background
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.capped
 import app.pocketfoundry.ui.kit.groove
@@ -43,8 +44,9 @@ import java.time.format.FormatStyle
 
 /** The main menu, and the newest save's card. While a game runs, it's the pause menu. */
 class HomeScreen(private val launcher: LauncherActivity) {
+    private val paths = Paths(launcher)
     private val title = heading(launcher, "Pocket Foundry")
-    private val continueSave = button(launcher, "Continue", Tone.GREEN, size = 17f) { Saves.newest(launcher.paths)?.let(launcher::play) }
+    private val continueSave = button(launcher, "Continue", Tone.GREEN, size = 17f) { Saves.newest(paths)?.let(launcher::play) }
     private val resume = button(launcher, "Resume", Tone.GREEN, size = 17f, onClick = launcher::showGame)
     private val mainMenu = button(launcher, "Main menu") { launcher.play(null) }
     private val settings = button(launcher, "Settings") { launcher.showSettings(true) }
@@ -78,7 +80,7 @@ class HomeScreen(private val launcher: LauncherActivity) {
     /** [busy] stands in for the title while a game starts. [error] is why the last start or import failed. */
     fun update(version: String, busy: String?, error: String?) {
         val inGame = Session.inGame
-        val save = Saves.newest(launcher.paths)
+        val save = Saves.newest(paths)
         title.text = busy ?: when (Session.state) {
             Session.State.QUITTING -> "Quitting…"
             Session.State.RUNNING, Session.State.PAUSED -> "Paused"
@@ -95,12 +97,9 @@ class HomeScreen(private val launcher: LauncherActivity) {
         for (b in listOf(resume, quit)) b.isEnabled = idle && Session.live
         card.update(save, inGame)
 
-        val failure = error ?: Session.lastFailure?.let { status ->
-            when {
-                Drivers.missingForGpu(launcher) -> "That driver needs an Adreno GPU: choose another in Driver."
-                Session.noWindow -> driverDidntStart()
-                else -> "Factorio stopped unexpectedly ($status). See Logs."
-            }
+        val failure = error ?: Session.lastGame?.let { ending ->
+            val exit = ending.exit ?: return@let null
+            if (ending.noWindow) driverDidntStart(ending.driver) else "Factorio stopped unexpectedly (${exit.status}). See Logs."
         }
         footerLeft.setTextColor(if (failure != null) Factorio.ERROR else Factorio.TEXT)
         footerLeft.textSize = if (failure != null) 13f else 15f
@@ -114,14 +113,13 @@ class HomeScreen(private val launcher: LauncherActivity) {
     }
 
     /** Which driver didn't start, and the one the next game moves on to when the choice is the app's. */
-    private fun driverDidntStart(): String {
-        val next = Drivers.chosen(launcher).takeIf { it != Session.driver } ?: return "The graphics driver didn't start. See Logs."
-        return "${Drivers.find(launcher, Session.driver)?.name} didn't start. Next game: ${Drivers.find(launcher, next)?.name}."
+    private fun driverDidntStart(driver: String): String {
+        val next = Drivers.chosen(launcher).takeIf { it != driver } ?: return "The graphics driver didn't start. See Logs."
+        return "${Drivers.find(launcher, driver)?.name} didn't start. Next game: ${Drivers.find(launcher, next)?.name}."
     }
 
-    /** Quitting a running game, with what's lost: everything since the last save. */
     private fun confirmQuit() {
-        val save = Saves.newest(launcher.paths)
+        val save = Saves.newest(paths)
         val host = launcher.host
         val quit = button(launcher, "Quit", Tone.GREEN, Arrow.RIGHT) {
             host.close()
@@ -136,7 +134,7 @@ class HomeScreen(private val launcher: LauncherActivity) {
     }
 }
 
-/** Home's card for the newest save: its name, when it was saved, and the picture the game took. */
+/** Home's card for the newest save, with the picture the game took. */
 private class SaveCard(private val context: Context) {
     private val name = heading(context, "", 17f).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
     private val time = label(context, "", 13f, Factorio.MUTED)

@@ -6,6 +6,8 @@
   Audio socket: a 12-byte header ("PFA1", then rate and channels as little-endian int32), then F32LE frames.
   Input socket: 4-byte messages: a type ('B' button, 'A' axis, 'R' rumble back to the app), an index, then a
   little-endian int16 value.
+  These names and values are the app's too (core/runtime/Sdl.kt, AudioBridge.kt, InputBridge.kt, Settings.kt):
+  SourceContractTest checks they agree.
 
   Copyright (C) 2026 Pocket Foundry contributors. Released under the zlib licence, like SDL.
 */
@@ -138,7 +140,7 @@ static bool POCKETFOUNDRYAUDIO_OpenDevice(SDL_AudioDevice *device)
     device->spec.freq = 48000;
     SDL_UpdatedAudioDeviceFormat(device);
 
-    // A couple of buffers in flight at most, so sound stays in sync with the game.
+    // A small socket buffer keeps sound in sync with the game.
     sndbuf = device->buffer_size * 2;
     setsockopt(device->hidden->fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
 
@@ -356,7 +358,6 @@ void SDL_POCKETFOUNDRY_PaceFrame(void)
         SDL_DelayPrecise(next - now);
         now = SDL_GetTicksNS();
     }
-    // Keep the cadence, but start over after a late frame.
     next = (next && now < next + interval) ? next + interval : now + interval;
 }
 

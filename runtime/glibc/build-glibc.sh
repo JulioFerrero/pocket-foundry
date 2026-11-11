@@ -13,14 +13,12 @@ echo "$SHA256  glibc-$VERSION.tar.xz" | sha256sum -c
 rm -rf "$SRC" && mkdir -p /work && tar -xf glibc-$VERSION.tar.xz -C /work
 cd "$SRC"
 
-# Termux's patches, with their placeholders filled in. system()/popen() get Android's shell: an app can't exec
-# files from its data dir.
+# system()/popen() get Android's shell: an app can't exec files from its data dir.
 for p in "$PATCHES"/*.patch; do
     sed -e "s#@TERMUX_PREFIX@/bin/sh#/system/bin/sh#g" \
         -e "s#@TERMUX_PREFIX_CLASSICAL@#$PREFIX#g" \
         -e "s#@TERMUX_PREFIX@#$PREFIX#g" "$p" | patch -p1 --silent
 done
-# Then Pocket Foundry's own.
 for p in /runtime/glibc/patches/*.patch; do
     patch -p1 --silent < "$p"
 done

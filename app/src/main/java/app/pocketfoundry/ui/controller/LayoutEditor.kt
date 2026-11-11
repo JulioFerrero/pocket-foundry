@@ -16,7 +16,6 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         private set
     var selected: Control? = null
         private set
-    /** By pointer id: the control each finger drags, and where that finger was last. */
     private val drags = arrayOfNulls<Control>(ControllerView.POINTER_IDS)
     private val last = Array(ControllerView.POINTER_IDS) { PointF() }
     private var pinchStartDistance = 0f
@@ -47,7 +46,6 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         }
     }
 
-    /** Returns whether a control moved or changed size. */
     fun move(id: Int, x: Float, y: Float): Boolean {
         val control = drags[id] ?: return false
         val a = drags.indexOfFirst { it === control }
@@ -111,7 +109,6 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
 
     private fun addable() = layout.allControls.filter { !it.shown }
 
-    /** The add list's keys, in rows under the toolbar. */
     private fun rowRects(controls: List<Control>): List<RectF> {
         val h = toolbar.size
         val widths = controls.map { maxOf(h * 1.1f, painter.textWidth(it.name, h * 0.42f) + h * 0.7f) }

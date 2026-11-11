@@ -2,12 +2,31 @@ package app.pocketfoundry.ui.kit
 
 import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Build
 import android.view.Display
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import kotlin.math.roundToInt
+
+/**
+ * Our screens at this much of Android's size: at the game's scale they were too big for a phone, with room for little
+ * text. Both our activities apply it (scaleUi); Termux:X11's game screen keeps Android's.
+ */
+const val UI_SCALE = 0.85f
+
+/**
+ * In attachBaseContext. Only the density changes, so the rest of the configuration (font size, a foldable's new
+ * screen) still follows Android.
+ */
+fun Activity.scaleUi(base: Context) = applyOverrideConfiguration(Configuration().apply {
+    fontScale = 0f   // the default, 1, would override the player's font size
+    densityDpi = (base.resources.configuration.densityDpi * UI_SCALE).roundToInt()
+})
+
+/** In the scaled dp: Configuration.screenWidthDp keeps Android's. */
+val Context.screenWidthDp: Int get() = (resources.displayMetrics.widthPixels / resources.displayMetrics.density).toInt()
 
 fun Context.dp(value: Float) = value * resources.displayMetrics.density
 
@@ -43,7 +62,6 @@ fun Activity.edgeToEdge() {
     }
 }
 
-/** Keeps the content out of the display cutout. */
 fun View.padForCutout() = setOnApplyWindowInsetsListener { view, insets ->
     val cutout = insets.displayCutout
     view.setPadding(cutout?.safeInsetLeft ?: 0, cutout?.safeInsetTop ?: 0, cutout?.safeInsetRight ?: 0, cutout?.safeInsetBottom ?: 0)

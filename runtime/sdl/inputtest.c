@@ -39,7 +39,6 @@ int main(void)
             running = false;
             break;
         case SDL_EVENT_MOUSE_MOTION:
-            // At most every 100 ms unless a button is held.
             if (e.motion.state || e.motion.timestamp - lastMotion > SDL_MS_TO_NS(100)) {
                 printf("motion %.0f,%.0f%s\n", e.motion.x, e.motion.y, e.motion.state ? " held" : "");
                 lastMotion = e.motion.timestamp;
@@ -62,7 +61,6 @@ int main(void)
             printf("pad %s %s\n", SDL_GetGamepadStringForButton((SDL_GamepadButton) e.gbutton.button), e.gbutton.down ? "down" : "up");
             break;
         case SDL_EVENT_GAMEPAD_AXIS_MOTION:
-            // Triggers only, in quarters: 0 released .. 4 fully pulled.
             if (e.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || e.gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
                 static int quarter[SDL_GAMEPAD_AXIS_COUNT];
                 int now = (e.gaxis.value + 4096) / 8192;

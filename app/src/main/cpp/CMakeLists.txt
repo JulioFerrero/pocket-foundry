@@ -16,7 +16,6 @@ if(NOT xz_POPULATED)
     FetchContent_Populate(xz)
     set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
     set(XZ_NLS OFF CACHE BOOL "" FORCE)
-    # Only liblzma gets built: it's the one target we link.
     add_subdirectory(${xz_SOURCE_DIR} ${xz_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 

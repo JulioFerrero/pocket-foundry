@@ -7,6 +7,8 @@ import android.graphics.Canvas
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.View
+import app.pocketfoundry.core.controller.VirtualPad
+import app.pocketfoundry.core.controller.VirtualPad.Source.SCREEN
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.ui.kit.GuiSprites
 
@@ -22,7 +24,6 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
     private val editor = LayoutEditor(layout, painter, toolbar, ::haptic)
     private val vibrator = context.getSystemService(Vibrator::class.java)
     private val settings = Settings(context)
-    /** The control under each finger, by pointer id. */
     private val pressed = arrayOfNulls<Control>(POINTER_IDS)
 
     var onKeyboard: () -> Unit = {}
@@ -95,6 +96,7 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         editor.releaseAll()
         pressed.fill(null)
         layout.shownControls.forEach { it.pointers.clear(); it.release() }
+        VirtualPad.release(SCREEN)
         invalidate()
     }
 
