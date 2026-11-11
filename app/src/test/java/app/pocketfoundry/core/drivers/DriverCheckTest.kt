@@ -61,6 +61,16 @@ class DriverCheckTest {
         assertEquals(Found.Wrong, DriverCheck.search { if (it.isEmpty()) Result.WRONG else Result.FAILED })
     }
 
+    @Test fun `no OpenGL at all stops at the first try, since fewer features can't give it`() {
+        val tried = mutableListOf<List<String>>()
+        assertEquals(Found.NoOpenGL, DriverCheck.search { tried += it; Result.NO_OPENGL })
+        assertEquals(listOf(emptyList<String>()), tried)
+    }
+
+    @Test fun `a check that drew wrong before losing OpenGL is wrong`() {
+        assertEquals(Found.Wrong, DriverCheck.search { if (it.isEmpty()) Result.WRONG else Result.NO_OPENGL })
+    }
+
     @Test fun `a check that hangs stops there`() {
         val tried = mutableListOf<List<String>>()
         assertEquals(Found.Failed, DriverCheck.search { tried += it; if (it.isEmpty()) Result.WRONG else Result.HUNG })
@@ -90,6 +100,12 @@ class DriverCheckTest {
     @Test fun `a check that couldn't draw is remembered as that`() {
         val saved = JSONObject().put("off", "").put("transcode", false).put("failed", true)
         assertEquals("the test couldn't draw", DriverCheck.summary(saved))
+    }
+
+    @Test fun `a driver that gives no OpenGL says so`() {
+        val saved = JSONObject().put("off", "").put("failed", true).put("noOpenGL", true)
+        assertEquals("Zink got no OpenGL from the driver", DriverCheck.summary(saved))
+        assertEquals("No OpenGL", DriverCheck.brief(saved))
     }
 
     @Test fun `what the check found goes over the game's environment`() {
