@@ -40,6 +40,15 @@ with [MaliBridge](https://github.com/ASEbrahim/MaliBridge)'s fixes for Mali. Mal
 with it. It's experimental: it plays at 60 FPS on an Adreno 830, a Pixel 8's Mali-G715 and a Xiaomi 15T Pro's
 Mali-G925. If it doesn't start, the next game runs on the CPU. How it runs on yours: [open an issue](https://github.com/JulioFerrero/pocket-foundry/issues).
 
+## MobileGlues: the phone's OpenGL ES (any GPU)
+
+Experimental, from 0.8.18-beta.3: under For any GPU in **Settings -> Driver**, and never picked by itself.
+[MobileGlues](https://github.com/MobileGL-Dev/MobileGlues), made for Minecraft, turns the game's OpenGL into the
+OpenGL ES driver the phone already has, loaded through libhybris: no Zink and no Vulkan, so it can run where the
+phone's Vulkan driver fails. It plays at 59 FPS on an Adreno 830 and 20-30 FPS on a Redmi 12's Mali-G52. Malis lack
+the game's compressed textures, so it loads them uncompressed there: keep Sprite quality on Medium. Its build, with
+two fixes for Factorio, is in [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers).
+
 ## Xclipse (Samsung Exynos)
 
 The [Phone's driver](#the-phones-driver-any-gpu) first. Or import `RADV-Xclipse-upstream-Linux.zip` from
@@ -120,6 +129,8 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Infinix Hot 60i | Mali-G52 | Phone's driver | 35–52 FPS, Medium sprites, Light graphics ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)) |
 | Redmi Note 9 | Mali-G52 | soulexit's PanVK | 25–32 FPS, Medium sprites, Light graphics ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)) |
 | Redmi 12 | Mali-G52 | soulexit's PanVK | 26–33 FPS, Medium sprites, textures kept compressed, since 0.8.18-beta.1 |
+| Redmi 12 | Mali-G52 | MobileGlues | 20–30 FPS at 1112×490, Medium sprites, Light graphics, since 0.8.18-beta.3 |
+| vivo X200 Ultra | Adreno 830 | MobileGlues | 59 FPS at 3016×1290, Medium sprites, since 0.8.18-beta.2 |
 | Galaxy Tab S6 Lite | Mali-G72 | Phone's driver | 29–60 FPS at 1000×600, Medium sprites, Light graphics, since 0.8.16 ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
 | Pixel 6 | Mali-G78 | [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
 | realme 16 Pro | Mali-G615 | [PanVK-kbase v26.3.1](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v26.3.1) with the G615's Options | 60 FPS, High sprites ([#35](https://github.com/JulioFerrero/pocket-foundry/issues/35)) |
@@ -132,6 +143,8 @@ screen's Copy.
 ## Importing a driver
 
 - Linux (glibc) builds only. Android builds (AdrenoTools, Winlator, emulator packages) can't load in the game.
+- A MobileGlues package from pocket-foundry-drivers (`libmobileglues.so` and `libmgx11.so`), to try a build before
+  the driver list has it.
 - A `.tar.gz`, `.tar.xz`, `.zip` or the `.so` alone. Libraries in the package come along.
 - Pocket Foundry checks that the driver loads before keeping it.
 - Each driver's **Options** pass `NAME=value` settings to it (`PANVK_DEBUG=…`, `TU_DEBUG=…`). Logs shows them.
