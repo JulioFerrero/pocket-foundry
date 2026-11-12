@@ -22,12 +22,13 @@ class DialogHost(private val activity: Activity, private val onClosed: () -> Uni
 
     /**
      * Closed by a tap beside it, Back, or [close]. On a screen too short for it, the parts [build] adds with a weight
-     * shrink to fit. [titleEnd] sits at the title's far end.
+     * shrink to fit. [titleEnd] sits at the title's far end. [titleLongPress]: a hidden action, on a long press on it.
      */
     fun show(title: CharSequence, widthDp: Int, back: CharSequence, vararg actions: View, titleEnd: View? = null,
-             build: LinearLayout.() -> Unit) {
+             titleLongPress: (() -> Unit)? = null, build: LinearLayout.() -> Unit) {
         Dropdown.dismissOpen()
         val heading = heading(activity, title)
+        titleLongPress?.let { action -> heading.setOnLongClickListener { action(); true } }
         val top = if (titleEnd == null) heading else row(activity) {
             add(heading)
             spacer()

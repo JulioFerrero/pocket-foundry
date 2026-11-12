@@ -110,5 +110,14 @@ class CatalogTest {
         assertTrue(entry.cpuCompression)
         assertEquals(12, entry.tested.single().android)
         assertEquals(100, entry.priority)
+        assertFalse(entry.testing)
+    }
+
+    @Test fun `a driver in testing says so`() {
+        val entry = Catalog.Entry(JSONObject("""
+            {"id": "mobileglues", "name": "MobileGlues", "kind": "gles", "testing": true,
+             "file": {"url": "https://example.com/x", "sha256": "ff", "size": 9}}"""))
+        assertEquals(Catalog.Kind.GLES, entry.kind)
+        assertTrue(entry.testing)
     }
 }

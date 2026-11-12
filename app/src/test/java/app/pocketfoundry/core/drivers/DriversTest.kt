@@ -85,12 +85,29 @@ class DriversTest {
         assertEquals(null, environment["VK_DRIVER_FILES"])
     }
 
+    @Test fun `MobileGlues draws on the phone's OpenGL ES through libhybris, without Zink or Vulkan`() {
+        val gles = entry("mobileglues", "gles", """{"MG_X": "1"}""")
+        val environment = Drivers.environment(paths, "mobileglues", gles, mapOf("FIX" to "y")) { "33" }
+        val folder = DriverImport.folder(paths, "mobileglues")
+        assertEquals("1", environment["SDL_VIDEO_FORCE_EGL"])
+        assertEquals(File(folder, "libmgx11.so").path, environment["SDL_EGL_LIBRARY"])
+        assertEquals(File(folder, "libmobileglues.so").path, environment["SDL_OPENGL_LIBRARY"])
+        assertEquals("/files/usr/lib/hybris/libEGL.so.1", environment["MG_EGL_LIBRARY"])
+        assertEquals("/files/usr/lib/hybris/libGLESv2.so.2", environment["MG_GLES_LIBRARY"])
+        assertEquals("1", environment["MG_X"])
+        assertEquals("y", environment["FIX"])
+        assertEquals("33", environment["HYBRIS_VNDK_VERSION"])
+        assertEquals(null, environment["VK_DRIVER_FILES"])
+    }
+
     @Test fun `the CPU is for any GPU, like the phone's driver`() {
         val cpu = Drivers.Driver("cpu", "CPU", Drivers.Origin.CATALOG, "", entry = entry("cpu", "cpu"))
         assertTrue(Drivers.forAnyGpu(cpu))
         assertTrue(Drivers.fits(cpu))
         assertFalse(Drivers.forAnyGpu(Drivers.Driver("turnip", "Turnip", Drivers.Origin.CATALOG, "",
                                                      entry = entry("turnip", "vulkan"))))
+        assertTrue(Drivers.forAnyGpu(Drivers.Driver("mobileglues", "MobileGlues", Drivers.Origin.CATALOG, "",
+                                                    entry = entry("mobileglues", "gles"))))
     }
 
     @Test fun `the phone's driver turns the transcoder on with a switch`() {
@@ -136,11 +153,14 @@ class DriversTest {
         assertEquals(listOf(paths.lib), Drivers.libraryPath(paths, "phone"))
     }
 
-    @Test fun `only the CPU and OpenGL drivers draw without Zink`() {
+    @Test fun `only Vulkan drivers draw through Zink`() {
         val paths = installed("freedreno", "opengl")
         installed("cpu", "cpu")
+        installed("mobileglues", "gles")
         assertFalse(Drivers.usesZink(paths, "freedreno"))
         assertFalse(Drivers.usesZink(paths, "cpu"))
+        assertFalse(Drivers.usesZink(paths, "mobileglues"))
+        assertFalse(Drivers.usesZink(paths, "listed", entry("listed", "gles")))
         assertFalse(Drivers.usesZink(paths, "listed", entry("listed", "cpu")))
         assertTrue(Drivers.usesZink(paths, "phone"))
         assertTrue(Drivers.usesZink(paths, "turnip"))

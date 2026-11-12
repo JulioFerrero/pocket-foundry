@@ -93,7 +93,7 @@ object DriverImport {
             val icd = BufferedInputStream(archive.inputStream()).use { unpack(it, staging, archive.name) }
             val libraries = staging.listFiles().orEmpty().filter { SHARED_LIBRARY.matches(it.name) }
             val info = JSONObject().put("name", entry.name).put(CATALOG, entry.json)
-            if (entry.kind.ownMesa) keep(entry.id, info, libraries, null, null, paths)
+            if (entry.kind != Catalog.Kind.VULKAN) keep(entry.id, info, libraries, null, null, paths)
             else {
                 val library = libraries.firstOrNull { it.name.startsWith("libvulkan_") }
                     ?: throw IOException("no Vulkan driver in the download")

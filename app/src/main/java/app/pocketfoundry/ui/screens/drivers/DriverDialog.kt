@@ -124,7 +124,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val phone = listOfNotNull(Gpu.name, "Android ${Catalog.android}").joinToString(" · ")
         val title = withNote(TITLE, phone, Factorio.FAINT, 15, gap = "   ")
         host.show(title, minOf(WIDTH, launcher.screenWidthDp - MARGIN), "Close", importButton, removeButton,
-                  checkButton, useButton) {
+                  checkButton, useButton, titleLongPress = ::toggleTestDrivers) {
             add(row(launcher, Gravity.TOP) {
                 add(pane(list), LIST_WIDTH, MATCH)
                 add(stack(launcher, Frame.DEEP, padding = 10) {
@@ -463,6 +463,14 @@ class DriverDialog(private val launcher: LauncherActivity) {
             // A check can unpack a new runtime, under which past games don't count: the automatic choice may move.
             listDrivers()
         }
+    }
+
+    /** The catalog's drivers not ready for players, listed or not: for testers, not shown anywhere else. */
+    private fun toggleTestDrivers() {
+        val settings = Settings(launcher)
+        settings.testDrivers = !settings.testDrivers
+        listDrivers()
+        say(if (settings.testDrivers) "Test drivers shown." else "Test drivers hidden.")
     }
 
     private fun say(text: String, error: Boolean = false) {

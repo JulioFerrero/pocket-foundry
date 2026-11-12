@@ -40,7 +40,8 @@ object Drivers {
         val paths = Paths(context)
         val listed = Catalog.get(context).drivers
         val gone = DriverImport.downloaded(paths).filter { installed -> listed.none { it.id == installed.id } }
-        return app() + (listed + gone).map(::fromCatalog) + DriverImport.all(paths)
+        val testing = Settings(context).testDrivers
+        return app() + (listed + gone).filter { testing || !it.testing }.map(::fromCatalog) + DriverImport.all(paths)
     }
 
     private fun app() = listOf(
@@ -90,8 +91,9 @@ object Drivers {
     /** Listed To try: made for another GPU of the same family. */
     fun toTry(driver: Driver) = driver.entry?.let { Catalog.mightFit(it, Gpu.name, Catalog.android) } == true
 
-    /** The phone's driver and the CPU. */
-    fun forAnyGpu(driver: Driver) = driver.origin == Origin.APP || driver.entry?.kind == Catalog.Kind.CPU
+    /** The phone's driver, the CPU and MobileGlues, on the phone's own OpenGL ES. */
+    fun forAnyGpu(driver: Driver) = driver.origin == Origin.APP ||
+        driver.entry?.kind.let { it == Catalog.Kind.CPU || it == Catalog.Kind.GLES }
 
     /** A catalog driver for neither this GPU nor its family can't be used. */
     fun fits(driver: Driver) =
@@ -103,7 +105,7 @@ object Drivers {
 
     /** A driver that didn't start is passed over until a new runtime brings new drivers. */
     fun recommended(context: Context): String {
-        val fitting = Catalog.get(context).drivers.filter { Catalog.fits(it, Gpu.name, Catalog.android) }
+        val fitting = Catalog.get(context).drivers.filter { !it.testing && Catalog.fits(it, Gpu.name, Catalog.android) }
             .sortedBy { it.priority }.map { it.id }
         return recommend(fitting, Gpu.hasVulkan(context)) { DriverRecords.outcome(context, it) == Outcome.DIDNT_START }
     }
@@ -121,11 +123,11 @@ object Drivers {
     fun isPhone(id: String) = id == PHONE
 
     /**
-     * Whether the game reaches [id] through Zink: all but the catalog's drivers with a Mesa of their own. [listed]:
-     * the catalog's entry, for one not downloaded yet.
+     * Whether the game reaches [id] through Zink: the phone's driver, imported drivers and the catalog's Vulkan ones.
+     * [listed]: the catalog's entry, for one not downloaded yet.
      */
     fun usesZink(paths: Paths, id: String, listed: Catalog.Entry? = null) =
-        (DriverImport.downloaded(paths, id) ?: listed)?.kind?.ownMesa != true
+        (DriverImport.downloaded(paths, id) ?: listed)?.kind.let { it == null || it == Catalog.Kind.VULKAN }
 
     /** Not downloaded yet, or the catalog has a newer build of it: the next game downloads [id] first. */
     fun pending(context: Context, id: String): Catalog.Entry? {
@@ -171,6 +173,9 @@ object Drivers {
      * them right ([transcoded]), else Mesa would only unpack what the CPU packed, so they load uncompressed.
      */
     fun compression(paths: Paths, id: String, transcoded: Boolean) = when {
+        // OpenGL ES with BC (Adreno) takes the GPU compressor's output; without it (Mali) the game unpacks.
+        DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES ->
+            if ("BC" in Gpu.textureFormats) Compression.GPU else Compression.NONE
         DriverImport.downloaded(paths, id)?.cpuCompression == true || DriverImport.isPanVK(id) -> Compression.CPU
         transcodable(id) -> if (transcoded) Compression.CPU else Compression.NONE
         else -> Compression.GPU
@@ -264,8 +269,12 @@ object Drivers {
         return environment(paths, id, installed, fixes)
     }
 
-    /** [installed]: a catalog driver's entry as downloaded, null for the others. [fixes]: the catalog's for it here. */
-    internal fun environment(paths: Paths, id: String, installed: Catalog.Entry?, fixes: Map<String, String>):
+    /**
+     * [installed]: a catalog driver's entry as downloaded, null for the others. [fixes]: the catalog's for it here.
+     * [vndk]: Android's VNDK version, for libhybris's linker.
+     */
+    internal fun environment(paths: Paths, id: String, installed: Catalog.Entry?, fixes: Map<String, String>,
+                             vndk: () -> String = { Runtime.properties["ro.vndk.version"].orEmpty() }):
             Map<String, String> {
         val base = mapOf("__EGL_VENDOR_LIBRARY_DIRS" to paths.eglVendors.path, "MESA_LOADER_DRIVER_OVERRIDE" to "zink")
         return base + when (id) {
@@ -275,10 +284,12 @@ object Drivers {
                            "VK_LAYER_PATH" to paths.hybris.path,
                            HYBRIS_PROPERTIES to paths.androidProperties.path,
                            // Android 10's linker config is named by it: libhybris's linker can't read properties.
-                           HYBRIS_VNDK to Runtime.properties["ro.vndk.version"].orEmpty(),
+                           HYBRIS_VNDK to vndk(),
                            "VK_INSTANCE_LAYERS" to COMPAT_LAYER) +
                 (if (Gpu.mali) MALI else emptyMap()) + (if (Gpu.powervr) POWERVR else emptyMap())
-            else -> if (installed != null) {
+            else -> if (installed?.kind == Catalog.Kind.GLES) {
+                mobileGlues(paths, DriverImport.folder(paths, id), vndk()) + installed.env + fixes
+            } else if (installed != null) {
                 val icd = DriverImport.icd(paths, id).path
                 val vulkan = if (installed.kind.ownMesa) emptyMap() else mapOf("VK_DRIVER_FILES" to icd)
                 vulkan + installed.env + fixes
@@ -288,6 +299,27 @@ object Drivers {
             }
         }
     }
+
+    /**
+     * SDL makes the game's OpenGL context with [folder]'s EGL, a shim to MobileGlues' (libmgx11.so, from
+     * pocket-foundry-drivers): MobileGlues turns OpenGL into the phone's OpenGL ES, which libhybris's EGL and GLES
+     * load (runtime/hybris), and the shim gives SDL's X11 window a pbuffer the GPU copies into Android hardware buffers
+     * the X server shows. No Zink, no Vulkan.
+     */
+    private fun mobileGlues(paths: Paths, folder: File, vndk: String) = mapOf(
+        "SDL_VIDEO_FORCE_EGL" to "1",
+        "SDL_EGL_LIBRARY" to File(folder, "libmgx11.so").path,
+        "SDL_OPENGL_LIBRARY" to File(folder, "libmobileglues.so").path,
+        "MG_LIBRARY" to File(folder, "libmobileglues.so").path,
+        "MG_EGL_LIBRARY" to File(paths.hybris, "libEGL.so.1").path,
+        "MG_GLES_LIBRARY" to File(paths.hybris, "libGLESv2.so.2").path,
+        "MG_DIR_PATH" to File(folder, "mobileglues").path,
+        // libhybris's EGL draws offscreen only: the shim shows the frames.
+        "EGL_PLATFORM" to "null",
+        HYBRIS_PROPERTIES to paths.androidProperties.path,
+        HYBRIS_VNDK to vndk)
+
+    private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
 
     /**
      * Factorio needs OpenGL 3.3, which Zink offers only on Vulkan drivers with depth clamp and vertex attribute
@@ -300,8 +332,6 @@ object Drivers {
      * The X server copies a frame it doesn't flip with the CPU, which Google's allocator on PowerVR allows only for
      * buffers made for it: without them it stopped at the first frame (runtime/hybris patch 0006).
      */
-    private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
-
     private val POWERVR = mapOf("HYBRIS_WSI_CPU_ACCESS" to "1")
 
     private val MALI = mapOf("MESA_GL_VERSION_OVERRIDE" to "3.3",

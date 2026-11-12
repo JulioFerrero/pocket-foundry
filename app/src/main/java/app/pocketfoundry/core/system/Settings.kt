@@ -27,6 +27,8 @@ class Settings(context: Context) {
      * of building them again: on the vivo X200 Ultra 3 s instead of 20, with a third less memory.
      */
     var fastStart by prefs.bool("fastStart", true)
+    /** The catalog's drivers marked testing, in Settings -> Driver: a long press on its title turns them on and off. */
+    var testDrivers by prefs.bool("testDrivers", false)
     /** Factorio's extra effects off (smoke, clouds, decoratives, shadows, terrain effects…): fewer pixels to draw. */
     var lightGraphics by prefs.bool(LIGHT_GRAPHICS, false)
     /** The player set the resolution, sprites or graphics: a driver's speed test leaves them as they are. */

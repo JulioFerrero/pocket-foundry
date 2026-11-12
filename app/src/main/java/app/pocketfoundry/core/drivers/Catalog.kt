@@ -26,10 +26,12 @@ import java.util.Locale
  */
 object Catalog {
     /**
-     * A Vulkan driver the game reaches through the runtime's Zink, or a whole Mesa of its own ([ownMesa]): an OpenGL
-     * driver, or the CPU, which is for any GPU. Apps before 0.8.17-beta.10 skip the CPU's entry, having their own.
+     * A Vulkan driver the game reaches through the runtime's Zink; a whole Mesa of its own ([ownMesa]): an OpenGL
+     * driver, or the CPU, which is for any GPU; or GLES: MobileGlues, which turns the game's OpenGL into the phone's
+     * own OpenGL ES, loaded through libhybris, for any GPU too. Only VULKAN goes through Zink. Apps skip a kind they
+     * don't know: before 0.8.17-beta.10 the CPU's, before 0.8.18-beta.2 GLES.
      */
-    enum class Kind(val ownMesa: Boolean) { VULKAN(false), OPENGL(true), CPU(true) }
+    enum class Kind(val ownMesa: Boolean) { VULKAN(false), OPENGL(true), CPU(true), GLES(false) }
 
     class Setting(val id: String, val label: String, val about: String, val env: Map<String, String>)
 
@@ -55,6 +57,8 @@ object Catalog {
         }
         /** Factorio's GPU texture compressor fails on some drivers (PanVK): the CPU compresses instead. */
         val cpuCompression = json.optString("compression") == "cpu"
+        /** Not ready for players: listed only with Settings.testDrivers, and never chosen by itself. */
+        val testing = json.optBoolean("testing")
         val tested = json.optJSONArray("tested")?.objects().orEmpty().map {
             Test(it.getString("phone"), it.optString("gpu"), it.optInt("android").takeIf { a -> a > 0 },
                  it.optString("result"), it.optString("fps").ifEmpty { null })
