@@ -40,9 +40,9 @@ Pocket Foundry picks the driver for the phone's GPU by itself. If it doesn't sta
 
 The phone's own driver is new: reports from Mali, Xclipse and PowerVR phones help.
 
-**Loads, but slow?** It may be on the CPU, where the game ends up when no GPU driver starts. **Settings -> Driver**
-shows which one is in use and how the last game with each went. [Phones and drivers](docs/phones.md) has the
-community drivers and the phones people report working.
+**Loads, but slow?** It may be on the CPU, where the game ends up when no GPU driver starts, not even MobileGlues.
+**Settings -> Driver** shows which one is in use and how the last game with each went.
+[Phones and drivers](docs/phones.md) has the community drivers and the phones people report working.
 
 ## More
 

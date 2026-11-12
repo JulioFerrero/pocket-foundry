@@ -41,17 +41,23 @@ class DriversTest {
         assertEquals(mapOf("A" to "'x"), Drivers.parseOptions("A='x y'"))
     }
 
-    @Test fun `the catalog's drivers for the GPU first, then the phone's own, then the CPU`() {
-        assertEquals("turnip", Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true) { false })
-        assertEquals("phone", Drivers.recommend(emptyList(), vulkan = true) { false })
-        assertEquals("cpu", Drivers.recommend(emptyList(), vulkan = false) { false })
+    private val gles = listOf("mobileglues")
+
+    @Test fun `the catalog's drivers for the GPU first, then the phone's own, then MobileGlues, then the CPU`() {
+        assertEquals("turnip", Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true, gles) { false })
+        assertEquals("phone", Drivers.recommend(emptyList(), vulkan = true, gles) { false })
+        assertEquals("mobileglues", Drivers.recommend(emptyList(), vulkan = false, gles) { false })
+        assertEquals("cpu", Drivers.recommend(emptyList(), vulkan = false, emptyList()) { false })
     }
 
     @Test fun `a driver that didn't start is passed over`() {
-        assertEquals("freedreno", Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true) { it == "turnip" })
-        assertEquals("phone", Drivers.recommend(listOf("turnip"), vulkan = true) { it == "turnip" })
-        assertEquals("cpu", Drivers.recommend(emptyList(), vulkan = true) { it == "phone" })
-        assertEquals("cpu", Drivers.recommend(listOf("turnip"), vulkan = true) { true })
+        assertEquals("freedreno",
+                     Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true, gles) { it == "turnip" })
+        assertEquals("phone", Drivers.recommend(listOf("turnip"), vulkan = true, gles) { it == "turnip" })
+        assertEquals("mobileglues", Drivers.recommend(emptyList(), vulkan = true, gles) { it == "phone" })
+        assertEquals("cpu",
+                     Drivers.recommend(emptyList(), vulkan = true, gles) { it == "phone" || it == "mobileglues" })
+        assertEquals("cpu", Drivers.recommend(listOf("turnip"), vulkan = true, gles) { true })
     }
 
     private val paths = Paths(File("/files"), File("/lib"))

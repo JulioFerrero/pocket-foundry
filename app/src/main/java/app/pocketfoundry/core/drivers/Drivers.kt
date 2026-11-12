@@ -16,7 +16,7 @@ import java.util.Locale
 
 /**
  * The app has one driver of its own, the phone's. The others come from the catalog (Catalog), which the app downloads
- * before a game: the GPU drivers, and the CPU, which a game falls back on. Players can import others.
+ * before a game: the GPU drivers, and MobileGlues and the CPU, which a game falls back on. Players can import others.
  */
 object Drivers {
     enum class Origin { APP, CATALOG, IMPORTED }
@@ -105,14 +105,21 @@ object Drivers {
 
     /** A driver that didn't start is passed over until a new runtime brings new drivers. */
     fun recommended(context: Context): String {
-        val fitting = Catalog.get(context).drivers.filter { !it.testing && Catalog.fits(it, Gpu.name, Catalog.android) }
-            .sortedBy { it.priority }.map { it.id }
-        return recommend(fitting, Gpu.hasVulkan(context)) { DriverRecords.outcome(context, it) == Outcome.DIDNT_START }
+        val listed = Catalog.get(context).drivers.filter { !it.testing }.sortedBy { it.priority }
+        val fitting = listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id }
+        val gles = listed.filter { it.kind == Catalog.Kind.GLES }.map { it.id }
+        return recommend(fitting, Gpu.hasVulkan(context), gles) {
+            DriverRecords.outcome(context, it) == Outcome.DIDNT_START
+        }
     }
 
-    /** [fitting]: the catalog's drivers for this GPU, best first. */
-    internal fun recommend(fitting: List<String>, vulkan: Boolean, didntStart: (String) -> Boolean): String =
-        (fitting + listOfNotNull(PHONE.takeIf { vulkan })).firstOrNull { !didntStart(it) } ?: CPU
+    /**
+     * [fitting]: the catalog's drivers for this GPU, best first. [gles]: its ones on the phone's own OpenGL ES, for
+     * any GPU, which play where the CPU would crawl.
+     */
+    internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>,
+                           didntStart: (String) -> Boolean): String =
+        (fitting + listOfNotNull(PHONE.takeIf { vulkan }) + gles).firstOrNull { !didntStart(it) } ?: CPU
 
     fun record(context: Context, id: String, outcome: Outcome) =
         switching(context) { DriverRecords.setOutcome(context, id, outcome) }
@@ -244,16 +251,18 @@ object Drivers {
 
     /**
      * The CPU driver gets Medium sprites, Light graphics and the coarser resolution it was made for. Malis get Medium
-     * sprites too: High crashed PanVK while loading, and their own driver loads them unpacked. A GPU driver gets the
-     * resolution its speed test found, and Light graphics if even the coarsest was too slow. [onlyUnset] keeps what
-     * the player chose.
+     * sprites too: High crashed PanVK while loading, and their own driver loads them unpacked. So does MobileGlues:
+     * High ran a vivo X200 Ultra out of memory. A GPU driver gets the resolution its speed test found, and Light
+     * graphics if even the coarsest was too slow. [onlyUnset] keeps what the player chose.
      */
     private fun setGraphicsDefaults(context: Context, cpu: Boolean, onlyUnset: Boolean) {
         val settings = Settings(context)
-        val fit = if (cpu) null
-                  else SpeedTest.fit(context, DriverCheck.speed(context, chosen(context)), settings.frameRate)
-        settings.setGraphicsDefaults(if (cpu || Gpu.mali) Settings.MEDIUM else Settings.HIGH, cpu || fit?.light == true,
-                                     onlyUnset)
+        val driver = chosen(context)
+        val fit = if (cpu) null else SpeedTest.fit(context, DriverCheck.speed(context, driver), settings.frameRate)
+        val gles = (DriverImport.downloaded(Paths(context), driver) ?: Catalog.get(context).find(driver))?.kind ==
+            Catalog.Kind.GLES
+        settings.setGraphicsDefaults(if (cpu || Gpu.mali || gles) Settings.MEDIUM else Settings.HIGH,
+                                     cpu || fit?.light == true, onlyUnset)
         val x11 = X11Prefs(context)
         if (!onlyUnset || !x11.hasResolutionScale) x11.resolutionScale = fit?.scale ?: x11.startingResolutionScale(cpu)
     }
