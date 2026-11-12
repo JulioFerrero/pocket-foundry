@@ -40,7 +40,8 @@ object Session {
     /** A files/usr/bin program that DebugPad or debug.env's test.program may run: no paths. */
     private val TOOL_NAME = Regex("[a-z0-9-]+")
 
-    private const val X_START_TIMEOUT_MS = 10_000L
+    /** A Galaxy A03s's ART, without its boot image, needs 6 s to reach the X server's main. */
+    private const val X_START_TIMEOUT_MS = 30_000L
     private const val X_POLL_MS = 50L
     private const val KILL_AFTER_MS = 10_000L
     private const val WINDOW_TIMEOUT_MS = 60_000L
@@ -243,7 +244,11 @@ object Session {
         val deadline = System.currentTimeMillis() + X_START_TIMEOUT_MS
         while (!paths.xSocket.exists()) {
             if (!server.isAlive) throw IOException("The X server exited; see ${paths.x11Log.name}")
-            if (System.currentTimeMillis() > deadline) throw IOException("The X server didn't start in ${X_START_TIMEOUT_MS / 1000} s")
+            if (System.currentTimeMillis() > deadline) {
+                // On a Galaxy A03s one still starting outlived destroy()'s SIGTERM and slowed the next start.
+                server.destroyForcibly()
+                throw IOException("The X server didn't start in ${X_START_TIMEOUT_MS / 1000} s")
+            }
             Thread.sleep(X_POLL_MS)
         }
         ScreenLog.add("X server started")

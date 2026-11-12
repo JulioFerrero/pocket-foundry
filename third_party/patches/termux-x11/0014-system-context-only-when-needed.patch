@@ -1,0 +1,22 @@
+--- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
++++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+@@ -112,6 +112,10 @@
+             Log.e("Broadcast", "Failed to broadcast as the app, falling back to the system context:", e);
+         }
+         try {
++            // Pocket Foundry: made only now. Made at start, it loaded the framework's resources before the X server
++            // could start, which took minutes on a phone whose ART runs without its boot image (a Galaxy A03s).
++            if (ctx == null)
++                ctx = createContext();
+             ctx.sendBroadcast(intent);
+             if (report)
+                 System.err.println("CmdEntryPoint: announced the X server to the app, through the system context");
+@@ -209,8 +213,6 @@
+     }
+ 
+     private static void initEntryPoint() {
+-        ctx = createContext();
+-
+         String path = "lib/" + (android.os.Process.is64Bit() ? Build.SUPPORTED_64_BIT_ABIS[0] : Build.SUPPORTED_32_BIT_ABIS[0]) + "/libXlorie.so";
+         ClassLoader loader = CmdEntryPoint.class.getClassLoader();
+         URL res = loader != null ? loader.getResource(path) : null;
