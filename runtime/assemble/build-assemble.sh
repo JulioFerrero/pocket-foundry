@@ -60,6 +60,7 @@ mkdir -p $USR/lib/gconv
 cp -r $GLIBC/lib/gconv/gconv-modules $GLIBC/lib/gconv/gconv-modules.d $USR/lib/gconv/
 for m in UTF-16 UTF-32 UTF-7 UNICODE ISO8859-1 ISO8859-15 CP1252; do cp $GLIBC/lib/gconv/$m.so $USR/lib/gconv/; done
 # The C.UTF-8 locale that LANG names, made with our glibc's localedef: without it setlocale() falls back to "C".
+mkdir -p "$WORK"
 gzip -dc $GLIBC/share/i18n/charmaps/UTF-8.gz > "$WORK/UTF-8"
 mkdir -p $USR/lib/locale
 I18NPATH=$GLIBC/share/i18n $RUN $GLIBC/lib/ld-linux-aarch64.so.1 --library-path $GLIBC/lib $GLIBC/bin/localedef \
