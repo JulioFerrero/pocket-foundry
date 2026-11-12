@@ -45,9 +45,10 @@ Mali-G925. If it doesn't start, the next game runs on the CPU. How it runs on yo
 Experimental, from 0.8.18-beta.3: under For any GPU in **Settings -> Driver**, and never picked by itself.
 [MobileGlues](https://github.com/MobileGL-Dev/MobileGlues), made for Minecraft, turns the game's OpenGL into the
 OpenGL ES driver the phone already has, loaded through libhybris: no Zink and no Vulkan, so it can run where the
-phone's Vulkan driver fails. It plays at 59 FPS on an Adreno 830 and 20-30 FPS on a Redmi 12's Mali-G52. Malis lack
-the game's compressed textures, so it loads them uncompressed there: keep Sprite quality on Medium. Its build, with
-two fixes for Factorio, is in [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers).
+phone's Vulkan driver fails. It plays at 59 FPS on an Adreno 830 and 45-60 FPS on a Redmi 12's Mali-G52, where the
+processor works on the next frame while the GPU draws. Malis lack the game's compressed textures, so it loads them
+uncompressed there: keep Sprite quality on Medium. Its build, with fixes for Factorio, is in
+[pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers).
 
 ## Xclipse (Samsung Exynos)
 
@@ -129,7 +130,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Infinix Hot 60i | Mali-G52 | Phone's driver | 35–52 FPS, Medium sprites, Light graphics ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)) |
 | Redmi Note 9 | Mali-G52 | soulexit's PanVK | 25–32 FPS, Medium sprites, Light graphics ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)) |
 | Redmi 12 | Mali-G52 | soulexit's PanVK | 26–33 FPS, Medium sprites, textures kept compressed, since 0.8.18-beta.1 |
-| Redmi 12 | Mali-G52 | MobileGlues | 20–30 FPS at 1112×490, Medium sprites, Light graphics, since 0.8.18-beta.3 |
+| Redmi 12 | Mali-G52 | MobileGlues | 45–60 FPS (60 standing, 45 moving), since MobileGlues 2.1.0 |
 | vivo X200 Ultra | Adreno 830 | MobileGlues | 59 FPS at 3016×1290, Medium sprites, since 0.8.18-beta.2 |
 | Galaxy Tab S6 Lite | Mali-G72 | Phone's driver | 29–60 FPS at 1000×600, Medium sprites, Light graphics, since 0.8.16 ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
 | Pixel 6 | Mali-G78 | [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
