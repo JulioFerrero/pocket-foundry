@@ -16,6 +16,8 @@ rm -rf "$SRC" && mkdir -p "$SRC" && tar -xzf mesa-$COMMIT.tar.gz -C "$SRC" --str
 cd "$SRC"
 for p in "$RUNTIME"/mesa/patches/*.patch; do patch -p1 --silent < "$p"; done
 
+# Without SPIRV-Tools, which Mesa only uses to print a shader it can't parse: 0.7 MB, and Debian's arm64 copy is found
+# only on arm64 machines.
 meson setup build $MESON_CROSS \
     --prefix=$PREFIX --libdir=lib --buildtype=release -Db_ndebug=true \
     -Dplatforms=x11 \
@@ -28,7 +30,8 @@ meson setup build $MESON_CROSS \
     -Dvulkan-layers=[] -Dtools=[] -Dbuild-tests=false -Dhtml-docs=disabled \
     -Dvalgrind=disabled -Dlibunwind=disabled -Dlmsensors=disabled \
     -Dxlib-lease=disabled -Dandroid-libbacktrace=disabled \
-    -Dzstd=enabled -Dexpat=enabled
+    -Dzstd=enabled -Dexpat=enabled \
+    -Dspirv-tools=disabled
 
 ninja -C build
 rm -rf "$OUT/mesa" && DESTDIR="$OUT/mesa" ninja -C build install
