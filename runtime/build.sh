@@ -3,15 +3,19 @@
 #   runtime/build.sh all          the pieces whose sources changed since they were built, then the pack
 #   runtime/build.sh mesa sdl     those pieces, then the pack
 #   runtime/build.sh --stale      what `all` would build
+# With --here first, it builds on this machine instead, Debian 13 set up by deps.sh: F-Droid's build server, which
+# cross-compiles on x86-64.
 set -e
 cd "$(dirname "$0")"
+here=
+[ "$1" = --here ] && { here=1; shift; }
 PREFIX=/data/data/app.pocketfoundry/files/usr   # where the app unpacks the runtime (core/system/Paths.kt)
 # In build order: hybris compiles against Mesa's Vulkan headers.
 PIECES="glibc mesa sdl programs hybris"
 
 # This script counts as a source because the pieces are built for its PREFIX.
 sources() {
-    from="$1 Dockerfile build.sh"
+    from="$1 Dockerfile deps.sh toolchain.sh aarch64.ini build.sh"
     [ "$1" = hybris ] && from="$from mesa"
     if [ -n "$(git status --porcelain -- $from)" ]; then echo "uncommitted $(date +%s)"
     else for f in $from; do git rev-parse "HEAD:./$f"; done | tr '\n' ' '; echo; fi
@@ -51,15 +55,22 @@ case "$1" in
 esac
 
 mkdir -p out cache
-docker build --platform linux/arm64 -t pocketfoundry-build -f Dockerfile .
-# A piece, built in the container; what follows its name goes to docker run.
-run() {
-    piece=$1
-    shift
-    docker run --rm --platform linux/arm64 -e PREFIX="$PREFIX" "$@" \
-        -v "$PWD:/runtime:ro" -v "$PWD/out:/out" -v "$PWD/cache:/cache" \
-        pocketfoundry-build bash "/runtime/$piece/build-$piece.sh"
-}
+# A piece: its script sees this folder as RUNTIME, writes to OUT, downloads to CACHE and unpacks to WORK.
+if [ -n "$here" ]; then
+    run() {
+        env PREFIX="$PREFIX" VERSION="${VERSION:-}" RUNTIME="$PWD" OUT="$PWD/out" CACHE="$PWD/cache" WORK="$PWD/work" \
+            bash "$1/build-$1.sh"
+    }
+else
+    docker build --platform linux/arm64 -t pocketfoundry-build -f Dockerfile .
+    # WORK stays in the container: a Mac bind mount is slow for builds.
+    run() {
+        docker run --rm --platform linux/arm64 -e PREFIX="$PREFIX" -e VERSION="${VERSION:-}" \
+            -e RUNTIME=/runtime -e OUT=/out -e CACHE=/cache -e WORK=/work \
+            -v "$PWD:/runtime:ro" -v "$PWD/out:/out" -v "$PWD/cache:/cache" \
+            pocketfoundry-build bash "/runtime/$1/build-$1.sh"
+    }
+fi
 for piece in $pieces; do
     run $piece
     sources $piece > "out/$piece.stamp"
@@ -67,6 +78,6 @@ done
 version=$(version)
 if [ "$(cat out/assemble.stamp 2>/dev/null)" != "$version" ]; then
     # The container writes out/ as root on Linux: the version goes in from there.
-    run assemble -e VERSION="$version"
+    VERSION=$version run assemble
     echo "$version" > out/assemble.stamp
 fi

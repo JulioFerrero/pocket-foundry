@@ -1,16 +1,17 @@
 #!/bin/bash
-# Runs inside the build container: glibc with Termux's Android patches, mirroring termux-patches/build.sh for aarch64.
+# A piece (build.sh): glibc with Termux's Android patches, mirroring termux-patches/build.sh for aarch64.
 set -euo pipefail
+. "$RUNTIME/toolchain.sh"
 
 VERSION=2.44
 SHA256=37f600f2bef3c5e8300147059568b2a2e40a7ad6ccc65ce942556d49429cc667
-PATCHES=/runtime/glibc/termux-patches
-SRC=/work/glibc-$VERSION   # container-local: a Mac bind mount is slow for builds
+PATCHES=$RUNTIME/glibc/termux-patches
+SRC=$WORK/glibc-$VERSION
 
-cd /cache
+cd "$CACHE"
 [ -f glibc-$VERSION.tar.xz ] || curl -fLO https://ftp.gnu.org/gnu/libc/glibc-$VERSION.tar.xz
 echo "$SHA256  glibc-$VERSION.tar.xz" | sha256sum -c
-rm -rf "$SRC" && mkdir -p /work && tar -xf glibc-$VERSION.tar.xz -C /work
+rm -rf "$SRC" && mkdir -p "$WORK" && tar -xf glibc-$VERSION.tar.xz -C "$WORK"
 cd "$SRC"
 
 # system()/popen() get Android's shell: an app can't exec files from its data dir.
@@ -19,7 +20,7 @@ for p in "$PATCHES"/*.patch; do
         -e "s#@TERMUX_PREFIX_CLASSICAL@#$PREFIX#g" \
         -e "s#@TERMUX_PREFIX@#$PREFIX#g" "$p" | patch -p1 --silent
 done
-for p in /runtime/glibc/patches/*.patch; do
+for p in "$RUNTIME"/glibc/patches/*.patch; do
     patch -p1 --silent < "$p"
 done
 
@@ -81,13 +82,13 @@ mkdir -p build && cd build
 } > configparms
 ../configure \
     --prefix=$PREFIX --libdir=$PREFIX/lib --libexecdir=$PREFIX/lib --includedir=$PREFIX/include \
-    --host=aarch64-linux-gnu --build=aarch64-linux-gnu \
+    --host=$T --build="$(gcc -dumpmachine)" \
     --with-pkgversion="GNU libc for Android/app.pocketfoundry" \
     --enable-bind-now --enable-fortify-source --disable-multi-arch \
     --enable-stack-protector=strong --disable-nscd --disable-profile --disable-werror \
     --disable-default-pie --enable-memory-tagging
 
 make -O -j"$(nproc)"
-rm -rf /out/glibc && make install DESTDIR=/out/glibc
-rm -f /out/glibc$PREFIX/etc/ld.so.cache
-echo "built: $(/out/glibc$PREFIX/lib/ld-linux-aarch64.so.1 --version | head -1)"
+rm -rf "$OUT/glibc" && make install DESTDIR="$OUT/glibc"
+rm -f "$OUT/glibc$PREFIX/etc/ld.so.cache"
+echo "built: $($RUN "$OUT/glibc$PREFIX/lib/ld-linux-aarch64.so.1" --version | head -1)"
