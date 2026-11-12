@@ -193,7 +193,9 @@ object Session {
         }
         // Before the game's config and its UI scale, which follow the graphics and resolution.
         if (!testing) Drivers.useSpeedTest(context, driver)
-        FactorioConfig.write(context, paths, keyboard, Drivers.compression(paths, driver, applied.transcodes))
+        FactorioConfig.write(context, paths, keyboard,
+                             Drivers.compression(paths, driver, applied.transcodes, applied.environment),
+                             Drivers.maxTextureSize(paths, driver))
         val uiScale = "%.4f".format(Locale.ROOT, X11Prefs(context).uiScale)
         val started = Program.start(paths, command, paths.gameLog,
                                     Sdl.environment(paths) + applied.environment +

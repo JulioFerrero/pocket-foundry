@@ -172,14 +172,23 @@ object Drivers {
      * formats: on their own driver the transcoder keeps the textures compressed where the driver check found it draws
      * them right ([transcoded]), else Mesa would only unpack what the CPU packed, so they load uncompressed.
      */
-    fun compression(paths: Paths, id: String, transcoded: Boolean) = when {
-        // OpenGL ES with BC (Adreno) takes the GPU compressor's output; without it (Mali) the game unpacks.
+    fun compression(paths: Paths, id: String, transcoded: Boolean,
+                    environment: Map<String, String> = emptyMap()) = when {
+        // OpenGL ES with BC (Adreno) takes the GPU compressor's output; without it (Mali), or with MobileGlues told to
+        // act as if (MG_BC_DECODE=1, in Options), the game unpacks.
         DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES ->
-            if ("BC" in Gpu.textureFormats) Compression.GPU else Compression.NONE
+            if ("BC" in Gpu.textureFormats && environment["MG_BC_DECODE"] != "1") Compression.GPU else Compression.NONE
         DriverImport.downloaded(paths, id)?.cpuCompression == true || DriverImport.isPanVK(id) -> Compression.CPU
         transcodable(id) -> if (transcoded) Compression.CPU else Compression.NONE
         else -> Compression.GPU
     }
+
+    /**
+     * Factorio sizes its atlases from the GPU memory it finds, which it can't through MobileGlues: it then made them as
+     * large as the phone's OpenGL ES allows (16383 on a Mali-G52). 8192, as it picks through Zink on the same phones.
+     */
+    fun maxTextureSize(paths: Paths, id: String): Int? =
+        8192.takeIf { DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES }
 
     /**
      * Whether the game's BC textures on [id] can go through the compat layer's transcoder, if the driver check finds

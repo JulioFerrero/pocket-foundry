@@ -45,6 +45,8 @@ object DriverImport {
      */
     private const val ICD = "icd.json"
     private const val INFO = "driver.json"
+    private const val MOBILEGLUES = "libmobileglues.so"
+    private const val MOBILEGLUES_SHIM = "libmgx11.so"
     private const val CATALOG = "catalog"
 
     fun folder(paths: Paths, id: String) = File(paths.drivers, id)
@@ -114,6 +116,8 @@ object DriverImport {
             val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Can't open the selected file")
             val icd = BufferedInputStream(input).use { unpack(it, staging, fileName) }
             val libraries = staging.listFiles().orEmpty().filter { SHARED_LIBRARY.matches(it.name) }
+            if (libraries.any { it.name == MOBILEGLUES } && libraries.any { it.name == MOBILEGLUES_SHIM })
+                return keepMobileGlues(paths, libraries, fileName)
             val named = icd?.optString("library_path")?.substringAfterLast('/')
             val library = libraries.firstOrNull { it.name == named }
                 ?: libraries.singleOrNull { it.name.startsWith("libvulkan_") }
@@ -131,6 +135,21 @@ object DriverImport {
         } finally {
             staging.deleteRecursively()
         }
+    }
+
+    /**
+     * A package of pocket-foundry-drivers' gles kind (MobileGlues and its shim), to try a build before it's in the
+     * catalog: kept as a downloaded one, which the catalog has no newer build of.
+     */
+    private fun keepMobileGlues(paths: Paths, libraries: List<File>, fileName: String?): Drivers.Driver {
+        val id = "mobileglues-" + libraries.first { it.name == MOBILEGLUES }.sha256().take(8)
+        val entry = JSONObject().put("id", id).put("name", "MobileGlues (imported)").put("kind", "gles")
+            .put("version", "imported").put("about", "MobileGlues imported from ${fileName ?: "a file"}.")
+            .put("for", "Any GPU").put("file", JSONObject().put("url", "").put("sha256", "").put("size", 0))
+        keep(id, JSONObject().put("name", entry.getString("name")).put(CATALOG, entry), libraries, null, null, paths)
+        val listed = Catalog.Entry(entry)
+        return Drivers.Driver(id, listed.name, Drivers.Origin.CATALOG, listed.version, listed.about, listed.forGpus,
+                              listed)
     }
 
     private fun unpack(stream: BufferedInputStream, staging: File, fileName: String?): JSONObject? {

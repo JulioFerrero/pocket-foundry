@@ -21,7 +21,9 @@ object FactorioConfig {
      */
     private const val UNCOMPRESSED_APPLIED = "uncompressedApplied"
 
-    fun write(context: Context, paths: Paths, keyboard: Boolean, compression: Compression) {
+    /** [maxTextureSize]: the largest atlas side to make, where Factorio's own guess fails it; null leaves it be. */
+    fun write(context: Context, paths: Paths, keyboard: Boolean, compression: Compression,
+              maxTextureSize: Int? = null) {
         val settings = Settings(context)
         val prefs = Settings.prefs(context)
         val light = settings.lightGraphics
@@ -30,7 +32,7 @@ object FactorioConfig {
         // Factorio derives its paths from its executable (here the loader), so name them.
         val config = update(old, paths.gameReadData.path, paths.gameData.path, keyboard, settings.spriteQuality,
                             compression, textures(uncompressed, prefs.getBoolean(UNCOMPRESSED_APPLIED, true)),
-                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), settings.fastStart)
+                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), settings.fastStart, maxTextureSize)
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
         prefs.edit().putBoolean(LIGHT_APPLIED, light).putBoolean(UNCOMPRESSED_APPLIED, uncompressed).apply()
@@ -53,7 +55,8 @@ object FactorioConfig {
     internal fun effects(light: Boolean, lightApplied: Boolean): Boolean? = if (light || lightApplied) !light else null
 
     internal fun update(ini: String, readData: String, writeData: String, keyboard: Boolean, spriteQuality: String,
-                        compression: Compression, textures: String?, effects: Boolean?, atlasCache: Boolean): String {
+                        compression: Compression, textures: String?, effects: Boolean?, atlasCache: Boolean,
+                        maxTextureSize: Int? = null): String {
         var config = if (ini.startsWith("; version=")) ini else VERSION_HEADER
         config = setIni(config, "path", "read-data", readData)
         config = setIni(config, "path", "write-data", writeData)
@@ -73,6 +76,7 @@ object FactorioConfig {
         // their compression or the mods change.
         config = setIni(config, "graphics", "cache-sprite-atlas", atlasCache.toString())
         config = setIni(config, "graphics", "compress-sprite-atlas-cache", "true")
+        if (maxTextureSize != null) config = setIni(config, "graphics", "max-texture-size", maxTextureSize.toString())
         return config
     }
 

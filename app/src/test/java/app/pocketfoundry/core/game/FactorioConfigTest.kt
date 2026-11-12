@@ -9,14 +9,20 @@ import org.junit.Test
 
 class FactorioConfigTest {
     private fun update(ini: String, keyboard: Boolean = false, compression: Compression = Compression.GPU,
-                       textures: String? = null, effects: Boolean? = null, atlasCache: Boolean = true) =
+                       textures: String? = null, effects: Boolean? = null, atlasCache: Boolean = true,
+                       maxTextureSize: Int? = null) =
         FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", compression, textures, effects,
-                              atlasCache)
+                              atlasCache, maxTextureSize)
 
     /** [key]'s value in [section], or null. */
     private fun value(ini: String, section: String, key: String) = ini.lines()
         .dropWhile { it != "[$section]" }.drop(1).takeWhile { !it.startsWith("[") }
         .firstOrNull { it.startsWith("$key=") }?.substringAfter('=')
+
+    @Test fun `a driver Factorio can't size the atlases for gets them at most 8192 wide, the others as they were`() {
+        assertEquals("8192", value(update("", maxTextureSize = 8192), "graphics", "max-texture-size"))
+        assertNull(value(update(""), "graphics", "max-texture-size"))
+    }
 
     @Test fun `setIni adds a missing section at the end`() {
         assertEquals("; version=13\n[general]\nlocale=\n\n[graphics]\na=1\n",
