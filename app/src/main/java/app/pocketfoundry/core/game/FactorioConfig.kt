@@ -21,9 +21,9 @@ object FactorioConfig {
      */
     private const val UNCOMPRESSED_APPLIED = "uncompressedApplied"
 
-    /** [maxTextureSize]: the largest atlas side to make, where Factorio's own guess fails it; null leaves it be. */
+    /** [noGpuMemory]: the driver hides the GPU's memory from Factorio, which then guesses wrong (update). */
     fun write(context: Context, paths: Paths, keyboard: Boolean, compression: Compression,
-              maxTextureSize: Int? = null) {
+              noGpuMemory: Boolean = false) {
         val settings = Settings(context)
         val prefs = Settings.prefs(context)
         val light = settings.lightGraphics
@@ -32,7 +32,7 @@ object FactorioConfig {
         // Factorio derives its paths from its executable (here the loader), so name them.
         val config = update(old, paths.gameReadData.path, paths.gameData.path, keyboard, settings.spriteQuality,
                             compression, textures(uncompressed, prefs.getBoolean(UNCOMPRESSED_APPLIED, true)),
-                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), settings.fastStart, maxTextureSize)
+                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), settings.fastStart, noGpuMemory)
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
         prefs.edit().putBoolean(LIGHT_APPLIED, light).putBoolean(UNCOMPRESSED_APPLIED, uncompressed).apply()
@@ -56,7 +56,7 @@ object FactorioConfig {
 
     internal fun update(ini: String, readData: String, writeData: String, keyboard: Boolean, spriteQuality: String,
                         compression: Compression, textures: String?, effects: Boolean?, atlasCache: Boolean,
-                        maxTextureSize: Int? = null): String {
+                        noGpuMemory: Boolean = false): String {
         var config = if (ini.startsWith("; version=")) ini else VERSION_HEADER
         config = setIni(config, "path", "read-data", readData)
         config = setIni(config, "path", "write-data", writeData)
@@ -76,7 +76,13 @@ object FactorioConfig {
         // their compression or the mods change.
         config = setIni(config, "graphics", "cache-sprite-atlas", atlasCache.toString())
         config = setIni(config, "graphics", "compress-sprite-atlas-cache", "true")
-        if (maxTextureSize != null) config = setIni(config, "graphics", "max-texture-size", maxTextureSize.toString())
+        // Finding no GPU memory, Factorio made its atlases as large as the driver allows (16383 on a Mali-G52) and
+        // streamed sprites in while playing, each piece kept as ASTC on a Mali by MobileGlues: 7 FPS on a Redmi 12's
+        // main menu. What it picks through Zink on the same phones.
+        if (noGpuMemory) {
+            config = setIni(config, "graphics", "max-texture-size", "8192")
+            config = setIni(config, "graphics", "texture-streaming", "false")
+        }
         return config
     }
 

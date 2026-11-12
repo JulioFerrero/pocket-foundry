@@ -181,21 +181,22 @@ object Drivers {
      */
     fun compression(paths: Paths, id: String, transcoded: Boolean,
                     environment: Map<String, String> = emptyMap()) = when {
-        // OpenGL ES with BC (Adreno) takes the GPU compressor's output; without it (Mali), or with MobileGlues told to
-        // act as if (MG_BC_DECODE=1, in Options), the game unpacks.
-        DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES ->
-            if ("BC" in Gpu.textureFormats && environment["MG_BC_DECODE"] != "1") Compression.GPU else Compression.NONE
+        // On a GPU with BC (Adreno) the game's GPU compressor feeds it. Without (Mali, PowerVR) the CPU compresses:
+        // the GPU compressor crashed a Redmi 12's Mali-G52 through MobileGlues. MobileGlues keeps that BC as ASTC (from
+        // its 2.3.0), or unpacks it where it can't, as it did before. MG_BC_DECODE in Options acts as a GPU without BC:
+        // with ASTC (astc), or unpacking all (1).
+        DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES -> when {
+            environment["MG_BC_DECODE"] == "1" -> Compression.NONE
+            "BC" in Gpu.textureFormats && environment["MG_BC_DECODE"] != "astc" -> Compression.GPU
+            else -> Compression.CPU
+        }
         DriverImport.downloaded(paths, id)?.cpuCompression == true || DriverImport.isPanVK(id) -> Compression.CPU
         transcodable(id) -> if (transcoded) Compression.CPU else Compression.NONE
         else -> Compression.GPU
     }
 
-    /**
-     * Factorio sizes its atlases from the GPU memory it finds, which it can't through MobileGlues: it then made them as
-     * large as the phone's OpenGL ES allows (16383 on a Mali-G52). 8192, as it picks through Zink on the same phones.
-     */
-    fun maxTextureSize(paths: Paths, id: String): Int? =
-        8192.takeIf { DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES }
+    /** Through MobileGlues Factorio finds no GPU memory ("0 MB (failed to detect)"): FactorioConfig's noGpuMemory. */
+    fun findsNoGpuMemory(paths: Paths, id: String) = DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES
 
     /**
      * Whether the game's BC textures on [id] can go through the compat layer's transcoder, if the driver check finds

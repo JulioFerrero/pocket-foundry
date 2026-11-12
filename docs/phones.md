@@ -50,9 +50,11 @@ on it when no other driver starts, before the CPU.
 OpenGL ES driver the phone already has, loaded through libhybris: no Zink and no Vulkan, so it can run where the
 phone's Vulkan driver fails. It plays at 59 FPS on an Adreno 830, 55-60 on a Galaxy XCover7's Mali-G57 and 45-60 on a
 Redmi 12's Mali-G52. The processor draws the next frame while the GPU finishes this one; **Wait for each frame** in
-its settings turns that off, which can look smoother on a phone that already reaches 60 FPS. Malis lack the game's
-compressed textures, so it loads them uncompressed there, and it starts on Medium sprites. Its build, with fixes for
-Factorio, is in [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers).
+its settings turns that off, which can look smoother on a phone that already reaches 60 FPS. Malis and PowerVR lack
+the game's compressed textures: from MobileGlues 2.3.0 with 0.8.18-beta.5 it keeps them compressed in a format they
+have (ASTC), 423 MB instead of about 990 on a Redmi 12, and the first start after the update builds them again, which
+takes a minute or two there. It starts on Medium sprites. Its build, with fixes for Factorio, is in
+[pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers).
 
 ## Xclipse (Samsung Exynos)
 

@@ -196,7 +196,7 @@ object Session {
         if (!testing) Drivers.useSpeedTest(context, driver)
         FactorioConfig.write(context, paths, keyboard,
                              Drivers.compression(paths, driver, applied.transcodes, applied.environment),
-                             Drivers.maxTextureSize(paths, driver))
+                             Drivers.findsNoGpuMemory(paths, driver))
         val uiScale = "%.4f".format(Locale.ROOT, X11Prefs(context).uiScale)
         val started = Program.start(paths, command, paths.gameLog,
                                     Sdl.environment(paths) + applied.environment +
