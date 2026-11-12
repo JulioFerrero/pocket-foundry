@@ -17,10 +17,11 @@ else
 fi
 
 tools="$compilers $emulator make gawk bison flex python3 texinfo gettext jq curl ca-certificates xz-utils patch file
-       pkgconf meson ninja-build cmake autoconf automake libtool
+       meson ninja-build cmake autoconf automake libtool
        python3-mako python3-yaml python3-packaging glslang-tools"
 # Mesa, SDL and libhybris build against these; linux-libc-dev and libc6-dev are glibc's own headers to build it.
-dev="linux-libc-dev libc6-dev libdrm-dev libexpat1-dev zlib1g-dev libzstd-dev
+# arm64's pkgconf is the aarch64-linux-gnu-pkg-config that finds them (toolchain.sh).
+dev="pkgconf linux-libc-dev libc6-dev libdrm-dev libexpat1-dev zlib1g-dev libzstd-dev
      libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev libxrandr-dev libxxf86vm-dev
      libxshmfence-dev libxcb1-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev
      libxcb-present-dev libxcb-sync-dev libxcb-shm0-dev libxcb-randr0-dev
