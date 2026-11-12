@@ -6,6 +6,7 @@ import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.PadButton
 import app.pocketfoundry.core.controller.VirtualPad
 import app.pocketfoundry.core.controller.VirtualPad.Source.GESTURES
+import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.dp
 import com.termux.x11.MainActivity
@@ -20,8 +21,13 @@ import kotlin.math.sign
  * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press: right button held,
  * X with [padMode]. Two fingers: tap right-clicks (B with [padMode]), pinch zooms, drag scrolls. With [padMode],
  * double tap and hold holds A. [padMode] is controller mode, where Factorio's mouse clicks only in menus.
+ *
+ * A trackpad finger (Settings.touch TRACKPAD, read at each first finger, or one that lands on the BOX) moves the cursor
+ * by how far it goes, like a laptop's trackpad, and what it does happens at the cursor, which the game shows; a drag
+ * holds no button.
  */
 class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLongPress: () -> Unit) {
+    private val settings = Settings(activity)
     private val lorie = activity.lorieView
     /** Termux:X11's own view-to-X-screen mapping, letterboxing included. */
     private val renderData = activity.mInputHandler.mRenderData
@@ -53,24 +59,39 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private var midStartY = 0f
     private var scrollRef = 0f
 
+    private var trackpad = false
+    private var speed = 1f
+    /** The trackpad's cursor, in window coordinates (-1: not placed yet), and where it was when the finger went down. */
+    private var cursorX = -1f
+    private var cursorY = -1f
+    private var cursorDownX = 0f
+    private var cursorDownY = 0f
+    private var lastX = 0f
+    private var lastY = 0f
+    private var dragged = false
+    /** Where a finger acts: under it, or at the trackpad's cursor. */
+    private val aimX get() = if (trackpad) cursorX else downX
+    private val aimY get() = if (trackpad) cursorY else downY
+
     private enum class Mode { ONE, UNDECIDED, PINCH, SCROLL, LIFTED }
 
     private val longPress = Runnable {
         if (fingers.size != 1 || holding || mode != Mode.ONE) return@Runnable
         if (pad != null) {
-            moveTo(downX, downY)
+            moveTo(aimX, aimY)
             holdPad(PadButton.WEST)
         } else {
-            press(InputStub.BUTTON_RIGHT, downX, downY)
+            press(InputStub.BUTTON_RIGHT, aimX, aimY)
         }
         onLongPress()
     }
 
-    fun down(id: Int, x: Float, y: Float) {
+    /** [box]: on the trackpad box. */
+    fun down(id: Int, x: Float, y: Float, box: Boolean = false) {
         fingers += id
         xs[id] = x
         ys[id] = y
-        if (fingers.size == 1) firstFingerDown(x, y)
+        if (fingers.size == 1) firstFingerDown(x, y, box)
         else if (fingers.size == 2 && !holding && mode == Mode.ONE) secondFingerDown()
     }
 
@@ -83,7 +104,9 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
             return
         }
         if (fingers.size != 1) return
-        if (holding) {
+        if (trackpad) {
+            trackpadMove(x, y)
+        } else if (holding) {
             moveTo(x, y)
         } else if (hypot(x - downX, y - downY) > slop) {
             mainHandler.removeCallbacks(longPress)
@@ -108,10 +131,12 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         mode = Mode.ONE
     }
 
-    private fun firstFingerDown(x: Float, y: Float) {
+    private fun firstFingerDown(x: Float, y: Float, box: Boolean) {
         downX = x
         downY = y
-        moveTo(x, y)   // the game shows what's under the finger
+        trackpad = box || settings.touch == Settings.TRACKPAD
+        speed = settings.trackpadSpeed / 100f
+        if (trackpad) trackpadDown(x, y) else moveTo(x, y)   // the game shows what's under the finger
         val now = SystemClock.uptimeMillis()
         if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
             lastTapAt = 0
@@ -134,6 +159,13 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         mainHandler.removeCallbacks(longPress)
         if (holding) {
             release()
+        } else if (trackpad) {
+            if (dragged) return
+            moveCursor(cursorDownX, cursorDownY)   // a tap's own wobble doesn't move it
+            click(InputStub.BUTTON_LEFT)
+            lastTapAt = SystemClock.uptimeMillis()
+            lastTapX = x
+            lastTapY = y
         } else {
             moveTo(x, y)
             click(InputStub.BUTTON_LEFT)
@@ -148,7 +180,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
             if (pad != null) {
                 pad.tap(PadButton.EAST)
             } else {
-                moveTo(midX(), midY())
+                if (!trackpad) moveTo(midX(), midY())
                 click(InputStub.BUTTON_RIGHT)
             }
         }
@@ -168,7 +200,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
             }
             spanRef = span
             scrollRef = midY
-            moveTo(midX, midY)   // the map view zooms around the pointer
+            if (!trackpad) moveTo(midX, midY)   // the map view zooms around the pointer
         }
         when (mode) {
             Mode.PINCH -> {
@@ -189,11 +221,43 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         }
     }
 
+    private fun trackpadDown(x: Float, y: Float) {
+        lastX = x
+        lastY = y
+        dragged = false
+        if (cursorX < 0) {
+            lorie.getLocationInWindow(location)
+            moveCursor(location[0] + lorie.width / 2f, location[1] + lorie.height / 2f)
+        }
+        cursorDownX = cursorX
+        cursorDownY = cursorY
+    }
+
+    /** Small movements count too, for aiming: a tap puts the cursor back where it was. */
+    private fun trackpadMove(x: Float, y: Float) {
+        if (!dragged && hypot(x - downX, y - downY) > slop) {
+            dragged = true
+            mainHandler.removeCallbacks(longPress)
+        }
+        moveCursor(cursorX + (x - lastX) * speed, cursorY + (y - lastY) * speed)
+        lastX = x
+        lastY = y
+    }
+
+    private fun moveCursor(x: Float, y: Float) {
+        lorie.getLocationInWindow(location)
+        cursorX = x.coerceIn(location[0].toFloat(), (location[0] + lorie.width - 1).toFloat())
+        cursorY = y.coerceIn(location[1].toFloat(), (location[1] + lorie.height - 1).toFloat())
+        moveTo(cursorX, cursorY)
+    }
+
     private fun span() = hypot(xs[fingers[0]] - xs[fingers[1]], ys[fingers[0]] - ys[fingers[1]])
     private fun midX() = (xs[fingers[0]] + xs[fingers[1]]) / 2
     private fun midY() = (ys[fingers[0]] + ys[fingers[1]]) / 2
 
     private fun moveTo(x: Float, y: Float) {
+        cursorX = x   // a trackpad finger goes on from here
+        cursorY = y
         lorie.getLocationInWindow(location)
         renderData.mapScreenPoint(x - location[0], y - location[1], mapped)
         lorie.sendMouseEvent(mapped[0], mapped[1], InputStub.BUTTON_UNDEFINED, false, false)

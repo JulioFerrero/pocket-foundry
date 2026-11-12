@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
+import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.DpadDir
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.GuiSheet
@@ -42,12 +43,16 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private val bevelPressed = LinearGradient(0f, 0f, 0f, 1f, BEVEL_PRESSED, BEVEL_STOPS, Shader.TileMode.CLAMP)
     private val wellShade = LinearGradient(0f, 0f, 0f, 1f, WELL_SHADE, WELL_STOPS, Shader.TileMode.CLAMP)
 
+    /** The right stick is a trackpad box (Settings.touch BOX). */
+    var box = false
+
     fun draw(canvas: Canvas, sheet: GuiSheet?, c: Control, selected: Boolean) {
         val x = layout.cx(c)
         val y = layout.cy(c)
         val r = layout.radius(c)
         val pressed = c.pointers.isNotEmpty()
         when {
+            box && (c.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X -> drawTrackpadBox(canvas, x, y, r)
             c.kind is Kind.Stick -> drawStick(canvas, sheet, c, x, y, r, pressed)
             c.kind == Kind.Dpad && sheet != null -> drawSpriteDpad(canvas, sheet, c, x, y, r)
             c.kind == Kind.Dpad -> drawPlainDpad(canvas, c, x, y, r)
@@ -204,6 +209,16 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
 
     private fun spriteSlot(canvas: Canvas, sheet: GuiSheet, pressed: Boolean) =
         sheet.slot[if (pressed) GuiSheet.PRESSED else GuiSheet.IDLE].draw(canvas, rect, minOf(rect.width(), rect.height()) / 2, sprite)
+
+    /** A square as wide as the stick's well, rounded like a laptop's trackpad. */
+    private fun drawTrackpadBox(canvas: Canvas, x: Float, y: Float, r: Float) {
+        rect.set(x - r, y - r, x + r, y + r)
+        fill.color = Factorio.INSET_DARK
+        canvas.drawRoundRect(rect, r * 0.22f, r * 0.22f, fill)
+        stroke.color = EDGE
+        stroke.strokeWidth = edge() * 1.6f
+        canvas.drawRoundRect(rect, r * 0.22f, r * 0.22f, stroke)
+    }
 
     private fun edgedCircle(canvas: Canvas, x: Float, y: Float, r: Float, colour: Int) {
         fill.color = colour

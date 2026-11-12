@@ -11,6 +11,13 @@ class Settings(context: Context) {
 
     var pauseInBackground by prefs.bool("pauseInBackground", true)
     var vibration by prefs.bool("vibration", true)
+    /**
+     * One of TOUCHES. DIRECT: the game's cursor goes under the finger. TRACKPAD: a finger anywhere moves it like a
+     * laptop's trackpad. BOX: a trackpad box where the right stick was, direct touch elsewhere.
+     */
+    var touch by prefs.string("touch", BOX)
+    /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
+    var trackpadSpeed by prefs.int("trackpadSpeed", 150)
     var checkForUpdates by prefs.bool("checkForUpdates", true)
     var fpsCounter by prefs.bool("fpsCounter", false)
     /**
@@ -56,6 +63,11 @@ class Settings(context: Context) {
         const val MEDIUM = "medium"
         val SPRITE_QUALITIES = listOf(HIGH, MEDIUM)
         val FRAME_RATES = listOf(30, 60)
+        val TRACKPAD_SPEEDS = listOf(100, 150, 200, 300)
+        const val DIRECT = "direct"
+        const val TRACKPAD = "trackpad"
+        const val BOX = "box"
+        val TOUCHES = listOf(DIRECT, TRACKPAD, BOX)
 
         /** The app's own prefs file, which other features keep their own keys in too (DriverRecords). */
         fun prefs(context: Context): SharedPreferences = context.getSharedPreferences("pocketfoundry", Context.MODE_PRIVATE)

@@ -60,11 +60,14 @@ class InputRouter(
         }
         val index = event.actionIndex
         val id = event.getPointerId(index)
-        if (controller.pointerDown(id, event.getX(index) - location[0], event.getY(index) - location[1])) {
+        val x = event.getX(index) - location[0]
+        val y = event.getY(index) - location[1]
+        val box = controller.trackpadBoxAt(x, y)
+        if (!box && controller.pointerDown(id, x, y)) {
             claimed = claimed.with(id)
         } else {
             forwarded = forwarded.with(id)
-            gestures.down(id, event.getX(index), event.getY(index))
+            gestures.down(id, event.getX(index), event.getY(index), box)
         }
     }
 

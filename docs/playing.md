@@ -13,11 +13,16 @@ Your finger is the cursor: touch the game where you want something to happen.
 | Two-finger tap | B: closes a menu, goes back, dismisses a tutorial tip. |
 | Pinch | Zooms in and out. |
 
+The square on the right is a trackpad, like a laptop's or the Steam Deck's: drag in it and the cursor moves by how far
+you drag, so your finger never covers what you point at. Tap in it to act where the cursor is, long press for X, and
+double tap and hold to hold A while you drag. **Settings -> Touch** changes it: **Direct** puts a right stick there
+instead, **Trackpad** makes the whole screen a trackpad, and **Trackpad speed** sets how far the cursor goes.
+
 | Button | In Factorio |
 |---|---|
 | Left stick | Walk. |
-| Right stick | Moves the cursor. |
-| R3 (the small R above the right stick) | Shows a cross next to the player; the right stick moves it like a mouse. |
+| Trackpad (the square on the right) | Moves the cursor, see above. A right stick with Touch on Direct. |
+| R3 (the small R above it) | Shows a cross next to the player, which the trackpad or right stick moves. |
 | Y (the largest) | Inventory and crafting. |
 | A | Build, open, craft, pick up. |
 | X | Mine, craft 5. |

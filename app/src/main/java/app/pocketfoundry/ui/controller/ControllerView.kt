@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.View
+import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.VirtualPad
 import app.pocketfoundry.core.controller.VirtualPad.Source.SCREEN
 import app.pocketfoundry.core.system.Settings
@@ -53,6 +54,13 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         layout.hidden = false
         editor.active = true
         invalidate()
+    }
+
+    /** With Settings.touch BOX, whether ([x], [y]) is on the trackpad box, where the right stick was. */
+    fun trackpadBoxAt(x: Float, y: Float): Boolean {
+        if (!controlsShown || editor.active || settings.touch != Settings.BOX) return false
+        val control = layout.controlAt(x, y) ?: return false
+        return (control.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X
     }
 
     /** Returns whether the finger is the controller's: on a tool, or anywhere in the editor, or on a control. */
@@ -125,6 +133,7 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         val tools = tools()
         if (tools.isEmpty()) return
         val sheet = GuiSprites.get(context)
+        painter.box = settings.touch == Settings.BOX
         if (editor.active) canvas.drawColor(EDITOR_SHADE)
         val controls = layout.shownControls
         // Indexed: an iterator would be made every frame.

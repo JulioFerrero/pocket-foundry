@@ -67,6 +67,14 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         settings.lightGraphics = it == LIGHT
         settings.graphicsChosen = true
     }
+    private val touch = Choice(launcher, listOf("Direct", "Trackpad", "Box"), width = 96) {
+        settings.touch = Settings.TOUCHES[it]
+        trackpadSpeedRow.shown = settings.touch != Settings.DIRECT
+    }
+    private val trackpadSpeed = Dropdown(launcher, Settings.TRACKPAD_SPEEDS.map(::speedName)) {
+        settings.trackpadSpeed = Settings.TRACKPAD_SPEEDS[it]
+    }
+    private val trackpadSpeedRow by lazy { dropdownSetting("Trackpad speed", trackpadSpeed) }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)
     private val layoutLater = label(launcher, "In a game", 15f, Factorio.FAINT)
     // Up by the title, out of the bar below: on a narrow phone the bar has no room for it next to the update.
@@ -107,6 +115,8 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private fun game() = section("Game",
         checkSetting("Pause in background", settings.pauseInBackground) { settings.pauseInBackground = it },
         checkSetting("Vibration", settings.vibration) { settings.vibration = it },
+        setting("Touch", touch),
+        trackpadSpeedRow,
         checkSetting("FPS counter", settings.fpsCounter) { settings.fpsCounter = it },
         setting(fastStart, checkBox(launcher, settings.fastStart) {
             settings.fastStart = it
@@ -175,6 +185,9 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         frameRate.selected = Settings.FRAME_RATES.indexOf(settings.frameRate)
         sprites.selected = Settings.SPRITE_QUALITIES.indexOf(settings.spriteQuality).coerceAtLeast(0)
         graphics.selected = if (settings.lightGraphics) LIGHT else FULL
+        touch.selected = Settings.TOUCHES.indexOf(settings.touch).coerceAtLeast(0)
+        trackpadSpeed.selected = Settings.TRACKPAD_SPEEDS.indexOf(settings.trackpadSpeed).coerceAtLeast(0)
+        trackpadSpeedRow.shown = settings.touch != Settings.DIRECT
         showFastStart()
         note.shown = Session.inGame
         credit.shown = !Session.inGame
@@ -196,6 +209,10 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         const val CONTROL_HEIGHT = 34
         const val FULL = 0
         const val LIGHT = 1
+
+        /** 150 -> "1.5×". */
+        fun speedName(percent: Int): String =
+            (if (percent % 100 == 0) "${percent / 100}" else "${percent / 100.0}") + "×"
         const val FAST_START = "Fast start"
         /** Settings.border's choices. */
         val BORDERS = listOf(0 to "Off", 10 to "Thin", 20 to "Wide")
