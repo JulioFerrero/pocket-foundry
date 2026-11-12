@@ -36,7 +36,8 @@ for guard in $(grep -oE 'defined\(VK_[A-Za-z0-9_]+\)' $sizes | sort -u | sed -E 
     grep -rq "#define $guard " "$SRC/headers/include/vulkan" || { echo "$sizes: the headers don't define $guard"; exit 1; }
 done
 
-# As taowen/arlinux-rootfs builds it (tools/build/linux-gpu.sh), less EGL and GLES: the game's OpenGL is Zink.
+# As taowen/arlinux-rootfs builds it (tools/build/linux-gpu.sh). EGL and GLES are for MobileGlues, a catalog driver
+# that turns the game's OpenGL into the phone's OpenGL ES; it draws offscreen, so only EGL's null platform goes.
 cd hybris
 export PKG_CONFIG_PATH=$SRC/arlinux/graphics-protocols CPPFLAGS="-I$SRC/headers/include"
 NOCONFIGURE=1 ./autogen.sh
@@ -45,7 +46,7 @@ NOCONFIGURE=1 ./autogen.sh
     --enable-adreno-quirks --enable-mali-quirks --enable-property-cache \
     --with-default-hybris-ld-library-path=/vendor/lib64/egl:/vendor/lib64/hw:/vendor/lib64:/system/lib64:/system_ext/lib64
 make -C common -j"$(nproc)" SUBDIRS=. libhybris-common.la
-dirs="common/q libsync platforms/common properties hardware ui gralloc vulkan"
+dirs="common/q libsync platforms/common properties hardware ui gralloc vulkan egl glesv2"
 for dir in $dirs; do make -C $dir -j"$(nproc)"; done
 
 rm -rf /out/hybris
@@ -55,7 +56,7 @@ for dir in $dirs; do make -C $dir install DESTDIR=/out/hybris; done
 # hybris's own libvulkan goes too: the runtime has Khronos's loader.
 rm -rf /out/hybris$PREFIX/include
 cd /out/hybris$LIB
-rm -rf pkgconfig libvulkan.so*
+rm -rf pkgconfig libvulkan.so* libhybris/eglplatform_fbdev.so libhybris/eglplatform_hwcomposer.so
 find . \( -name '*.la' -o -name '*.so' -type l \) -delete
 find . -name '*.so*' -type f -exec strip --strip-unneeded {} +
 cp "$SRC/LICENSE.Apache2" licenses/libhybris-vulkan/
