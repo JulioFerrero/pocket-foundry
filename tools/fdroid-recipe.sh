@@ -1,0 +1,60 @@
+#!/bin/sh
+# Prints F-Droid's build recipe for a commit: the metadata/app.pocketfoundry.yml we keep in fdroiddata, and what
+# tools/fdroid-build.sh builds our releases with. Both build the same way so the APKs match: F-Droid ships ours, signed
+# with Pocket Foundry's key, only when its own build of the commit comes out the same.
+#   tools/fdroid-recipe.sh [commit [repository]]     HEAD and GitHub by default
+# Needs Termux:X11 checked out (tools/setup.sh): the recipe names its NDK.
+set -e
+cd "$(dirname "$0")/.."
+commit=$(git rev-parse "${1:-HEAD}")
+repo=${2:-https://github.com/JulioFerrero/pocket-foundry.git}
+prop() { git show "$commit:gradle.properties" | sed -n "s/^$1=//p"; }
+version=$(prop versionName)
+code=$(prop versionCode)
+ndk=$(sed -n 's/.*termuxX11NdkVersion = "\(.*\)"/\1/p' third_party/termux-x11/lorie/version.gradle)
+[ -n "$version" ] && [ -n "$code" ] && [ -n "$ndk" ] || { echo "No version or NDK found" >&2; exit 1; }
+# The runtime's tools and arm64 libraries (runtime/deps.sh): the recipe's sudo lines run before our source is there.
+packages=$(sh runtime/deps.sh --list amd64 | fold -s -w 100 | sed -e 's/ *$//' -e '2,$s/^/        /')
+
+cat <<EOF
+AntiFeatures:
+  NonFreeDep:
+    en-US: Needs your own copy of Factorio, a paid game.
+Categories:
+  - Emulator
+License: GPL-3.0-only
+SourceCode: https://github.com/JulioFerrero/pocket-foundry
+IssueTracker: https://github.com/JulioFerrero/pocket-foundry/issues
+Changelog: https://github.com/JulioFerrero/pocket-foundry/releases
+
+AutoName: Pocket Foundry
+
+RepoType: git
+Repo: $repo
+Binaries: https://github.com/JulioFerrero/pocket-foundry/releases/download/v%v/pocket-foundry-%v.apk
+
+Builds:
+  - versionName: $version
+    versionCode: $code
+    commit: $commit
+    subdir: app
+    submodules: true
+    sudo:
+      - dpkg --add-architecture arm64
+      - apt-get update
+      - apt-get install -y --no-install-recommends $packages
+    gradle:
+      - yes
+    prebuild:
+      - ../tools/setup.sh
+      - sed -i -e 's/-Xmx4g/-Xmx2g/' ../gradle.properties
+    build: ../runtime/build.sh --here all
+    ndk: $ndk
+
+AllowedAPKSigningKeys: 0e301617d64bc294bcc2d1dbee71a8c83f8fcc7b7c3616edc26e9b2e89c7e35f
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: $version
+CurrentVersionCode: $code
+EOF

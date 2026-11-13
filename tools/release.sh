@@ -20,7 +20,8 @@ echo "$version" | grep -Eq "$VERSION" ||
 tag=v$version
 name=pocket-foundry-$version.apk
 out=build/release
-apk=app/build/outputs/apk/release/app-release.apk
+# The signed APK: release.yml's, built as F-Droid builds it, or a local Gradle build.
+apk=${APK:-app/build/outputs/apk/release/app-release.apk}
 prop() { sed -n "s/^$1=//p" "$POCKETFOUNDRY_SIGNING"; }
 
 # The key's certificate, as Android shows it: the notes print it so a download can be checked against it.
@@ -62,7 +63,7 @@ check)
         fail "The APK isn't signed with Pocket Foundry's key."
     game='(^|/)(data/(base|core)/|bin/(arm64|x64)/|factorio$)|level\.dat0$'   # Factorio's data, binary or a save
     ! unzip -Z1 "$apk" | grep -Eq "$game" || fail "The APK holds game files."
-    ! xz -dc runtime/out/apk/assets/runtime.tar.xz | tar -t | grep -Eq "$game" || fail "The runtime holds game files."
+    ! unzip -p "$apk" assets/runtime.tar.xz | xz -dc | tar -t | grep -Eq "$game" || fail "The runtime holds game files."
     rm -rf "$out" && mkdir -p "$out"
     cp "$apk" "$out/$name"
     (cd "$out" && sha256sum "$name" > "$name.sha256")

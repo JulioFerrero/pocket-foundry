@@ -31,9 +31,11 @@ key.
 ## Releasing
 
 Changes go to `dev` first. There, `tools/release.sh 0.8.17-beta.1` bumps the version and pushes a tag; GitHub
-builds it from source ([release.yml](../.github/workflows/release.yml): the runtime on arm64, the APK, the tests) and
-publishes a pre-release, which Obtainium skips unless Include prereleases is on. Once the betas work, merge `dev`
-into `main` and run `tools/release.sh 0.8.17` there for the release.
+builds it from source as F-Droid's build server does ([release.yml](../.github/workflows/release.yml): the tests,
+then [tools/fdroid-build.sh](../tools/fdroid-build.sh) in F-Droid's image with the recipe from
+[tools/fdroid-recipe.sh](../tools/fdroid-recipe.sh)), signs it with Pocket Foundry's key and publishes a
+pre-release, which Obtainium skips unless Include prereleases is on. Once the betas work, merge `dev` into `main`
+and run `tools/release.sh 0.8.17` there for the release.
 
 Every APK carries a build attestation: `gh attestation verify pocket-foundry-0.8.17.apk -R JulioFerrero/pocket-foundry`
 shows the commit and the run that built it. The build signs with Pocket Foundry's key from the repository's Actions

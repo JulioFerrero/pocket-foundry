@@ -14,38 +14,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The Linux runtime, in the same arm64 Docker image as a local build, from scratch every time: about 11 minutes.
-  # (A cache wouldn't help: GitHub keeps each tag's caches apart.)
-  runtime:
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v7
-      - name: Build the runtime
-        run: runtime/build.sh all
-      - uses: actions/upload-artifact@v7
-        with:
-          name: runtime
-          path: runtime/out/apk
-          if-no-files-found: error
-
-  # The APK, on x86-64: Android's build tools don't run on Linux arm64.
-  apk:
-    needs: runtime
+  # The unit tests, on their own: F-Droid's build below runs none.
+  test:
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write       # the GitHub release
-      id-token: write       # the build attestation
-      attestations: write
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0    # the notes list the commits since the last tag
       - name: Termux:X11 with Pocket Foundry's patches
         run: tools/setup.sh
-      - uses: actions/download-artifact@v8
-        with:
-          name: runtime
-          path: runtime/out/apk
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -56,6 +31,28 @@ jobs:
           yes | $sdkmanager --licenses > /dev/null
           ndk=$(sed -n 's/.*termuxX11NdkVersion = "\(.*\)"/\1/p' third_party/termux-x11/lorie/version.gradle)
           $sdkmanager 'platforms;android-36' 'build-tools;36.0.0' "ndk;$ndk" 'cmake;3.22.1' > /dev/null
+      - name: Test
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+  # The APK, built as F-Droid's build server builds it (tools/fdroid-build.sh: its image, its tools, the recipe from
+  # tools/fdroid-recipe.sh, runtime and all), then signed with Pocket Foundry's key. F-Droid builds each release the
+  # same way and ships this APK, ours, only when its own comes out the same.
+  apk:
+    needs: test
+    runs-on: ubuntu-24.04
+    container: registry.gitlab.com/fdroid/fdroidserver:buildserver-trixie
+    permissions:
+      contents: write       # the GitHub release
+      id-token: write       # the build attestation
+      attestations: write
+    steps:
+      - name: Git, for the checkout; GitHub's CLI, for the release
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends git gh > /dev/null
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0    # the notes list the commits since the last tag
+      - name: Build as F-Droid does
+        run: tools/fdroid-build.sh
       - name: Pocket Foundry's key
         env:
           KEYSTORE: ${{ secrets.POCKETFOUNDRY_KEYSTORE }}
@@ -69,10 +66,17 @@ jobs:
               "$RUNNER_TEMP/release.jks" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
               > "$RUNNER_TEMP/keystore.properties"
           echo "POCKETFOUNDRY_SIGNING=$RUNNER_TEMP/keystore.properties" >> "$GITHUB_ENV"
-      - name: Test and build
-        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleRelease
+      - name: Sign
+        run: |
+          prop() { sed -n "s/^$1=//p" "$POCKETFOUNDRY_SIGNING"; }
+          apksigner=$(ls -d /opt/android-sdk/build-tools/*/apksigner | tail -1)
+          PF_STOREPASS=$(prop storePassword) PF_KEYPASS=$(prop keyPassword) "$apksigner" sign \
+              --ks "$(prop storeFile)" --ks-key-alias "$(prop keyAlias)" \
+              --ks-pass env:PF_STOREPASS --key-pass env:PF_KEYPASS \
+              --out build/fdroid/signed.apk build/fdroid/app.pocketfoundry_*.apk
+          echo "APK=build/fdroid/signed.apk" >> "$GITHUB_ENV"
       - name: Check the APK
-        run: tools/release.sh check "${GITHUB_REF_NAME#v}"
+        run: ANDROID_HOME=/opt/android-sdk tools/release.sh check "${GITHUB_REF_NAME#v}"
       - uses: actions/attest-build-provenance@v4
         with:
           subject-path: build/release/*.apk
