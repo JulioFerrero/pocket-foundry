@@ -15,7 +15,7 @@ class SendSavesActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val caller = callingPackage
-        val pocketFoundry = caller == NEW_APP &&
+        val pocketFoundry = caller == NewApp.ID &&
             packageManager.checkSignatures(packageName, caller) == PackageManager.SIGNATURE_MATCH
         if (pocketFoundry) {
             setResult(RESULT_OK, Intent()
@@ -25,10 +25,5 @@ class SendSavesActivity : Activity() {
             setResult(RESULT_CANCELED)
         }
         finish()
-    }
-
-    companion object {
-        /** Pocket Foundry from 0.9 on. */
-        const val NEW_APP = "dev.pocketfoundry"
     }
 }
