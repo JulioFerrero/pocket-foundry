@@ -28,12 +28,6 @@ class DriverImportTest {
         assertEquals("panvk-26.3.0-devel-01234567", DriverImport.driverId("PanVK", "26.3.0-devel", "0123456789abcdef"))
     }
 
-    @Test fun `an imported PanVK is told apart by its id`() {
-        assertTrue(DriverImport.isPanVK(DriverImport.driverId("PanVK", "26.3.0-devel", "0123456789abcdef")))
-        assertFalse(DriverImport.isPanVK(DriverImport.driverId("Turnip", "26.3.0", "0123456789abcdef")))
-        assertFalse(DriverImport.isPanVK("phone"))
-    }
-
     @Test fun `other characters in the version become a dash`() {
         assertEquals("turnip-25.1.0-git-1a2b--ffffffff",
                      DriverImport.driverId("Turnip", "25.1.0 (git-1A2B)", "ffffffffff"))

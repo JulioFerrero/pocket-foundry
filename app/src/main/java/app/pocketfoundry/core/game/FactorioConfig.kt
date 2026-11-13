@@ -22,7 +22,8 @@ object FactorioConfig {
     private const val UNCOMPRESSED_APPLIED = "uncompressedApplied"
 
     /** [noGpuMemory]: the driver hides the GPU's memory from Factorio, which then guesses wrong (update). */
-    fun write(context: Context, paths: Paths, keyboard: Boolean, compression: Compression,
+    /** [atlasCache]: fast start, where the player has it on and the driver gives the atlases back right. */
+    fun write(context: Context, paths: Paths, keyboard: Boolean, compression: Compression, atlasCache: Boolean,
               noGpuMemory: Boolean = false) {
         val settings = Settings(context)
         val prefs = Settings.prefs(context)
@@ -32,7 +33,7 @@ object FactorioConfig {
         // Factorio derives its paths from its executable (here the loader), so name them.
         val config = update(old, paths.gameReadData.path, paths.gameData.path, keyboard, settings.spriteQuality,
                             compression, textures(uncompressed, prefs.getBoolean(UNCOMPRESSED_APPLIED, true)),
-                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), settings.fastStart, noGpuMemory)
+                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), atlasCache, noGpuMemory)
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
         prefs.edit().putBoolean(LIGHT_APPLIED, light).putBoolean(UNCOMPRESSED_APPLIED, uncompressed).apply()

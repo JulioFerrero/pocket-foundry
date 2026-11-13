@@ -1,0 +1,50 @@
+--- a/hybris/vulkan/icd/swapchain.c
++++ b/hybris/vulkan/icd/swapchain.c
+@@ -17,6 +17,8 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
++#include <sys/auxv.h>
++#include <hardware/gralloc.h>
+ #ifdef WANT_WAYLAND
+ #include <hybris/gralloc/gralloc.h>
+ #include <hybris/grallocusage/GrallocUsageConversion.h>
+@@ -401,6 +403,21 @@
+     }
+ }
+ 
++/* Pocket Foundry: whether a buffer made with [usage] can be locked for the CPU, as the X server locks one to copy a
++ * frame it doesn't flip. Google's allocator (Pixel 10 and 11) locks only buffers made for CPU access too; Qualcomm's
++ * and Arm's lock any. A buffer that can't be made says nothing either way. */
++static int cpu_lockable(uint32_t width, uint32_t height, int format, int usage)
++{
++    buffer_handle_t handle = NULL;
++    uint32_t stride = 0;
++    void *pixels = NULL;
++    if (hybris_gralloc_allocate((int)width, (int)height, format, usage, &handle, &stride) || !handle) return 1;
++    int locked = !hybris_gralloc_lock(handle, GRALLOC_USAGE_SW_READ_OFTEN, 0, 0, (int)width, (int)height, &pixels);
++    if (locked) hybris_gralloc_unlock(handle);
++    hybris_gralloc_release(handle, 1);
++    return locked;
++}
++
+ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
+     const VkSwapchainCreateInfoKHR *info, const VkAllocationCallbacks *allocator,
+     VkSwapchainKHR *swapchain)
+@@ -491,6 +508,16 @@
+         return VK_ERROR_FORMAT_NOT_SUPPORTED;
+     }
+     int usage = android_convertGralloc1To0Usage(producer, consumer);
++    /* Pocket Foundry: CPU access too where a buffer made the driver's way can't be locked (cpu_lockable).
++     * HYBRIS_WSI_CPU_ACCESS=1 asks for it anyway, 0 never. */
++    const char *cpu_access = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_WSI_CPU_ACCESS");
++    int cpu = cpu_access ? !strcmp(cpu_access, "1")
++                         : !cpu_lockable(info->imageExtent.width, info->imageExtent.height, pixel, usage);
++    if (cpu) {
++        if (!cpu_access)
++            fprintf(stderr, "hybris WSI: buffers made for the GPU alone can't be locked: CPU access too\n");
++        usage |= GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
++    }
+     uint32_t count = info->minImageCount;
+     if (count < 2 || count > 8) return VK_ERROR_INITIALIZATION_FAILED;
+     fprintf(stderr, "hybris WSI: %u buffers of %ux%u, Vulkan format %d, gralloc usage 0x%x\n", count,

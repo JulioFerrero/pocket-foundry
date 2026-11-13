@@ -3,6 +3,7 @@ package app.pocketfoundry.core.game
 import android.content.Context
 import android.content.Intent
 import android.system.OsConstants
+import android.util.Log
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.gamepadConnected
 import app.pocketfoundry.core.controller.keyboardConnected
@@ -18,6 +19,7 @@ import app.pocketfoundry.core.runtime.Sdl
 import app.pocketfoundry.core.saves.Saves
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.system.mainHandler
 import java.io.File
@@ -26,6 +28,7 @@ import java.io.RandomAccessFile
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
+import org.json.JSONObject
 
 /** Runs a game: Termux:X11's X server, our window manager and Factorio, each a process of its own. */
 object Session {
@@ -93,17 +96,21 @@ object Session {
     fun addListener(listener: () -> Unit) = listeners.add(listener)
     fun removeListener(listener: () -> Unit) = listeners.remove(listener)
 
-    /** Throws if the game didn't start. */
+    /**
+     * Throws if the game didn't start. [onStep]: the driver, should it still need downloading or checking (the app's
+     * start sets it up, setUpDriver), and how far along, for the start screen.
+     */
     @Synchronized
-    fun start(context: Context, gameArgs: List<String>) {
+    fun start(context: Context, gameArgs: List<String>, onStep: (String, Float) -> Unit = { _, _ -> }) {
         if (inGame) return
         val paths = Paths(context)
         Runtime.prepare(context)
-        val driver = Drivers.chosen(context)
-        ScreenLog.begin(context, driver)
+        ScreenLog.begin(context, Drivers.chosen(context))
         startBridges(context, paths)
         try {
             startXServer(context, paths)
+            val driver = setUpDriver(context, paths, onStep)
+            ScreenLog.playing(driver)
             wm = Program.start(paths, listOf(paths.windowManager.path), paths.wmLog)
             launchGame(context, paths, driver, gameArgs)
         } catch (e: Exception) {
@@ -118,16 +125,61 @@ object Session {
         }
     }
 
-    /** Settings -> Driver -> Check. What it finds applies to the next game, and Logs shows it. */
+    /**
+     * The driver for this phone, ready before any game: at the app's start, which covers a first install, an update
+     * and a phone update, and when the driver list or the player's downloads change (LauncherActivity). The chosen
+     * driver is downloaded and checked where this version of it hasn't been; one that can't play here stops being
+     * recommended (Drivers.recommended), and the next in line gets the same, until one can or the player's own choice
+     * comes up. [onStep]: what it's doing and how far along, for the start screen. Returns the driver.
+     */
     @Synchronized
-    fun checkDriver(context: Context, driver: String) {
+    fun setUpDriver(context: Context, onStep: (String, Float) -> Unit = { _, _ -> }): String {
         check(!inGame) { "Quit the game first." }
         val paths = Paths(context)
-        Runtime.prepare(context)
-        ScreenLog.begin(context, driver)
         try {
-            startXServer(context, paths)
-            DriverCheck.check(context, paths, driver, gameEnvironment(context, paths, driver))
+            return setUpDriver(context, paths, onStep)
+        } finally {
+            stopServers()
+        }
+    }
+
+    private fun setUpDriver(context: Context, paths: Paths, onStep: (String, Float) -> Unit): String {
+        while (true) {
+            Drivers.prepare(context) { name, percent -> onStep("Downloading $name", percent / 100f) }
+            val driver = Drivers.chosen(context)
+            val environment = gameEnvironment(context, paths, driver)
+            if (!DriverCheck.needed(context, paths, driver, environment)) return driver
+            val found = checkNow(context, paths, driver, environment, onStep)
+            val next = Drivers.chosen(context)
+            if (next == driver) return driver
+            // Passed, yet another comes first now: the driver list changed while it was checked.
+            val name = Drivers.find(context, driver)?.name ?: driver
+            val nextName = Drivers.find(context, next)?.name ?: next
+            Log.i(TAG, if (DriverCheck.passed(found)) "$name passed, but $nextName comes first now: " +
+                           DriverCheck.summary(found)
+                       else "$name can't play here: ${DriverCheck.summary(found)}")
+        }
+    }
+
+    /** Drawing needs the X server: started for the first check that needs it, stopped with the rest. */
+    private fun checkNow(context: Context, paths: Paths, driver: String, environment: Map<String, String>,
+                         onStep: (String, Float) -> Unit): JSONObject {
+        if (!Runtime.isInstalled(context)) onStep("Getting ready", 0f)
+        Runtime.prepare(context)
+        if (xServer == null) startXServer(context, paths)
+        val name = Drivers.find(context, driver)?.name ?: driver
+        return DriverCheck.check(context, paths, driver, environment) { step, done ->
+            onStep("Checking $name: $step", done)
+        }
+    }
+
+    /** Settings -> Driver: [driver] checked now, before it's chosen or again. The next game gets what it finds. */
+    @Synchronized
+    fun checkDriver(context: Context, driver: String, onStep: (String, Float) -> Unit = { _, _ -> }): JSONObject {
+        check(!inGame) { "Quit the game first." }
+        val paths = Paths(context)
+        try {
+            return checkNow(context, paths, driver, gameEnvironment(context, paths, driver), onStep)
         } finally {
             stopServers()
         }
@@ -182,7 +234,7 @@ object Session {
         val command = if (testProgram != null) listOf(paths.program(testProgram).path)
                       else listOf(paths.gameBinary.path, "--config", paths.config.path) + gameArgs
         val environment = gameEnvironment(context, paths, driver)
-        val applied = if (testing) DriverCheck.Applied(environment, transcodes = false)
+        val applied = if (testing) DriverCheck.Applied(environment)
                       else DriverCheck.apply(context, paths, driver, environment)
         if (!applied.opens) {
             Drivers.record(context, driver, Drivers.Outcome.DIDNT_START)
@@ -194,9 +246,11 @@ object Session {
         }
         // Before the game's config and its UI scale, which follow the graphics and resolution.
         if (!testing) Drivers.useSpeedTest(context, driver)
+        val atlasCache = Settings(context).fastStart && applied.keepsCache
+        AtlasCache.prepare(context, paths, DriverCheck.cacheMaker(context, driver), atlasCache)
         FactorioConfig.write(context, paths, keyboard,
-                             Drivers.compression(paths, driver, applied.transcodes, applied.environment),
-                             Drivers.findsNoGpuMemory(paths, driver))
+                             Drivers.compression(paths, driver, applied.gpuCompression, applied.environment),
+                             atlasCache, Drivers.findsNoGpuMemory(paths, driver))
         val uiScale = "%.4f".format(Locale.ROOT, X11Prefs(context).uiScale)
         val started = Program.start(paths, command, paths.gameLog,
                                     Sdl.environment(paths) + applied.environment +

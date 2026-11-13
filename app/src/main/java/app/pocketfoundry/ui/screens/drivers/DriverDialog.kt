@@ -290,7 +290,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         }
         useButton.isEnabled = !inUse && Drivers.fits(driver)
         removeButton.shown = driver.origin != Drivers.Origin.APP && downloaded
-        checkButton.shown = downloaded && Drivers.usesZink(paths, id)
+        checkButton.shown = downloaded && Drivers.checked(paths, id)
         checkButton.isEnabled = !Session.inGame
     }
 
@@ -303,11 +303,11 @@ class DriverDialog(private val launcher: LauncherActivity) {
             val fixes = Catalog.fixesFor(Catalog.get(launcher), id, Gpu.name, Catalog.android)
             fact("Fix", fixes.joinToString(", ") { it.name }.ifEmpty { "None needed" })
         }
-        if (Drivers.usesZink(paths, id, driver.entry)) {
+        if (Drivers.checked(paths, id, driver.entry)) {
             fact("Driver check", DriverCheck.brief(launcher, id) ?: "Not checked yet")
         }
         if (inUse) fact("Resolution", resolution(id))
-        when (Drivers.compression(paths, id, DriverCheck.transcodes(launcher, id))) {
+        when (Drivers.compression(paths, id, DriverCheck.gpuCompression(launcher, id))) {
             Drivers.Compression.CPU -> fact("Textures", "Compressed by the CPU")
             Drivers.Compression.NONE -> fact("Textures", "Not compressed")
             Drivers.Compression.GPU -> {}
@@ -422,23 +422,41 @@ class DriverDialog(private val launcher: LauncherActivity) {
         view(id)
     }
 
-    /** A catalog driver not downloaded yet downloads now; the next game uses it either way. */
+    /**
+     * A driver is downloaded, if it has to be, and checked before it's chosen (Session.checkDriver): one that can't
+     * play here isn't, unless Settings shows test drivers.
+     */
     private fun use(id: String) {
         val entry = Drivers.pending(launcher, id).takeIf { DriverImport.downloaded(paths, id) == null }
-        if (entry == null) return choose(id)
+        val name = Drivers.find(launcher, id)?.name ?: id
         useButton.isEnabled = false
+        checkButton.isEnabled = false
         status.shown = false
-        downloading.show("Downloading ${entry.name}", 0f)
+        downloading.show(if (entry != null) "Downloading $name" else "Checking $name", 0f)
         downloading.view.shown = true
-        background("driver-download", {
-            Drivers.download(launcher, entry) { percent ->
-                launcher.runOnUiThread { downloading.show("Downloading ${entry.name}", percent / 100f) }
+        val show = { text: String, done: Float -> launcher.runOnUiThread { downloading.show(text, done) } }
+        background("driver-use", {
+            if (entry != null) Drivers.download(launcher, entry) { show("Downloading $name", it / 100f) }
+            if (Drivers.checked(paths, id) && DriverCheck.passed(launcher, id) == null) {
+                Session.checkDriver(launcher, id, show)
             }
+            DriverCheck.passed(launcher, id) != false
         }) { result ->
             downloading.view.shown = false
-            say(result.fold({ "${entry.name} is ready." }, { "${entry.name} didn't download: ${it.message}" }),
-                error = result.isFailure)
-            if (result.isSuccess) choose(id) else view(id)
+            checkButton.isEnabled = !Session.inGame
+            result.onSuccess { plays ->
+                if (plays || Settings(launcher).testDrivers) {
+                    say(if (plays) "$name is ready." else "$name didn't pass the check: chosen as a test driver.")
+                    choose(id)
+                } else {
+                    say("$name can't play on this phone: ${DriverCheck.brief(launcher, id)}. Logs has the check.",
+                        error = true)
+                    view(id)
+                }
+            }.onFailure {
+                say("$name isn't ready: ${it.message ?: "see Logs"}", error = true)
+                view(id)
+            }
         }
     }
 
@@ -453,13 +471,20 @@ class DriverDialog(private val launcher: LauncherActivity) {
         listDrivers()
     }
 
-    /** Draws [id]'s test picture and times its frames now, without the game. */
+    /** Checks [id] again now, without the game. */
     private fun checkDriver(id: String) {
         checkButton.isEnabled = false
-        say("Drawing a test picture, then timing frames…")
-        background("driver-check", { Session.checkDriver(launcher, id) }) { result ->
-            say(result.fold({ "Checked. Logs has the details." }, { it.message ?: "The check didn't run. See Logs." }),
-                error = result.isFailure)
+        useButton.isEnabled = false
+        status.shown = false
+        val name = Drivers.find(launcher, id)?.name ?: id
+        downloading.show("Checking $name", 0f)
+        downloading.view.shown = true
+        val show = { text: String, done: Float -> launcher.runOnUiThread { downloading.show(text, done) } }
+        background("driver-check", { Session.checkDriver(launcher, id, show) }) { result ->
+            downloading.view.shown = false
+            say(result.fold({ "${DriverCheck.brief(it)}. Logs has the details." },
+                            { it.message ?: "The check didn't run. See Logs." }),
+                error = result.isFailure || result.getOrNull()?.let(DriverCheck::passed) == false)
             // A check can unpack a new runtime, under which past games don't count: the automatic choice may move.
             listDrivers()
         }

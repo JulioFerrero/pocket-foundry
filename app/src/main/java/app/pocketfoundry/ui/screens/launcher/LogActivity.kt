@@ -113,7 +113,10 @@ class LogActivity : Activity() {
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
         val options = DriverRecords.options(this, played)
-        val checked = DriverCheck.summary(this, played)
+        // Every driver checked here, the one the logs are about first: the setup may have passed others over.
+        val checks = Drivers.all(this).sortedBy { it.id != played }.mapNotNull { driver ->
+            DriverCheck.summary(this, driver.id)?.let { "Driver check, ${driver.name}: $it\n" }
+        }
         val speed = DriverCheck.speed(this, played)
         val formats = Gpu.textureFormats.joinToString(", ").ifEmpty { "none" }
         val settings = Settings(this)
@@ -130,7 +133,7 @@ class LogActivity : Activity() {
             (if (options.isNotEmpty()) "Driver options: $options\n" else "") +
             "GPU's compressed textures: $formats\n" +
             (Runtime.misplaced(this)?.let { "Runtime: $it\n" } ?: "") +
-            (if (checked != null) "Driver check: $checked\n" else "") +
+            checks.joinToString("") +
             (if (speed.isNotEmpty()) "Speed test: ${SpeedTest.summary(speed)}\n" else "") +
             "Driver list: ${Catalog.status ?: "not fetched yet"}\n"
     }

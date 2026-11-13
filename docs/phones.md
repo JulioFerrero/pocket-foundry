@@ -6,18 +6,20 @@ phone's GPU by itself, marked Recommended in **Settings -> Driver**:
 - **Adreno 6xx and newer:** Turnip, which the app downloads the first time it starts. It's the one Pocket
   Foundry tests.
 - **Other GPUs with Vulkan 1.1:** the [Phone's driver](#the-phones-driver-any-gpu), experimental.
-- **A driver that doesn't start:** the next game uses the next one, then
-  [MobileGlues](#mobileglues-the-phones-opengl-es-any-gpu), then the [CPU](#any-other-phone-the-cpu).
-- **A driver that draws wrong:** before the first game on a driver, Pocket Foundry draws a small test picture with
-  it. If the picture comes out wrong, the newer driver features it gets wrong are turned off for every game on it,
-  and Logs says which. On a Mali, with its own driver or with PanVK on a G31 to G78, it also tries keeping the game's
-  compressed textures compressed (Malis lack the game's format); if they draw right, games use about a third of the
-  texture memory.
+- **Every driver is checked first:** when the app starts for the first time or after an update, and when a driver
+  is picked in **Settings -> Driver**, Pocket Foundry draws test pictures with it and the game's textures at their
+  full size. From what the driver does, not which GPU it is, it turns off the newer features the driver gets wrong,
+  keeps the textures compressed the best way the driver can (its own, or converted to ASTC where it lacks the game's
+  format), turns fast start off where the driver gives them back wrong, and picks High or Medium sprites by the
+  driver's free memory. Logs says what it found.
+- **A driver that fails the check, or doesn't start:** the next one in line instead, then
+  [MobileGlues](#mobileglues-the-phones-opengl-es-any-gpu), then the [CPU](#any-other-phone-the-cpu). A driver that
+  can't keep the textures compressed fails: unpacked, they need about four times the memory.
 
 The GPU drivers aren't in the app: they come from
 [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers), where CI builds each one from
-source, with the list of phones it was tested on. The app downloads the one for the phone's GPU when it starts, and
-again before a game if there's a newer build.
+source, with the list of phones it was tested on. The app downloads and checks the one for the phone's GPU when it
+starts, and again when there's a newer build.
 
 Picking another driver there keeps it; picking the Recommended one hands the choice back. Community drivers can be
 imported too (**Settings -> Driver -> Import**). Others make and test them; what's here comes from players' reports,
@@ -68,7 +70,7 @@ Foundry. On a Galaxy A56 (Xclipse 540) the Phone's driver crashes and RADV plays
 ## Mali (MediaTek, Google Tensor, older Exynos)
 
 Malis start on the [Phone's driver](#the-phones-driver-any-gpu). The community driver, PanVK, can be imported in
-**Settings -> Driver -> Import**; which one depends on the Mali. Set **Sprite quality** to Medium.
+**Settings -> Driver -> Import**; which one depends on the Mali.
 
 | Mali | Driver | |
 |---|---|---|

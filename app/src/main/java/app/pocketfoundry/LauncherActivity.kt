@@ -247,8 +247,8 @@ class LauncherActivity : Activity() {
     fun showGame() = startActivity(Intent(this, MainActivity::class.java))
 
     /**
-     * Once per launch, on the start screen: the newest driver list and the driver for this GPU (downloaded if it's
-     * missing or the list has a newer build). Offline, the game's start tries the driver again.
+     * On the start screen: the newest driver list, then the driver for this phone, downloaded and checked where it
+     * hasn't been, or the next in line where it can't play (Session.setUpDriver). Offline, the game's start tries again.
      */
     private fun startUp() {
         started = true
@@ -258,9 +258,7 @@ class LauncherActivity : Activity() {
         background("start-up", {
             Drivers.refreshCatalog(this)
             step("Finding the driver for your ${Gpu.name ?: "GPU"}", 0.1f)
-            runCatching {
-                Drivers.prepare(this) { name, percent -> step("Downloading $name", 0.15f + 0.8f * percent / 100) }
-            }
+            runCatching { if (!Session.inGame) Session.setUpDriver(this, ::step) }
         }) { result ->
             loading = false
             result.getOrThrow().onFailure { error = it.message }
@@ -291,9 +289,9 @@ class LauncherActivity : Activity() {
 
     private fun step(text: String, done: Float) = runOnUiThread { startScreen.show(text, done) }
 
-    /** Before a game, a driver it doesn't have yet: on the start screen too. */
-    private fun download(name: String, percent: Int) = runOnUiThread {
-        startScreen.show("Downloading $name", percent / 100f)
+    /** Before a game, its driver downloading or being checked: on the start screen too. */
+    private fun progress(text: String, done: Float) = runOnUiThread {
+        startScreen.show(text, done)
         if (!loading) {
             loading = true
             refresh()
@@ -328,16 +326,11 @@ class LauncherActivity : Activity() {
         }
     }
 
-    /** Off the main thread: the chosen driver, downloaded if it has to be, then the game. */
+    /** Off the main thread: the game, once its driver is downloaded and checked, if it has to be. */
     private fun start(args: List<String>) {
-        Drivers.prepare(this, ::download)
-        runOnUiThread {
-            loading = false
-            refresh()
-        }
         // The first start after an update unpacks the runtime.
         if (!Runtime.isInstalled(this)) runOnUiThread { busy = "Getting ready…"; refresh() }
-        Session.start(this, args)
+        Session.start(this, args, ::progress)
     }
 
     /** The session's notification carries Quit, so it's worth asking for. */

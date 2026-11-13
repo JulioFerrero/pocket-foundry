@@ -103,13 +103,16 @@ object Drivers {
     fun chosen(context: Context): String =
         DriverRecords.choice(context)?.takeIf { id -> find(context, id)?.let(::fits) == true } ?: recommended(context)
 
-    /** A driver that didn't start is passed over until a new runtime brings new drivers. */
+    /**
+     * A driver that didn't start, or that this version's check found draws wrong or can't draw (DriverCheck), is
+     * passed over for the next in line.
+     */
     fun recommended(context: Context): String {
         val listed = Catalog.get(context).drivers.filter { !it.testing }.sortedBy { it.priority }
         val fitting = listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id }
         val gles = listed.filter { it.kind == Catalog.Kind.GLES }.map { it.id }
         return recommend(fitting, Gpu.hasVulkan(context), gles) {
-            DriverRecords.outcome(context, it) == Outcome.DIDNT_START
+            DriverRecords.outcome(context, it) == Outcome.DIDNT_START || DriverCheck.passed(context, it) == false
         }
     }
 
@@ -118,8 +121,8 @@ object Drivers {
      * any GPU, which play where the CPU would crawl.
      */
     internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>,
-                           didntStart: (String) -> Boolean): String =
-        (fitting + listOfNotNull(PHONE.takeIf { vulkan }) + gles).firstOrNull { !didntStart(it) } ?: CPU
+                           passedOver: (String) -> Boolean): String =
+        (fitting + listOfNotNull(PHONE.takeIf { vulkan }) + gles).firstOrNull { !passedOver(it) } ?: CPU
 
     fun record(context: Context, id: String, outcome: Outcome) =
         switching(context) { DriverRecords.setOutcome(context, id, outcome) }
@@ -130,11 +133,12 @@ object Drivers {
     fun isPhone(id: String) = id == PHONE
 
     /**
-     * Whether the game reaches [id] through Zink: the phone's driver, imported drivers and the catalog's Vulkan ones.
-     * [listed]: the catalog's entry, for one not downloaded yet.
+     * Whether DriverCheck checks [id]: every driver the game reaches through Mesa, as the check program does. Not
+     * MobileGlues, which goes through Android's OpenGL ES, nor the CPU, which a game falls back on anyway. [listed]:
+     * the catalog's entry, for one not downloaded yet.
      */
-    fun usesZink(paths: Paths, id: String, listed: Catalog.Entry? = null) =
-        (DriverImport.downloaded(paths, id) ?: listed)?.kind.let { it == null || it == Catalog.Kind.VULKAN }
+    fun checked(paths: Paths, id: String, listed: Catalog.Entry? = null) =
+        (DriverImport.downloaded(paths, id) ?: listed)?.kind.let { it != Catalog.Kind.GLES && it != Catalog.Kind.CPU }
 
     /** Not downloaded yet, or the catalog has a newer build of it: the next game downloads [id] first. */
     fun pending(context: Context, id: String): Catalog.Entry? {
@@ -174,12 +178,11 @@ object Drivers {
     enum class Compression { GPU, CPU, NONE }
 
     /**
-     * Factorio's GPU compressor fails its self-test on PanVK, whose BC emulation skips the compressor's copies (a G610
-     * faulted right after), and through the compat layer's transcoder: the CPU compresses instead. Malis have no BC
-     * formats: on their own driver the transcoder keeps the textures compressed where the driver check found it draws
-     * them right ([transcoded]), else Mesa would only unpack what the CPU packed, so they load uncompressed.
+     * Who compresses the game's textures. On a checked driver ([gpuCompression]: DriverCheck's finding) Factorio's GPU
+     * compressor, where blocks copied in from integer textures read right, as it makes them; else the CPU (PanVK's BC
+     * stand-in skipped the compressor's copies, and a G610 faulted right after).
      */
-    fun compression(paths: Paths, id: String, transcoded: Boolean,
+    fun compression(paths: Paths, id: String, gpuCompression: Boolean?,
                     environment: Map<String, String> = emptyMap()) = when {
         // On a GPU with BC (Adreno) the game's GPU compressor feeds it. Without (Mali, PowerVR) the CPU compresses:
         // the GPU compressor crashed a Redmi 12's Mali-G52 through MobileGlues. MobileGlues keeps that BC as ASTC (from
@@ -190,8 +193,7 @@ object Drivers {
             "BC" in Gpu.textureFormats && environment["MG_BC_DECODE"] != "astc" -> Compression.GPU
             else -> Compression.CPU
         }
-        DriverImport.downloaded(paths, id)?.cpuCompression == true || DriverImport.isPanVK(id) -> Compression.CPU
-        transcodable(id) -> if (transcoded) Compression.CPU else Compression.NONE
+        gpuCompression == false -> Compression.CPU
         else -> Compression.GPU
     }
 
@@ -199,22 +201,74 @@ object Drivers {
     fun findsNoGpuMemory(paths: Paths, id: String) = DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES
 
     /**
-     * Whether the game's BC textures on [id] can go through the compat layer's transcoder, if the driver check finds
-     * it draws them right. PanVK on an older Mali keeps them unpacked too, about five times the room: a Mali-G52 with
-     * 3.7 GB ran out of memory loading the base game.
+     * A way the game's BC textures can be kept on a driver, over its [environment]: DriverCheck tries them in order
+     * and measures what each does. [convertsWhatsMissing]: it can't leave them unpacked, where the driver doesn't say
+     * its memory.
      */
-    fun transcodable(id: String) = Gpu.mali && (isPhone(id) || DriverImport.isPanVK(id) && Gpu.olderMali)
+    class TextureWay(val saved: String, val environment: Map<String, String>, val convertsWhatsMissing: Boolean) {
+        companion object {
+            /** As the driver keeps BC: its own formats, or its own stand-in for them. */
+            const val DRIVER = "driver"
+            /**
+             * Through the compat layer's converter: BC where the driver has it, ASTC and EAC where it doesn't.
+             * Unpacked, they take about five times the room: a Mali-G52 with 3.7 GB ran out of memory loading the
+             * base game.
+             */
+            const val LAYER = "layer"
+            /**
+             * The same with the driver saying it's Vulkan 1.3 (Mesa's MESA_VK_VERSION_OVERRIDE): the layer turns
+             * itself off on 1.4, whose descriptor commands it doesn't handle yet, and PanVK-kbase on a Mali-G615 is
+             * 1.4. Mesa's drivers only; the phone's own driver doesn't read it.
+             */
+            const val LAYER_VULKAN_13 = "layer at Vulkan 1.3"
+        }
+    }
+
+    /** The compat layer's converter (runtime/hybris): 1 converts what the driver lacks, 0 leaves it to Mesa. */
+    internal const val CONVERTER = "HYBRIS_BC_TEXTURES"
 
     /**
-     * What turns the transcoder on for [id] over its game [environment]. PanVK gets the compat layer, with its own
-     * unpacking off so the layer sees a driver without BC, and without the layer's fixes for Arm's shader compiler.
+     * The phone's driver has the compat layer already: its converter only. Other drivers first as they are, then with
+     * the layer on top, their own stand-in off so the layer sees what they lack (PANVK_DEBUG; the others have none),
+     * and without the layer's fixes for Arm's own shader compiler, which only the phone's driver has.
      */
-    fun transcoder(paths: Paths, id: String, environment: Map<String, String>): Map<String, String> =
-        mapOf(DriverCheck.TRANSCODER to "1") + if (!DriverImport.isPanVK(id)) emptyMap() else mapOf(
+    fun textureWays(paths: Paths, id: String, environment: Map<String, String>): List<TextureWay> {
+        val layer = TextureWay(TextureWay.LAYER, mapOf(CONVERTER to "1") + if (isPhone(id)) emptyMap() else mapOf(
             "VK_LAYER_PATH" to listOfNotNull(environment["VK_LAYER_PATH"], paths.hybris.path).joinToString(":"),
             "VK_INSTANCE_LAYERS" to listOfNotNull(environment["VK_INSTANCE_LAYERS"], COMPAT_LAYER).joinToString(":"),
             "PANVK_DEBUG" to listOfNotNull(environment["PANVK_DEBUG"], "no_bc_emul").joinToString(","),
-            "HYBRIS_MALI_SPEC_CONSTANTS" to "0")
+            "HYBRIS_MALI_SPEC_CONSTANTS" to "0"), convertsWhatsMissing = true)
+        val layerAt13 = TextureWay(TextureWay.LAYER_VULKAN_13, layer.environment +
+                                       ("MESA_VK_VERSION_OVERRIDE" to "1.3"), convertsWhatsMissing = true)
+        return when {
+            isPhone(id) -> listOf(layer)
+            usesVulkan(paths, id) -> listOf(driverWay, layer, layerAt13)
+            // Freedreno: no Vulkan for the layer to go on.
+            else -> listOf(driverWay)
+        }
+    }
+
+    private val driverWay = TextureWay(TextureWay.DRIVER, emptyMap(), convertsWhatsMissing = false)
+
+    /**
+     * For DriverCheck's test picture: the driver's stand-ins for the BC it lacks off, so Mesa unpacks the compressed
+     * squares itself, exactly. The compat layer's converter on the phone's driver, PanVK's own on Vulkan drivers (the
+     * others have none, and ignore it); the textures step judges each stand-in on its own.
+     */
+    fun withoutStandIns(paths: Paths, id: String, environment: Map<String, String>): Map<String, String> = when {
+        isPhone(id) -> mapOf(CONVERTER to "0")
+        usesVulkan(paths, id) -> mapOf("PANVK_DEBUG" to
+            listOfNotNull(environment["PANVK_DEBUG"], "no_bc_emul").joinToString(","))
+        else -> emptyMap()
+    }
+
+    /** What keeps the textures the way DriverCheck found, by its name. */
+    fun textureWay(paths: Paths, id: String, environment: Map<String, String>, name: String) =
+        textureWays(paths, id, environment).firstOrNull { it.saved == name }?.environment.orEmpty()
+
+    /** The phone's driver, imported drivers and the catalog's Vulkan ones: Zink, where the compat layer can go. */
+    private fun usesVulkan(paths: Paths, id: String) =
+        DriverImport.downloaded(paths, id)?.kind.let { it == null || it == Catalog.Kind.VULKAN }
 
     /**
      * Off the main thread: the newest catalog, which can change the recommended driver (a first start without it
@@ -251,10 +305,10 @@ object Drivers {
     }
 
     /**
-     * The CPU driver gets Medium sprites, Light graphics and the coarser resolution it was made for. Malis get Medium
-     * sprites too: High crashed PanVK while loading, and their own driver loads them unpacked. So does MobileGlues:
-     * High ran a vivo X200 Ultra out of memory. A GPU driver gets the resolution its speed test found, and Light
-     * graphics if even the coarsest was too slow. [onlyUnset] keeps what the player chose.
+     * The CPU driver gets Medium sprites, Light graphics and the coarser resolution it was made for. A GPU driver gets
+     * High sprites where its check found room for them (highSpritesFit), the resolution its speed test found, and
+     * Light graphics if even the coarsest was too slow. MobileGlues gets Medium: High ran a vivo X200 Ultra out of
+     * memory, and the check can't measure it. [onlyUnset] keeps what the player chose.
      */
     private fun setGraphicsDefaults(context: Context, cpu: Boolean, onlyUnset: Boolean) {
         val settings = Settings(context)
@@ -262,7 +316,8 @@ object Drivers {
         val fit = if (cpu) null else SpeedTest.fit(context, DriverCheck.speed(context, driver), settings.frameRate)
         val gles = (DriverImport.downloaded(Paths(context), driver) ?: Catalog.get(context).find(driver))?.kind ==
             Catalog.Kind.GLES
-        settings.setGraphicsDefaults(if (cpu || Gpu.mali || gles) Settings.MEDIUM else Settings.HIGH,
+        val room = highSpritesFit(DriverCheck.freeMemory(context, driver), DriverCheck.textureCost(context, driver))
+        settings.setGraphicsDefaults(if (cpu || gles || !room) Settings.MEDIUM else Settings.HIGH,
                                      cpu || fit?.light == true, onlyUnset)
         val x11 = X11Prefs(context)
         if (!onlyUnset || !x11.hasResolutionScale) x11.resolutionScale = fit?.scale ?: x11.startingResolutionScale(cpu)
@@ -304,8 +359,7 @@ object Drivers {
                            HYBRIS_PROPERTIES to paths.androidProperties.path,
                            // Android 10's linker config is named by it: libhybris's linker can't read properties.
                            HYBRIS_VNDK to vndk(),
-                           "VK_INSTANCE_LAYERS" to COMPAT_LAYER) +
-                (if (Gpu.mali) MALI else emptyMap()) + (if (Gpu.powervr) POWERVR else emptyMap())
+                           "VK_INSTANCE_LAYERS" to COMPAT_LAYER)
             else -> if (installed?.kind == Catalog.Kind.GLES) {
                 mobileGlues(paths, DriverImport.folder(paths, id), vndk()) + installed.env + fixes
             } else if (installed != null) {
@@ -340,22 +394,19 @@ object Drivers {
 
     private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
 
-    /**
-     * Factorio needs OpenGL 3.3, which Zink offers only on Vulkan drivers with depth clamp and vertex attribute
-     * divisors; some Malis' lack one (G52, G610). Asked for anyway, a G610 got its context: without the extension, Zink
-     * steps each instanced attribute once per instance. The game also runs on 3.3 where the driver offers more.
-     * The compat layer's stand-in for the BC textures Malis lack failed on every one Factorio made (a G925, and the
-     * vivo with it forced): Mesa unpacks them itself instead, unless DriverCheck found its transcoder draws them right.
-     */
-    /**
-     * The X server copies a frame it doesn't flip with the CPU, which Google's allocator on PowerVR allows only for
-     * buffers made for it: without them it stopped at the first frame (runtime/hybris patch 0006).
-     */
-    private val POWERVR = mapOf("HYBRIS_WSI_CPU_ACCESS" to "1")
+    /** Factorio's estimate of its textures at High, compressed, with Space Age: 1053 MB on a vivo X200 Ultra. */
+    private const val HIGH_TEXTURES_MB = 1053
+    /** What else the game had in GPU memory: a Tecno's PanVK held 1628 MB with those textures, then lost the GPU. */
+    private const val REST_MB = 600
+    /** Room to spare above that, for mods and maps. */
+    private const val HEADROOM = 1.5
 
-    private val MALI = mapOf("MESA_GL_VERSION_OVERRIDE" to "3.3",
-                             "MESA_EXTENSION_OVERRIDE" to "+GL_ARB_instanced_arrays",
-                             DriverCheck.TRANSCODER to "0")
+    /**
+     * Whether High sprites fit in [freeMb] of GPU memory, the textures costing [cost] times their compressed size
+     * (DriverCheck.textureCost): about 2.5 GB at 1, 4 GB through the compat layer's converter. Unknown: they don't.
+     */
+    internal fun highSpritesFit(freeMb: Int?, cost: Double) =
+        freeMb != null && freeMb >= HEADROOM * (HIGH_TEXTURES_MB * cost + REST_MB)
 
     /**
      * Where [id]'s process finds its libraries. A driver with its own Mesa needs it before the runtime's; a Vulkan

@@ -107,7 +107,6 @@ class CatalogTest {
              "file": {"url": "https://example.com/x", "sha256": "ff", "size": 9}}"""))
         assertEquals(Catalog.Kind.OPENGL, entry.kind)
         assertEquals(mapOf("K" to "v"), entry.settings.single().env)
-        assertTrue(entry.cpuCompression)
         assertEquals(12, entry.tested.single().android)
         assertEquals(100, entry.priority)
         assertFalse(entry.testing)

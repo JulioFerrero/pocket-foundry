@@ -194,9 +194,6 @@ object DriverImport {
      * Different builds often share a Mesa version (PanVK forks are all 26.3.0-devel): the library's hash keeps them
      * apart, and the same file imported again still replaces itself.
      */
-    /** Factorio's GPU compressor fails on PanVK: Drivers.compression tells it apart by its id. */
-    fun isPanVK(id: String) = id.startsWith(PANVK.lowercase() + "-")
-
     internal fun driverId(kind: String, version: String, hash: String) =
         kind.lowercase() + "-" + version.lowercase().replace(Regex("[^a-z0-9.]+"), "-") + "-" + hash.take(8)
 

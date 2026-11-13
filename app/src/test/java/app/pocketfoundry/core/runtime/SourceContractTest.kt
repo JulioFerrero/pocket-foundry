@@ -10,6 +10,7 @@ import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.ResolutionScale
 import app.pocketfoundry.core.system.Settings
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -75,6 +76,21 @@ class SourceContractTest {
     @Test fun `the driver check's program answers right or wrong as the app reads it`() {
         val program = File("../runtime/programs/pocketfoundry-drivercheck.c").readText()
         assertIn(program, "return right ? ${DriverCheck.RIGHT} : ${DriverCheck.WRONG};", "pocketfoundry-drivercheck.c")
+    }
+
+    @Test fun `the app reads the formats line as the program writes it`() {
+        val program = File("../runtime/programs/pocketfoundry-drivercheck.c").readText()
+        val format = Regex("""#define FORMATS "(.*)\\n"""").find(program)!!.groupValues[1].replace("%u", "%d")
+        assertEquals("Vulkan 1.4, samples ETC2, ASTC",
+                     DriverCheck.formats(format.format(1, 4, "Mali-G615 MC2", "no", "yes", "no", "yes")))
+    }
+
+    @Test fun `the app reads the textures run's last line as the program writes it`() {
+        val program = File("../runtime/programs/pocketfoundry-drivercheck.c").readText()
+        val format = Regex("""#define ATLASES "(.*)\\n"""").find(program)!!.groupValues[1].replace("%ld", "%d")
+        assertEquals(DriverCheck.Atlases(draws = true, comesBack = false, copies = true, takesMb = 66,
+                                         compressedMb = 64),
+                     DriverCheck.Atlases.parse(format.format(1, 0, 1, 66, 64)))
     }
 
     @Test fun `libhybris reads Android's properties by the names the app sets`() {

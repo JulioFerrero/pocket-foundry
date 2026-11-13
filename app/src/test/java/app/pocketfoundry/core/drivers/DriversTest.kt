@@ -116,16 +116,38 @@ class DriversTest {
                                                     entry = entry("mobileglues", "gles"))))
     }
 
-    @Test fun `the phone's driver turns the transcoder on with a switch`() {
-        assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "1"), Drivers.transcoder(paths, Drivers.PHONE, mapOf("A" to "1")))
+    @Test fun `the phone's driver keeps textures through its compat layer only`() {
+        val ways = Drivers.textureWays(paths, Drivers.PHONE, mapOf("A" to "1"))
+        assertEquals(listOf(Drivers.TextureWay.LAYER), ways.map { it.saved })
+        assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "1"), ways.single().environment)
     }
 
-    @Test fun `PanVK gets the compat layer for the transcoder, with its own unpacking off`() {
+    @Test fun `a Vulkan driver is tried as it is, then under the compat layer with its own stand-in off`() {
         val environment = mapOf("PANVK_DEBUG" to "sync", "MESA_VK_WSI_DEBUG" to "sw")
+        val ways = Drivers.textureWays(paths, "panvk-kbase-26", environment)
+        assertEquals(listOf(Drivers.TextureWay.DRIVER, Drivers.TextureWay.LAYER, Drivers.TextureWay.LAYER_VULKAN_13),
+                     ways.map { it.saved })
+        assertEquals("1.3", ways.last().environment["MESA_VK_VERSION_OVERRIDE"])
+        assertEquals(ways[1].environment, ways.last().environment - "MESA_VK_VERSION_OVERRIDE")
+        assertEquals(emptyMap<String, String>(), ways.first().environment)
         assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "1", "VK_LAYER_PATH" to "/files/usr/lib/hybris",
                            "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat", "PANVK_DEBUG" to "sync,no_bc_emul",
                            "HYBRIS_MALI_SPEC_CONSTANTS" to "0"),
-                     Drivers.transcoder(paths, "panvk-kbase-26", environment))
+                     Drivers.textureWay(paths, "panvk-kbase-26", environment, Drivers.TextureWay.LAYER))
+    }
+
+    @Test fun `the test picture draws with the drivers' stand-ins for BC off`() {
+        assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "0"), Drivers.withoutStandIns(paths, Drivers.PHONE, emptyMap()))
+        assertEquals(mapOf("PANVK_DEBUG" to "sync,no_bc_emul"),
+                     Drivers.withoutStandIns(paths, "panvk-kbase-26", mapOf("PANVK_DEBUG" to "sync")))
+        assertEquals(emptyMap<String, String>(),
+                     Drivers.withoutStandIns(installed("freedreno", "opengl"), "freedreno", emptyMap()))
+    }
+
+    @Test fun `a driver with its own OpenGL keeps textures its own way only`() {
+        val paths = installed("freedreno", "opengl")
+        assertEquals(listOf(Drivers.TextureWay.DRIVER),
+                     Drivers.textureWays(paths, "freedreno", emptyMap()).map { it.saved })
     }
 
     @Test fun `an imported driver draws through Zink on its own Vulkan driver, presenting in software`() {
@@ -159,17 +181,26 @@ class DriversTest {
         assertEquals(listOf(paths.lib), Drivers.libraryPath(paths, "phone"))
     }
 
-    @Test fun `only Vulkan drivers draw through Zink`() {
+    @Test fun `High sprites need room for what the textures really cost`() {
+        assertTrue(Drivers.highSpritesFit(15247, 1.0))
+        assertFalse(Drivers.highSpritesFit(2322, 1.0))
+        // A Redmi Note 14 Pro 5G's PanVK had 5564 MB free: enough at 1, through the converter too.
+        assertTrue(Drivers.highSpritesFit(5564, 2.0))
+        assertFalse(Drivers.highSpritesFit(3500, 2.0))
+        assertFalse(Drivers.highSpritesFit(null, 1.0))
+    }
+
+    @Test fun `every driver through Mesa is checked, not MobileGlues nor the CPU`() {
         val paths = installed("freedreno", "opengl")
         installed("cpu", "cpu")
         installed("mobileglues", "gles")
-        assertFalse(Drivers.usesZink(paths, "freedreno"))
-        assertFalse(Drivers.usesZink(paths, "cpu"))
-        assertFalse(Drivers.usesZink(paths, "mobileglues"))
-        assertFalse(Drivers.usesZink(paths, "listed", entry("listed", "gles")))
-        assertFalse(Drivers.usesZink(paths, "listed", entry("listed", "cpu")))
-        assertTrue(Drivers.usesZink(paths, "phone"))
-        assertTrue(Drivers.usesZink(paths, "turnip"))
+        assertTrue(Drivers.checked(paths, "freedreno"))
+        assertFalse(Drivers.checked(paths, "cpu"))
+        assertFalse(Drivers.checked(paths, "mobileglues"))
+        assertFalse(Drivers.checked(paths, "listed", entry("listed", "gles")))
+        assertFalse(Drivers.checked(paths, "listed", entry("listed", "cpu")))
+        assertTrue(Drivers.checked(paths, "phone"))
+        assertTrue(Drivers.checked(paths, "turnip"))
     }
 
     private val today = java.time.LocalDate.of(2026, 11, 10)

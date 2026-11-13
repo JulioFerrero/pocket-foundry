@@ -55,8 +55,6 @@ object Catalog {
         val settings = json.optJSONArray("settings")?.objects().orEmpty().map {
             Setting(it.getString("id"), it.getString("label"), it.optString("about"), it.optJSONObject("env").toMap())
         }
-        /** Factorio's GPU texture compressor fails on some drivers (PanVK): the CPU compresses instead. */
-        val cpuCompression = json.optString("compression") == "cpu"
         /** Not ready for players: listed only with Settings.testDrivers, and never chosen by itself. */
         val testing = json.optBoolean("testing")
         val tested = json.optJSONArray("tested")?.objects().orEmpty().map {

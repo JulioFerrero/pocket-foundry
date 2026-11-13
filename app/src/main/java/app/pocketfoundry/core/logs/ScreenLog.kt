@@ -66,6 +66,11 @@ object ScreenLog {
         }
     }
 
+    /** Before a game, the driver it gets, when the driver check moved on to another. */
+    fun playing(driver: String) {
+        this.driver = driver
+    }
+
     /** The X server repeats it every second until the screen connects: only the first is written. */
     fun announcement() {
         if (announced) return
