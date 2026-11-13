@@ -18,13 +18,11 @@ class Settings(context: Context) {
     var touch by prefs.string("touch", BOX)
     /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
     var trackpadSpeed by prefs.int("trackpadSpeed", 150)
-    var checkForUpdates by prefs.bool("checkForUpdates", true)
     var fpsCounter by prefs.bool("fpsCounter", false)
     /**
      * Every layer between the game and the screen logs what happens to the frames, and the game's memory is watched.
      */
     var detailedLogs by prefs.bool("detailedLogs", false)
-    var updateShown by prefs.string("updateShown", "")
     /** In dp, around the game screen. */
     var border by prefs.int("border", 0)
     /** Factorio's graphics-quality, missing from its menus: "medium" halves the sprites, ~600 MB less memory. */

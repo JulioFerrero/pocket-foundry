@@ -47,22 +47,13 @@ import app.pocketfoundry.ui.kit.immersive
 import app.pocketfoundry.ui.kit.padForCutout
 import app.pocketfoundry.ui.kit.scaleUi
 import app.pocketfoundry.ui.kit.shown
-import app.pocketfoundry.ui.screens.updates.UpdateDialog
-import app.pocketfoundry.core.updates.UpdateFlow
-import app.pocketfoundry.core.updates.Updates
 import java.io.File
 
 /** Its screens and their dialogs call back into it. In a game, Home is the pause menu. */
 class LauncherActivity : Activity() {
     private val paths by lazy { Paths(this) }
     private val settings by lazy { Settings(this) }
-    val host = DialogHost(this, onClosed = {
-        updateDialog = null
-        refresh()
-    })
-    val updates = UpdateFlow(this, onChanged = ::refreshUpdates, onFound = {
-        if (!host.isOpen && !importingNow && !Session.inGame) showUpdate(it)
-    })
+    val host = DialogHost(this, onClosed = { refresh() })
     // Only while on screen: onStop frees its sprites for the game.
     private var stage: Stage? = null
     private val stageHolder by lazy { FrameLayout(this) }
@@ -72,7 +63,6 @@ class LauncherActivity : Activity() {
     private val importing by lazy { ImportScreen(this) { stage?.progress(it) } }
     private val home by lazy { HomeScreen(this) }
     private val settingsScreen by lazy { SettingsScreen(this) }
-    private var updateDialog: UpdateDialog? = null
     private var focusedFor: Pair<View, Boolean>? = null
     private var importingNow = false
     /** The start screen shows: the app's start, or a driver downloading before a game. */
@@ -91,7 +81,7 @@ class LauncherActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!started) startUp() else updates.check()
+        if (!started) startUp()
         edgeToEdge()
         val overlay = FrameLayout(this).apply {
             padForCutout()
@@ -139,7 +129,6 @@ class LauncherActivity : Activity() {
         immersive()
         Session.addListener(sessionChanged)
         refresh()
-        updates.resume()
     }
 
     override fun onPause() {
@@ -172,7 +161,6 @@ class LauncherActivity : Activity() {
             home.update(version, busy, error)
             settingsScreen.update(busy == null)
         }
-        refreshUpdates()
     }
 
     private fun showScreen(version: String?, inGame: Boolean) {
@@ -217,19 +205,6 @@ class LauncherActivity : Activity() {
         showGame()
     }
 
-    /** Only the update's views: a download changes them on every percent. */
-    private fun refreshUpdates() {
-        // An update closes the app: not during a game or anything else.
-        val canUpdate = busy == null && !Session.inGame && updates.progress == null
-        settingsScreen.showRelease(canUpdate)
-        updateDialog?.update(canUpdate, Session.inGame)
-    }
-
-    fun showUpdate(release: Updates.Release) {
-        updateDialog = UpdateDialog(this, release).also { it.show() }
-        refreshUpdates()
-    }
-
     fun pickFiles(mimeTypes: List<String> = emptyList(), multiple: Boolean = false, onPicked: (List<Uri>) -> Unit) {
         this.onPicked = onPicked
         pick(PICK_FILES, mimeTypes, multiple)
@@ -271,29 +246,24 @@ class LauncherActivity : Activity() {
     fun showGame() = startActivity(Intent(this, MainActivity::class.java))
 
     /**
-     * Once per launch, on the start screen: the newest driver list, the driver for this GPU (downloaded if it's
-     * missing or the list has a newer build), then updates. Offline, the game's start tries the driver again.
+     * Once per launch, on the start screen: the newest driver list and the driver for this GPU (downloaded if it's
+     * missing or the list has a newer build). Offline, the game's start tries the driver again.
      */
     private fun startUp() {
         started = true
         loading = true
-        val checkUpdates = updates.wanted
         startScreen.show("Fetching the driver list", 0f)
         refresh()
         background("start-up", {
             Drivers.refreshCatalog(this)
             step("Finding the driver for your ${Gpu.name ?: "GPU"}", 0.1f)
-            val driver = runCatching {
-                Drivers.prepare(this) { name, percent -> step("Downloading $name", 0.15f + 0.7f * percent / 100) }
+            runCatching {
+                Drivers.prepare(this) { name, percent -> step("Downloading $name", 0.15f + 0.8f * percent / 100) }
             }
-            if (checkUpdates) step("Checking for updates", 0.9f)
-            driver to if (checkUpdates) updates.checkNow() else null
         }) { result ->
             loading = false
-            val (driver, update) = result.getOrThrow()
-            driver.onFailure { error = it.message }
+            result.getOrThrow().onFailure { error = it.message }
             refresh()
-            update?.let(updates::checked)
         }
     }
 

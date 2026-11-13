@@ -1,10 +1,10 @@
 #!/bin/sh
 # Releases, beta or not. You tag; GitHub builds the tag and publishes it (.github/workflows/release.yml):
-#   tools/release.sh 0.8.17-beta.1           a beta, from dev: a pre-release, which the app's update check skips
+#   tools/release.sh 0.8.17-beta.1           a beta, from dev: a pre-release, which Obtainium skips by default
 #   tools/release.sh 0.8.17                  a release, from main, once dev's betas work and dev is merged into it
 #   tools/release.sh check|publish 0.8.17    GitHub's side, after its build: the checks, then the release
-# Updates.kt reads what this writes: the version, the assets' names and the notes' "Since" list. Apps already
-# installed read them too, so their format stays.
+# Versions before 0.8.18 have their own update check (Updates.kt, since removed), which reads what this writes: the
+# version, the assets' names and the notes' "Since" list. Its format stays, so those find their way to a newer one.
 set -e
 cd "$(dirname "$0")/.."
 fail() { echo "$*" >&2; exit 1; }
@@ -78,12 +78,14 @@ publish)
     # One line per paragraph: GitHub keeps a release's line breaks.
     {
         if [ -n "$prerelease" ]; then
-            echo "**Beta, for testing.** The app's update check skips betas: install this one by hand. It updates to the release once that's out."
+            echo "**Beta, for testing.** Install it by hand, or turn on Include prereleases for Pocket Foundry in Obtainium. It updates to the release once that's out."
             echo
         fi
         echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, run without emulation on the phone's GPU."
         echo
         echo "**Install:** open \`$name\` on the phone (Android 10 or later and a connection on its first start: it downloads the driver for your GPU, Turnip on Adreno 6xx or newer, experimental builds on some Mali and Xclipse GPUs; other GPUs play through the phone's own driver (experimental) or an imported one, or on any phone's CPU, slowly), then import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves."
+        echo
+        echo "**Updates:** Pocket Foundry doesn't check for them itself. Add it to [Obtainium](https://github.com/ImranR98/Obtainium) with this repository's link, and Obtainium installs each new version."
         echo
         echo "**Signing certificate (SHA-256):** \`$(certificate)\`"
         echo

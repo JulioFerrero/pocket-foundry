@@ -13,7 +13,6 @@ import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.ResolutionScale
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.X11Prefs
-import app.pocketfoundry.core.updates.Updates
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
@@ -22,7 +21,6 @@ import app.pocketfoundry.ui.kit.Dropdown
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.MATCH
-import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
@@ -77,12 +75,11 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val trackpadSpeedRow by lazy { dropdownSetting("Trackpad speed", trackpadSpeed) }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)
     private val layoutLater = label(launcher, "In a game", 15f, Factorio.FAINT)
-    // Up by the title, out of the bar below: on a narrow phone the bar has no room for it next to the update.
+    // Up by the title, out of the bar below: on a narrow phone the bar has no room for it.
     private val credit = row(launcher) {
         add(label(launcher, "Pocket Foundry ${launcher.appVersion()} · GPL-3.0 · ", 13f, Factorio.FAINT))
         add(link(launcher, "GitHub", GITHUB, 13f))
     }
-    private val updateButton = button(launcher, "", Tone.GREEN, size = 15f) { Updates.available?.let(launcher::showUpdate) }
     private val importAgain = button(launcher, "Import game", size = 15f, onClick = launcher::pickGame)
 
     val view: View = panel(launcher, header()) {
@@ -91,7 +88,6 @@ class SettingsScreen(private val launcher: LauncherActivity) {
             add(game(), 0, MATCH, weight = 1f, start = 10)
         }, height = 0, weight = 1f)
         add(buttonBar(launcher, "Back", { launcher.showSettings(false) }).apply {
-            add(updateButton, height = BUTTON_HEIGHT, start = 8)
             add(button(launcher, "Driver", size = 15f) { DriverDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)
             add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 4)
             add(button(launcher, "Files", size = 15f) { GameFilesProvider.open(launcher) }, height = BUTTON_HEIGHT, start = 4)
@@ -124,11 +120,6 @@ class SettingsScreen(private val launcher: LauncherActivity) {
             showFastStart()
         }, controlHeight = CONTROL_HEIGHT),
         checkSetting("Detailed logs", settings.detailedLogs) { settings.detailedLogs = it },
-        checkSetting("Check for updates", settings.checkForUpdates) {
-            settings.checkForUpdates = it
-            launcher.updates.check()
-            launcher.refresh()
-        },
         setting("Controls layout", FrameLayout(launcher).apply {
             add(editLayout, WRAP, 40, Gravity.END)
             add(layoutLater, WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL)
@@ -194,14 +185,6 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         editLayout.shown = Session.live
         layoutLater.shown = !Session.live
         importAgain.isEnabled = !Session.inGame && idle
-    }
-
-    fun showRelease(canUpdate: Boolean) {
-        val progress = launcher.updates.progress
-        val release = Updates.available?.takeIf { settings.checkForUpdates }
-        updateButton.shown = release != null || progress != null
-        updateButton.text = progress ?: "Update to ${release?.version}"
-        updateButton.isEnabled = canUpdate
     }
 
     private companion object {

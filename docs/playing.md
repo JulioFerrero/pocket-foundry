@@ -71,15 +71,15 @@ still works as the mouse too.
 - **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen, the game's
   memory and every graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.
-- **Check for updates:** see below.
 - Pausing in the background, and vibration.
 
 ## Updates
 
-When it opens, Pocket Foundry asks GitHub whether a newer version is out. If one is, it shows what changed since
-yours and offers **Update**, which downloads it, checks it against the release's checksum and hands it to Android's
-installer. The first time, Android asks you to allow Pocket Foundry to install apps. **Settings** keeps the offer
-next to the version, and **Check for updates** there turns the check off.
+Pocket Foundry doesn't check for updates itself. [Obtainium](https://github.com/ImranR98/Obtainium) does: add
+Pocket Foundry with the button in the [README](../README.md#getting-started), or paste this repository's link into
+Obtainium, and it tells you when a new version is out and installs it. Each version installs over the last and keeps
+the game and saves. To get the betas too, turn on **Include prereleases** in Obtainium's settings for Pocket
+Foundry.
 
 ## Game files
 
