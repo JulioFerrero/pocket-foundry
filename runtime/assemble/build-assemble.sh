@@ -25,7 +25,8 @@ cp "$OUT/programs$PREFIX"/bin/* $USR/bin/
 cp -a "$OUT/hybris$PREFIX/lib/hybris" $USR/lib/
 
 # Stand-ins for two libraries that Vulkan drivers link but never use here (see the .c files).
-$CC -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -o $USR/lib/libwayland-client.so.0 "$RUNTIME/assemble/wayland-client.c"
+$CC -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -o $USR/lib/libwayland-client.so.0 \
+    "$RUNTIME/assemble/wayland-client.c"
 $CC -shared -fPIC -O2 -Wl,-soname,libSPIRV-Tools.so -o $USR/lib/libSPIRV-Tools.so "$RUNTIME/assemble/spirv-tools.c"
 
 cp -a "$OUT/sdl$PREFIX"/lib/libSDL3.so.* $USR/lib/
@@ -82,7 +83,11 @@ find $USR -name '*.so*' -type f -exec $STRIP --strip-unneeded {} +
 du -sh $USR/lib $USR/share
 # xz's ARM64 filter rewrites the code's relative branch targets as absolute ones, which repeat: with -9e the runtime
 # packs about 11% smaller than tar -J. lp=2 and pb=2 model the 4-byte instructions: 1.4% smaller again.
-cd "$OUT/runtime" && tar -cf - usr | xz --arm64 --lzma2=preset=9e,lc=2,lp=2,pb=2 -T1 > "$OUT/runtime.tar.xz"
+# The same bytes for the same files, whenever and wherever it's built: F-Droid rebuilds each release and ships ours only
+# if it matches. So names in order, the commit's date, no owners, and permissions only by what can run.
+cd "$OUT/runtime" && tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+    --mode=u+rwX,go+rX,go-w --format=gnu -cf - usr |
+    xz --arm64 --lzma2=preset=9e,lc=2,lp=2,pb=2 -T1 > "$OUT/runtime.tar.xz"
 ls -la "$OUT/runtime.tar.xz"
 
 # The loader ships as a "library": Android extracts those to the one place an app may exec from.

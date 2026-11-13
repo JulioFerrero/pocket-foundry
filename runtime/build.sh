@@ -55,17 +55,20 @@ case "$1" in
 esac
 
 mkdir -p out cache
+# The commit's time stands for the build's, so the same commit packs the same bytes (assemble, and compilers' dates).
+export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
 # A piece: its script sees this folder as RUNTIME, writes to OUT, downloads to CACHE and unpacks to WORK.
 if [ -n "$here" ]; then
     run() {
-        env PREFIX="$PREFIX" VERSION="${VERSION:-}" RUNTIME="$PWD" OUT="$PWD/out" CACHE="$PWD/cache" WORK="$PWD/work" \
+        env PREFIX="$PREFIX" VERSION="${VERSION:-}" SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
+            RUNTIME="$PWD" OUT="$PWD/out" CACHE="$PWD/cache" WORK="$PWD/work" \
             bash "$1/build-$1.sh"
     }
 else
     docker build --platform linux/arm64 -t pocketfoundry-build -f Dockerfile .
     # WORK stays in the container: a Mac bind mount is slow for builds.
     run() {
-        docker run --rm --platform linux/arm64 -e PREFIX="$PREFIX" -e VERSION="${VERSION:-}" \
+        docker run --rm --platform linux/arm64 -e PREFIX="$PREFIX" -e VERSION="${VERSION:-}" -e SOURCE_DATE_EPOCH \
             -e RUNTIME=/runtime -e OUT=/out -e CACHE=/cache -e WORK=/work \
             -v "$PWD:/runtime:ro" -v "$PWD/out:/out" -v "$PWD/cache:/cache" \
             pocketfoundry-build bash "/runtime/$1/build-$1.sh"
