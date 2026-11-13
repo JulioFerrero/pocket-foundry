@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -19,6 +20,7 @@ import app.pocketfoundry.core.game.GameImport
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
+import app.pocketfoundry.core.saves.OldApp
 import app.pocketfoundry.core.system.GITHUB
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
@@ -226,6 +228,10 @@ class LauncherActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == PICK_OLD_APP) {
+            if (resultCode == RESULT_OK) data?.data?.let(::bringOldSaves)
+            return
+        }
         val callback = if (requestCode == PICK_GAME) ::importGame else onPicked.also { onPicked = null }
         val picked = data?.clipData?.let { clip -> (0 until clip.itemCount).map { clip.getItemAt(it).uri } } ?: listOfNotNull(data?.data)
         if (resultCode == RESULT_OK && picked.isNotEmpty()) callback?.invoke(picked)
@@ -261,6 +267,47 @@ class LauncherActivity : Activity() {
         }) { result ->
             loading = false
             result.getOrThrow().onFailure { error = it.message }
+            refresh()
+            if (!Session.inGame && !host.isOpen) offerOldSaves()
+        }
+    }
+
+    /**
+     * 0.9 is a new app to Android (OldApp): once per launch until it's done, the saves, mods and config of the one
+     * before, through Android's folder picker, which only lets an app read another's folder that way.
+     */
+    private fun offerOldSaves() {
+        if (settings.oldSavesBrought || !OldApp.installed(this)) return
+        val bring = button(this, "Bring them", Tone.GREEN, Arrow.RIGHT) {
+            host.close()
+            @Suppress("DEPRECATION")
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                .putExtra(DocumentsContract.EXTRA_INITIAL_URI, OldApp.folder), PICK_OLD_APP)
+        }
+        host.show("Your saves from before 0.9", 460, "Not now", bring) {
+            add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
+                add(label(this@LauncherActivity, "Bring the old Pocket Foundry's saves, mods and config here?", 16f,
+                    weight = 600))
+                add(label(this@LauncherActivity, "Android opens its folder: tap Use this folder, then Allow.", 14f,
+                    Factorio.MUTED))
+            })
+        }
+    }
+
+    private fun bringOldSaves(tree: Uri) {
+        if (!OldApp.isOldAppsFolder(tree)) {
+            error = "That folder isn't the old Pocket Foundry's: try again from its folder."
+            refresh()
+            return
+        }
+        loading = true
+        startScreen.show("Bringing your saves", 0f)
+        refresh()
+        val bring = { OldApp.bring(this, tree, paths.gameData) { step("Bringing your saves", it / 100f) } }
+        background("old-saves", bring) {
+            loading = false
+            it.onSuccess { settings.oldSavesBrought = true }
+                .onFailure { e -> error = "Couldn't bring the saves: ${e.message}" }
             refresh()
         }
     }
@@ -331,6 +378,7 @@ class LauncherActivity : Activity() {
         const val PICK_FILES = 1
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3
+        const val PICK_OLD_APP = 4
         var checked = false
         /** The start screen's steps ran: once per launch. */
         var started = false

@@ -19,6 +19,8 @@ class Settings(context: Context) {
     /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
     var trackpadSpeed by prefs.int("trackpadSpeed", 150)
     var fpsCounter by prefs.bool("fpsCounter", false)
+    /** The saves of Pocket Foundry before 0.9, another app, came over (OldApp). */
+    var oldSavesBrought by prefs.bool("oldSavesBrought", false)
     /**
      * Every layer between the game and the screen logs what happens to the frames, and the game's memory is watched.
      */

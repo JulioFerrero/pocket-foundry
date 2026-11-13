@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Pocket Foundry before 0.9, another app: whether it's installed, to bring its saves over (OldApp). -->
+    <queries>
+        <package android:name="app.pocketfoundry" />
+    </queries>
+
     <!-- A game to Android and to the phone makers' game modes and launchers. -->
     <application
         android:name=".PocketFoundryApp"
