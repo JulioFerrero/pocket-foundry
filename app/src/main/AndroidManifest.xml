@@ -42,6 +42,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Pocket Foundry 0.9, another app, asks here for Factorio's folder, to bring the saves over. -->
+        <activity
+            android:name=".core.saves.SendSavesActivity"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="app.pocketfoundry.SEND_SAVES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".ui.screens.launcher.LogActivity"
             android:label="Logs"

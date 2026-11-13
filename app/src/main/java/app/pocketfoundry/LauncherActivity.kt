@@ -19,6 +19,7 @@ import app.pocketfoundry.core.game.GameImport
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
+import app.pocketfoundry.core.saves.SendSavesActivity
 import app.pocketfoundry.core.system.GITHUB
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
@@ -273,7 +274,7 @@ class LauncherActivity : Activity() {
      * owns. Once per launch, the way there.
      */
     private fun showMoving() {
-        val newApp = packageManager.getLaunchIntentForPackage(NEW_APP)
+        val newApp = packageManager.getLaunchIntentForPackage(SendSavesActivity.NEW_APP)
         val go = button(this, if (newApp != null) "Open 0.9" else "Get 0.9", Tone.GREEN, Arrow.RIGHT) {
             host.close()
             startActivity(newApp ?: Intent(Intent.ACTION_VIEW, Uri.parse("$GITHUB/releases/latest")))
@@ -359,8 +360,6 @@ class LauncherActivity : Activity() {
         const val PICK_FILES = 1
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3
-        /** Pocket Foundry from 0.9 on (showMoving). */
-        const val NEW_APP = "dev.pocketfoundry"
         var checked = false
         /** The start screen's steps ran: once per launch. */
         var started = false
