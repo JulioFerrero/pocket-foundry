@@ -98,6 +98,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | OnePlus Nord 3 5G | Mali-G710 | Phone's driver | About 40, High sprites ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)) |
 | Redmi Note 13 Pro+ | Mali-G610 | Phone's driver | 30–46, Medium sprites ([#27](https://github.com/JulioFerrero/pocket-foundry/issues/27)) |
 | Galaxy A54 | Mali-G68 | Phone's driver | 60 ([#64](https://github.com/JulioFerrero/pocket-foundry/issues/64)) |
+| Galaxy A34 5G | Mali-G68 | MobileGlues | 22–60, Medium sprites, Space Age ([#53](https://github.com/JulioFerrero/pocket-foundry/issues/53)) |
 | Poco M6 Pro 4G | Mali-G57 | Phone's driver | 50–60 ([#51](https://github.com/JulioFerrero/pocket-foundry/issues/51)) |
 | Galaxy XCover7 | Mali-G57 | MobileGlues | 55–60 |
 | Galaxy Tab S6 Lite | Mali-G72 | Phone's driver | 29–60, Medium sprites ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
