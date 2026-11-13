@@ -1,0 +1,36 @@
+--- a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
++++ b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
+@@ -681,6 +681,11 @@
+             static int knocks = 0;
+             if (knocks++ < 3)
+                 log(DEBUG, "New client connection!");
++            // Pocket Foundry: a connected screen doesn't knock, yet on some Xiaomis something knocks 2-4 times a
++            // second all game. Says so the first time and every 100th, to tell who it is from the screen's side.
++            static int knocksWhileConnected = 0;
++            if (conn_fd != -1 && knocksWhileConnected++ % 100 == 0)
++                log(ERROR, "knock %d while a screen is connected", knocksWhileConnected);
+             serverEnv->CallVoidMethod(thiz, sendBroadcast);
+         }
+         close(client);
+--- a/lorie/src/main/java/com/termux/x11/MainActivity.java
++++ b/lorie/src/main/java/com/termux/x11/MainActivity.java
+@@ -94,6 +94,7 @@
+ 
+     public static Handler handler = new Handler();
+     private final Runnable connectRetry = this::tryConnect;
++    private int knocksLogged = 0;
+     FrameLayout frm;
+     // Pocket Foundry: public, so its touch controls map points with mInputHandler.mRenderData.
+     public TouchInputHandler mInputHandler;
+@@ -740,6 +741,11 @@
+ 
+         if (service == null) {
+             boolean sent = getLorieView().requestConnection();
++            // Pocket Foundry: which screen knocks, for the knocks some Xiaomis get while a screen is connected.
++            if (sent && knocksLogged++ % 100 == 0)
++                Log.w("MainActivity", "screen " + Integer.toHexString(System.identityHashCode(this)) + " knocked ("
++                        + knocksLogged + " so far; destroyed " + isDestroyed() + ", finishing " + isFinishing()
++                        + ", screens " + getInstances().size() + ")");
+             scheduleConnect();
+             return true;
+         }
