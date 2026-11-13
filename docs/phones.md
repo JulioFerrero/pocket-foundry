@@ -158,4 +158,4 @@ screen's Copy.
 - Pocket Foundry checks that the driver loads before keeping it.
 - Each driver's **Options** pass `NAME=value` settings to it (`PANVK_DEBUG=…`, `TU_DEBUG=…`). Logs shows them.
 
-![Choosing the graphics driver](screenshots/driver.jpg)
+![Choosing the graphics driver](../fastlane/metadata/android/en-US/images/phoneScreenshots/5-driver.jpg)

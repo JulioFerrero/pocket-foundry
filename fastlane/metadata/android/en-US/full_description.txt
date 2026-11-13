@@ -1,0 +1,17 @@
+Pocket Foundry runs the official Linux (arm64) build of Factorio on your phone, without emulation, drawn by the phone's GPU. It's an unofficial launcher: you need your own copy of Factorio from factorio.com, and the app holds no part of the game.
+
+<b>How it works</b>
+<ul>
+<li>Import the Linux (arm64) .tar.xz from factorio.com/download once. The game stays in the app's storage and is never modified.</li>
+<li>A small Linux runtime, built from source with the app (glibc, Mesa, SDL, libhybris and Termux:X11's X server), runs it.</li>
+<li>On-screen controls made for Factorio's controller mode, a trackpad mode, or a real controller, keyboard and mouse.</li>
+<li>Saves, mods and config show up in the phone's Files app.</li>
+</ul>
+
+<b>Graphics drivers</b>
+Pocket Foundry can draw through the phone's own graphics driver. On first start it offers to download a better one for your GPU, such as Turnip for Adreno 6xx and newer, from github.com/JulioFerrero/pocket-foundry-drivers, where they are built from source. Those downloads come from outside F-Droid and aren't checked by it. You can decline and play on the phone's own driver, which works on fewer phones.
+
+Needs Android 10 or later on an arm64 phone. Phones tested so far:
+https://github.com/JulioFerrero/pocket-foundry/blob/main/docs/phones.md
+
+Factorio is a trademark of Wube Software. Pocket Foundry is not affiliated with or endorsed by Wube Software.

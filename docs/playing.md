@@ -101,4 +101,4 @@ from anywhere.
 
 | | |
 |---|---|
-| ![Settings](screenshots/settings.jpg) | ![The pause menu](screenshots/paused.jpg) |
+| ![Settings](../fastlane/metadata/android/en-US/images/phoneScreenshots/4-settings.jpg) | ![The pause menu](../fastlane/metadata/android/en-US/images/phoneScreenshots/6-paused.jpg) |

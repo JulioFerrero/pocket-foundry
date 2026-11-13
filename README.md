@@ -11,8 +11,8 @@ emulation, no streaming, no game files in the app.
 
 | | |
 |---|---|
-| ![Welcome: Pocket Foundry's blueprint](docs/screenshots/welcome.jpg) | ![Importing: the blueprint built as the import goes](docs/screenshots/importing.jpg) |
-| ![Home over a factory drawn from your own copy](docs/screenshots/home.jpg) | ![Playing with the on-screen controller](docs/screenshots/playing.jpg) |
+| ![Welcome: Pocket Foundry's blueprint](fastlane/metadata/android/en-US/images/phoneScreenshots/7-welcome.jpg) | ![Importing: the blueprint built as the import goes](fastlane/metadata/android/en-US/images/phoneScreenshots/3-importing.jpg) |
+| ![Home over a factory drawn from your own copy](fastlane/metadata/android/en-US/images/phoneScreenshots/2-home.jpg) | ![Playing with the on-screen controller](fastlane/metadata/android/en-US/images/phoneScreenshots/1-playing.jpg) |
 
 ## Getting started
 
@@ -59,7 +59,7 @@ what the Logs screen shows (its Copy button takes it all).
 
 ## Licence
 
-GPL-3.0, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD),
+GPL-3.0-only, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD),
 Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0). The Phone's driver loads through
 [libhybris](https://github.com/taowen/libhybris) (Apache-2.0), whose Vulkan libraries (GPL-3.0) include
 [MaliBridge by ASEbrahim](https://github.com/ASEbrahim/MaliBridge), and older phones' drivers get Khronos's timeline
