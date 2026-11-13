@@ -1,0 +1,19 @@
+--- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
++++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+@@ -144,12 +144,13 @@
+         // The last argument is the app's Android user (uid / UserHandle.PER_USER_RANGE): not 0 in a work profile.
+         IIntentSender sender = am.getIntentSender(1, packageName, null, null, 0, new Intent[] { intent },
+                 null, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT, null, getuid() / 100000);
++        // Pocket Foundry: no finished receiver. The server has no IApplicationThread for Android to call it back on, so
++        // Android 14 logs two stack traces for every announcement that asks for one ("requested resultTo without an
++        // IApplicationThread"); nothing here waits for it.
+         //noinspection JavaReflectionMemberAccess
+         IIntentSender.class
+                 .getMethod("send", int.class, Intent.class, String.class, IBinder.class, IIntentReceiver.class, String.class, Bundle.class)
+-                .invoke(sender, 0, intent, null, null, new IIntentReceiver.Stub() {
+-                    @Override public void performReceive(Intent i, int r, String d, Bundle e, boolean o, boolean s, int a) {}
+-                }, null, null);
++                .invoke(sender, 0, intent, null, null, null, null, null);
+         return packageName;
+     }
+ 

@@ -1,0 +1,192 @@
+--- a/lorie/src/main/cpp/lorie/buffer.c
++++ b/lorie/src/main/cpp/lorie/buffer.c
+@@ -308,7 +308,7 @@
+     return buffer ? &buffer->desc : &none;
+ }
+ 
+-__LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, void** out) {
++static int lockFor(LorieBuffer* buffer, uint64_t usage, void** out) {
+     int ret = 0;
+     if (!buffer)
+         return ENODEV;
+@@ -324,7 +324,7 @@
+         buffer->lockedData = buffer->desc.data;
+     else if (buffer->desc.type == LORIEBUFFER_AHARDWAREBUFFER) {
+         if (__builtin_available(android 26, *))
+-            ret = AHardwareBuffer_lock(buffer->desc.buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, -1, NULL, &buffer->lockedData);
++            ret = AHardwareBuffer_lock(buffer->desc.buffer, usage, -1, NULL, &buffer->lockedData);
+     }
+ 
+     if (out)
+@@ -333,8 +333,16 @@
+     buffer->locked = 1;
+ 
+     return ret;
++}
++
++__LIBC_HIDDEN__ int LorieBuffer_lock(LorieBuffer* buffer, void** out) {
++    return lockFor(buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, out);
+ }
+ 
++__LIBC_HIDDEN__ int LorieBuffer_lockForReading(LorieBuffer* buffer, void** out) {
++    return lockFor(buffer, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, out);
++}
++
+ __LIBC_HIDDEN__ bool LorieBuffer_isLocked(LorieBuffer* buffer) {
+     return buffer && buffer->locked;
+ }
+--- a/lorie/src/main/cpp/lorie/buffer.h
++++ b/lorie/src/main/cpp/lorie/buffer.h
+@@ -126,6 +126,12 @@
+  * @return 0 on success, not 0 on failure
+  */
+ int LorieBuffer_lock(LorieBuffer* _Nullable buffer, void* _Nullable * _Nonnull out);
++
++/**
++ * LorieBuffer_lock for a process that only reads the buffer. Gralloc allows one writer per buffer, and Mali's
++ * logs every write lock taken while another process holds one ("lock*() for writing on an already locked buffer").
++ */
++int LorieBuffer_lockForReading(LorieBuffer* _Nullable buffer, void* _Nullable * _Nonnull out);
+ 
+ /**
+  * Unlock the AHardwareBuffer from direct CPU access.
+--- a/lorie/src/main/cpp/lorie/renderer.cpp
++++ b/lorie/src/main/cpp/lorie/renderer.cpp
+@@ -398,9 +398,10 @@
+ static const int relockProbeSize = 64;
+ static const uint64_t relockProbeCpuUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN;
+ 
+-static const uint32_t relockProbeRed = 0xff0000ff, relockProbeBlue = 0xffff0000;
++static const uint32_t relockProbeRed = 0xff0000ff;
+ 
+-// Probe process: locks the parent's red buffer, paints it blue and sends back verdict bits (locked, saw red).
++// Probe process: locks the parent's red buffer for reading, as the renderer does, unlocks it and sends back verdict
++// bits (locked, saw red, unlocked). Pocket Foundry: for reading, as the X server is the buffer's only writer.
+ int rendererRelockProbeChild(int fd) {
+     AHardwareBuffer *buf = nullptr;
+     AHardwareBuffer_Desc desc;
+@@ -410,25 +411,26 @@
+     if (__builtin_available(android 26, *)) {
+         if (AHardwareBuffer_recvHandleFromUnixSocket(fd, &buf) == 0) {
+             AHardwareBuffer_describe(buf, &desc);
+-            if (AHardwareBuffer_lock(buf, relockProbeCpuUsage, -1, nullptr, (void **) &pixels) == 0 && pixels) {
++            if (AHardwareBuffer_lock(buf, AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN, -1, nullptr, (void **) &pixels) == 0
++                && pixels) {
+                 verdict = 1;
+                 bool red = true;
+                 for (int y = 0; y < relockProbeSize; y++)
+-                    for (int x = 0; x < relockProbeSize; x++) {
++                    for (int x = 0; x < relockProbeSize; x++)
+                         red &= pixels[(size_t) y * desc.stride + x] == relockProbeRed;
+-                        pixels[(size_t) y * desc.stride + x] = relockProbeBlue;
+-                    }
+                 if (red)
+                     verdict |= 2;
++                if (AHardwareBuffer_unlock(buf, nullptr) == 0)
++                    verdict |= 4;
+             }
+         }
+     }
+     write(fd, &verdict, 1);
+-    pause(); // keeps the lock until the parent kills us
+-    return verdict == 3 ? 0 : 1;
++    pause(); // until the parent kills us
++    return verdict == 7 ? 0 : 1;
+ }
+ 
+-// Whether a second process can lock a write-locked AHardwareBuffer coherently.
++// Whether a second process can lock a write-locked AHardwareBuffer for reading and see its data.
+ static bool rendererCanRelockWhileLocked() {
+     AHardwareBuffer_Desc desc = {.width = relockProbeSize, .height = relockProbeSize, .layers = 1,
+             .format = AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM,
+@@ -436,7 +438,7 @@
+     AHardwareBuffer *buf = nullptr;
+     volatile uint32_t *pixels = nullptr;
+     uint8_t verdict = 0;
+-    bool coherent = false;
++    bool readable = false;
+     Dl_info info;
+ 
+     if (!__builtin_available(android 26, *) || !dladdr((void *) rendererCanRelockWhileLocked, &info) || !info.dli_fname)
+@@ -478,11 +480,8 @@
+         close(sv[1]);
+         if (pid > 0) {
+             struct pollfd pfd = {sv[0], POLLIN, 0};
+-            // Both processes still hold their locks here.
+-            coherent = poll(&pfd, 1, 3000) > 0 && read(sv[0], &verdict, 1) == 1 && verdict == 3;
+-            for (int y = 0; y < relockProbeSize; y++)
+-                for (int x = 0; x < relockProbeSize; x++)
+-                    coherent &= pixels[(size_t) y * desc.stride + x] == relockProbeBlue;
++            // The parent still holds its lock here.
++            readable = poll(&pfd, 1, 3000) > 0 && read(sv[0], &verdict, 1) == 1 && verdict == 7;
+             kill(pid, SIGKILL);
+             waitpid(pid, nullptr, 0);
+         }
+@@ -491,9 +490,9 @@
+ 
+     AHardwareBuffer_unlock(buf, nullptr);
+     AHardwareBuffer_release(buf);
+-    log("Xlorie: second process lock of a write-locked AHardwareBuffer: child verdict %d, data %s in both processes, preload %s",
+-        verdict, coherent ? "coherent" : "not coherent", info.dli_fname);
+-    return coherent;
++    log("Xlorie: second process read lock of a write-locked AHardwareBuffer: child verdict %d (7: locked, saw the data, "
++        "unlocked), preload %s", verdict, info.dli_fname);
++    return readable;
+ }
+ 
+ void Renderer::testCapabilities(int* legacy_drawing, int* renderer_relock) {
+@@ -811,13 +810,25 @@
+     syscall(SYS_futex, &state->rendererWaiting, FUTEX_WAKE, 1, nullptr, nullptr, 0);
+ }
+ 
+-static void syncRootForGpu(LorieBuffer *root) {
++// Pocket Foundry: whether this process's lock of the root buffer was refused, so the X server syncs it instead.
++static bool relockRefused = false;
++
++static void syncRootForGpu(struct lorie_shared_server_state *state, LorieBuffer *root) {
+     void *mapped;
+     if (LorieBuffer_description(root)->type != LORIEBUFFER_AHARDWAREBUFFER)
+         return;
+-    if (LorieBuffer_isLocked(root))
+-        LorieBuffer_unlock(root);
+-    LorieBuffer_lock(root, &mapped);
++    int unlocked = LorieBuffer_isLocked(root) ? LorieBuffer_unlock(root) : 0;
++    int locked = LorieBuffer_lockForReading(root, &mapped);
++    // The probe passed, yet the driver refuses this lock or unlock while the X server holds its own: let go, and
++    // leave the syncing to the X server, as on drivers that fail the probe.
++    if (unlocked || locked) {
++        log("Xlorie: renderer relock refused (unlock %d, lock %d): the X server syncs the root buffer",
++            unlocked, locked);
++        if (LorieBuffer_isLocked(root))
++            LorieBuffer_unlock(root);
++        relockRefused = true;
++        state->rendererRelock = 0;
++    }
+ }
+ 
+ // Keeps the shown region still while the cursor stays inside it, panning only when the cursor
+@@ -953,8 +964,11 @@
+ 
+     // We should signal X server to not use root window while we actively copy it
+     lockServerState(state, connFd());
++    // The X server sets it again when the screen reconnects.
++    if (relockRefused)
++        state->rendererRelock = 0;
+     if (state->rendererRelock)
+-        syncRootForGpu(buffer);
++        syncRootForGpu(state, buffer);
+     state->drawRequested = FALSE;
+ 
+     LorieBuffer_bindTexture(buffer);
+--- a/lorie/src/main/cpp/lorie/InitOutput.c
++++ b/lorie/src/main/cpp/lorie/InitOutput.c
+@@ -600,7 +600,8 @@
+         // and this is not needed. But according to docs we should do it for any case.
+         // Also according to AHardwareBuffer docs simultaneous reading in rendering thread and
+         // locking for writing in other thread is fine. Performing it on renderer side where possible.
+-        if (!pvfb->rendererRelock && priv->locked) {
++        // Pocket Foundry: the shared state's, which the renderer turns off when the driver refuses its relock.
++        if (!pvfb->state->rendererRelock && priv->locked) {
+             LorieBuffer_unlock(priv->buffer);
+             status = LorieBuffer_lock(priv->buffer, &priv->locked);
+             if (status)
