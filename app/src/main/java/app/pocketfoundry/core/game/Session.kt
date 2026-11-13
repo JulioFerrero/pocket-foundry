@@ -152,7 +152,7 @@ object Session {
             val found = checkNow(context, paths, driver, environment, onStep)
             val next = Drivers.chosen(context)
             if (next == driver) return driver
-            // Passed, yet another comes first now: the driver list changed while it was checked.
+            // Passed, yet another comes first now: driver downloads turned on while it was checked.
             val name = Drivers.find(context, driver)?.name ?: driver
             val nextName = Drivers.find(context, next)?.name ?: next
             Log.i(TAG, if (DriverCheck.passed(found)) "$name passed, but $nextName comes first now: " +

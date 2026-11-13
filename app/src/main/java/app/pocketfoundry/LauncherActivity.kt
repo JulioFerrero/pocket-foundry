@@ -245,31 +245,74 @@ class LauncherActivity : Activity() {
             importingNow = false
             error = failure
             refresh()
+            if (failure == null && settings.driverDownloads == Settings.ASK) askDriverDownloads()
         }
         refresh()
     }
 
     fun showGame() = startActivity(Intent(this, MainActivity::class.java))
 
-    /**
-     * On the start screen: the newest driver list, then the driver for this phone, downloaded and checked where it
-     * hasn't been, or the next in line where it can't play (Session.setUpDriver). Offline, the game's start tries again.
-     */
+    /** Once per launch: the drivers ready (fetchDrivers), then a question still open, one at a time. */
     private fun startUp() {
         started = true
+        fetchDrivers { if (!Session.inGame && !host.isOpen) nextQuestion() }
+    }
+
+    /**
+     * On the start screen: with downloads on, the newest driver list, then the driver for this phone, downloaded and
+     * checked where it hasn't been, or the next in line where it can't play (Session.setUpDriver). Offline, the game's
+     * start tries again.
+     */
+    private fun fetchDrivers(then: () -> Unit) {
         loading = true
-        startScreen.show("Fetching the driver list", 0f)
+        startScreen.show(if (Drivers.downloads(this)) "Fetching the driver list" else finding(), 0f)
         refresh()
-        background("start-up", {
+        background("drivers", {
             Drivers.refreshCatalog(this)
-            step("Finding the driver for your ${Gpu.name ?: "GPU"}", 0.1f)
+            step(finding(), 0.1f)
             runCatching { if (!Session.inGame) Session.setUpDriver(this, ::step) }
         }) { result ->
             loading = false
             result.getOrThrow().onFailure { error = it.message }
             refresh()
-            if (!Session.inGame && !host.isOpen) offerOldSaves()
+            then()
         }
+    }
+
+    private fun finding() = "Finding the driver for your ${Gpu.name ?: "GPU"}"
+
+    /** Driver downloads once the game is here, else the old app's saves. */
+    private fun nextQuestion() {
+        if (GameImport.installedVersion(this) != null && settings.driverDownloads == Settings.ASK) askDriverDownloads()
+        else offerOldSaves()
+    }
+
+    /**
+     * Before any driver download, what F-Droid asks of code from elsewhere: they come from pocket-foundry-drivers,
+     * outside its checks, and saying no is as easy as yes. Settings changes the answer.
+     */
+    private fun askDriverDownloads() {
+        val download = button(this, "Download", Tone.GREEN, Arrow.RIGHT) {
+            host.close()
+            turnOnDriverDownloads()
+        }
+        host.show("More drivers", 460, "Not now", download, onBack = {
+            settings.driverDownloads = Settings.OFF
+            refresh()
+        }) {
+            add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
+                add(label(this@LauncherActivity, "Connect to the internet to download more drivers?", 16f,
+                    weight = 600))
+                add(label(this@LauncherActivity, "From pocket-foundry-drivers on GitHub. They skip F-Droid's checks.",
+                    14f, Factorio.MUTED))
+            })
+        }
+    }
+
+    /** From the question, Settings or the Driver screen: the driver list and this GPU's driver, now. */
+    fun turnOnDriverDownloads(then: () -> Unit = {}) {
+        settings.driverDownloads = Settings.ON
+        fetchDrivers(then)
     }
 
     /**
@@ -330,7 +373,7 @@ class LauncherActivity : Activity() {
         refresh()
         background("start", {
             // The start couldn't get the driver list (no connection yet): without it the GPU may get no driver.
-            if (!Catalog.fetched) {
+            if (!Catalog.fetched && Drivers.downloads(this)) {
                 runOnUiThread { loading = true; startScreen.show("Fetching the driver list", 0f); refresh() }
                 Drivers.refreshCatalog(this)
             }

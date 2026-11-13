@@ -23,9 +23,10 @@ class DialogHost(private val activity: Activity, private val onClosed: () -> Uni
     /**
      * Closed by a tap beside it, Back, or [close]. On a screen too short for it, the parts [build] adds with a weight
      * shrink to fit. [titleEnd] sits at the title's far end. [titleLongPress]: a hidden action, on a long press on it.
+     * [onBack]: after [back]'s button closes it, not a tap beside it or Back.
      */
     fun show(title: CharSequence, widthDp: Int, back: CharSequence, vararg actions: View, titleEnd: View? = null,
-             titleLongPress: (() -> Unit)? = null, build: LinearLayout.() -> Unit) {
+             titleLongPress: (() -> Unit)? = null, onBack: () -> Unit = {}, build: LinearLayout.() -> Unit) {
         Dropdown.dismissOpen()
         val heading = heading(activity, title)
         titleLongPress?.let { action -> heading.setOnLongClickListener { action(); true } }
@@ -36,7 +37,7 @@ class DialogHost(private val activity: Activity, private val onClosed: () -> Uni
         }
         val panel = panel(activity, top) {
             build()
-            add(buttonBar(activity, back, ::close, *actions))
+            add(buttonBar(activity, back, { close(); onBack() }, *actions))
         }
         val scrim = FrameLayout(activity).apply {
             setBackgroundColor(0x99000000.toInt())

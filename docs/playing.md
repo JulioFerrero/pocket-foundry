@@ -71,6 +71,10 @@ still works as the mouse too.
 - **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen, the game's
   memory and every graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.
+- **Driver downloads:** the driver list and its drivers, from
+  [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers) on GitHub, outside F-Droid's
+  checks. Pocket Foundry asks once, after the import; without them it plays on the phone's own driver or an
+  imported one.
 - Pausing in the background, and vibration.
 
 ## Updates

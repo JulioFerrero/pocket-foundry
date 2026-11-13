@@ -47,6 +47,10 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val note = label(launcher, "Resolution, sprites, graphics, the FPS counter, detailed logs and fast start " +
                              "change when Factorio next starts.", 13f, Factorio.MUTED)
     private val fastStart = label(launcher, FAST_START, 15f)
+    private val driverDownloads = checkBox(launcher, settings.driverDownloads == Settings.ON) { on ->
+        if (on == (settings.driverDownloads == Settings.ON)) return@checkBox
+        if (on) launcher.turnOnDriverDownloads() else settings.driverDownloads = Settings.OFF
+    }
     private val resolution = Dropdown(launcher, resolutionNames()) {
         x11.resolutionScale = x11.resolutionScales[it]
         settings.graphicsChosen = true
@@ -120,6 +124,9 @@ class SettingsScreen(private val launcher: LauncherActivity) {
             showFastStart()
         }, controlHeight = CONTROL_HEIGHT),
         checkSetting("Detailed logs", settings.detailedLogs) { settings.detailedLogs = it },
+        setting(label(launcher, "", 15f).apply {
+            text = withNote("Driver downloads", "from GitHub, outside F-Droid's checks", Factorio.FAINT)
+        }, driverDownloads, controlHeight = CONTROL_HEIGHT),
         setting("Controls layout", FrameLayout(launcher).apply {
             add(editLayout, WRAP, 40, Gravity.END)
             add(layoutLater, WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL)
@@ -185,6 +192,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         editLayout.shown = Session.live
         layoutLater.shown = !Session.live
         importAgain.isEnabled = !Session.inGame && idle
+        driverDownloads.isChecked = settings.driverDownloads == Settings.ON
     }
 
     private companion object {

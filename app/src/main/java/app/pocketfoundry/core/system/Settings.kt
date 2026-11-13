@@ -19,6 +19,11 @@ class Settings(context: Context) {
     /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
     var trackpadSpeed by prefs.int("trackpadSpeed", 150)
     var fpsCounter by prefs.bool("fpsCounter", false)
+    /**
+     * Whether the driver list and its drivers come from pocket-foundry-drivers: outside the app, so outside F-Droid's
+     * checks. ASK until the player answers; one of ASK, ON and OFF (Drivers.downloads).
+     */
+    var driverDownloads by prefs.string("driverDownloads", ASK)
     /** The saves of Pocket Foundry before 0.9, another app, came over (OldApp). */
     var oldSavesBrought by prefs.bool("oldSavesBrought", false)
     /**
@@ -64,6 +69,9 @@ class Settings(context: Context) {
         val SPRITE_QUALITIES = listOf(HIGH, MEDIUM)
         val FRAME_RATES = listOf(30, 60)
         val TRACKPAD_SPEEDS = listOf(100, 150, 200, 300)
+        const val ASK = "ask"
+        const val ON = "on"
+        const val OFF = "off"
         const val DIRECT = "direct"
         const val TRACKPAD = "trackpad"
         const val BOX = "box"

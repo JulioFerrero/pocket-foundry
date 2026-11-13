@@ -195,6 +195,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val drivers = Drivers.all(launcher)
         if (drivers.none { it.id == viewing }) viewing = chosen
         list.removeAllViews()
+        if (!Drivers.downloads(launcher)) list.add(downloadsOff())
         val sections = listOf(
             "For your GPU" to drivers.filter(Drivers::forThisGpu),
             "To try" to drivers.filter(Drivers::toTry),
@@ -211,6 +212,18 @@ class DriverDialog(private val launcher: LauncherActivity) {
             }
         }
         view(viewing)
+    }
+
+    /** With downloads off (Settings.driverDownloads): what turning them on brings, and the button. */
+    private fun downloadsOff() = row(launcher) {
+        val text = withNote("Downloads are off", "More drivers from GitHub, outside F-Droid's checks", NOTE, 12,
+            gap = "\n")
+        add(label(launcher, text, 15f, Color.BLACK, 600), 0, WRAP, weight = 1f)
+        add(button(launcher, "Turn on", Tone.GREEN, size = 14f) { launcher.turnOnDriverDownloads { listDrivers() } },
+            start = 8)
+    }.apply {
+        background = ButtonDrawable(launcher, Tone.GREY)
+        pad(ROW_SIDE, ROW_PAD)
     }
 
     /** One button: the name and version, and the driver's state at the end. */
@@ -428,6 +441,9 @@ class DriverDialog(private val launcher: LauncherActivity) {
      */
     private fun use(id: String) {
         val entry = Drivers.pending(launcher, id).takeIf { DriverImport.downloaded(paths, id) == null }
+        if (entry != null && !Drivers.downloads(launcher)) {
+            return say("Driver downloads are off: turn them on above.", error = true)
+        }
         val name = Drivers.find(launcher, id)?.name ?: id
         useButton.isEnabled = false
         checkButton.isEnabled = false

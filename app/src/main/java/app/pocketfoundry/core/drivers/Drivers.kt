@@ -103,12 +103,19 @@ object Drivers {
     fun chosen(context: Context): String =
         DriverRecords.choice(context)?.takeIf { id -> find(context, id)?.let(::fits) == true } ?: recommended(context)
 
+    /** The player let the app download the driver list and drivers (Settings.driverDownloads). */
+    fun downloads(context: Context) = Settings(context).driverDownloads == Settings.ON
+
     /**
      * A driver that didn't start, or that this version's check found draws wrong or can't draw (DriverCheck), is
-     * passed over for the next in line.
+     * passed over for the next in line. With downloads off, only the drivers already here count.
      */
     fun recommended(context: Context): String {
-        val listed = Catalog.get(context).drivers.filter { !it.testing }.sortedBy { it.priority }
+        val online = downloads(context)
+        val paths = Paths(context)
+        val listed = Catalog.get(context).drivers
+            .filter { !it.testing && (online || DriverImport.downloaded(paths, it.id) != null) }
+            .sortedBy { it.priority }
         val fitting = listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id }
         val gles = listed.filter { it.kind == Catalog.Kind.GLES }.map { it.id }
         return recommend(fitting, Gpu.hasVulkan(context), gles) {
@@ -154,9 +161,17 @@ object Drivers {
     @Synchronized
     fun prepare(context: Context, onPercent: (name: String, percent: Int) -> Unit) {
         val id = chosen(context)
-        if (find(context, id) == null) throw IOException("No driver list yet. Check the connection and try again.")
+        val online = downloads(context)
+        if (find(context, id) == null) throw IOException(
+            if (online) "No driver list yet. Check the connection and try again."
+            else "Driver downloads are off: turn them on in Settings for a driver this phone can play with.")
         val entry = pending(context, id) ?: return
         val installed = DriverImport.downloaded(Paths(context), id) != null
+        // Off, a newer build waits; one that isn't here can't be had.
+        if (!online) {
+            if (installed) return
+            throw IOException("${entry.name} isn't downloaded, and driver downloads are off: turn them on in Settings.")
+        }
         try {
             download(context, entry) { onPercent(entry.name, it) }
         } catch (e: IOException) {
@@ -275,6 +290,7 @@ object Drivers {
      * has only the phone's). Offline, the saved one stays.
      */
     fun refreshCatalog(context: Context) = switching(context) {
+        if (!downloads(context)) return@switching
         runCatching { Catalog.refresh(context) }.onFailure { Log.w(TAG, "No driver list: ${it.message}") }
     }
 
