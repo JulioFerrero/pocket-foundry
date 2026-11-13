@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -20,11 +19,9 @@ import app.pocketfoundry.core.game.GameImport
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
-import app.pocketfoundry.core.saves.NewApp
 import app.pocketfoundry.core.system.GITHUB
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
-import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.isStock
 import app.pocketfoundry.ui.screens.game.GameScreens
 import app.pocketfoundry.ui.screens.launcher.HomeScreen
@@ -265,35 +262,6 @@ class LauncherActivity : Activity() {
             loading = false
             result.getOrThrow().onFailure { error = it.message }
             refresh()
-            offerNewApp()
-        }
-    }
-
-    /**
-     * 0.8.18 is this app's last version: 0.9 installs as a new one, dev.pocketfoundry, from the domain Pocket Foundry
-     * owns. Once it's out (GitHub's latest release) or installed, once per launch, the way there.
-     */
-    private fun offerNewApp() {
-        if (Session.inGame) return
-        background("new-app", { NewApp.launch(this) != null || NewApp.released() }) { result ->
-            result.onFailure { Log.i(TAG, "No word on 0.9: ${it.message}") }
-            if (result.getOrDefault(false) && !Session.inGame && !host.isOpen) showMoving()
-        }
-    }
-
-    private fun showMoving() {
-        val newApp = NewApp.launch(this)
-        val go = button(this, if (newApp != null) "Open 0.9" else "Get 0.9", Tone.GREEN, Arrow.RIGHT) {
-            host.close()
-            startActivity(newApp ?: Intent(Intent.ACTION_VIEW, Uri.parse("$GITHUB/releases/latest")))
-        }
-        host.show("Pocket Foundry is moving", 460, "Later", go) {
-            add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
-                add(label(this@LauncherActivity, "0.9 installs as a new app. This one gets no more updates.", 16f,
-                    weight = 600))
-                add(label(this@LauncherActivity, "0.9 brings your saves over. Factorio needs importing once more.", 14f,
-                    Factorio.MUTED))
-            })
         }
     }
 

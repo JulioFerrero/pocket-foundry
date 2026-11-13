@@ -73,7 +73,7 @@ jobs:
           PF_STOREPASS=$(prop storePassword) PF_KEYPASS=$(prop keyPassword) "$apksigner" sign \
               --ks "$(prop storeFile)" --ks-key-alias "$(prop keyAlias)" \
               --ks-pass env:PF_STOREPASS --key-pass env:PF_KEYPASS \
-              --out build/fdroid/signed.apk build/fdroid/app.pocketfoundry_*.apk
+              --out build/fdroid/signed.apk build/fdroid/dev.pocketfoundry_*.apk
           echo "APK=build/fdroid/signed.apk" >> "$GITHUB_ENV"
       - name: Check the APK
         run: ANDROID_HOME=/opt/android-sdk tools/release.sh check "${GITHUB_REF_NAME#v}"

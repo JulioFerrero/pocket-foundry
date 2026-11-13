@@ -11,11 +11,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Whether Pocket Foundry 0.9, a new app, is installed yet: the launcher's move notice opens it. -->
-    <queries>
-        <package android:name="dev.pocketfoundry" />
-    </queries>
-
     <!-- A game to Android and to the phone makers' game modes and launchers. -->
     <application
         android:name=".PocketFoundryApp"
@@ -42,16 +37,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Pocket Foundry 0.9, another app, asks here for Factorio's folder, to bring the saves over. -->
-        <activity
-            android:name=".core.saves.SendSavesActivity"
-            android:theme="@android:style/Theme.NoDisplay"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="app.pocketfoundry.SEND_SAVES" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
         <activity
             android:name=".ui.screens.launcher.LogActivity"
             android:label="Logs"

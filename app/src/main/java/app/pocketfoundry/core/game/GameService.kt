@@ -72,6 +72,6 @@ class GameService : Service() {
     companion object {
         private const val CHANNEL = "game"
         private const val ID = 1
-        private const val ACTION_QUIT = "app.pocketfoundry.QUIT"
+        private const val ACTION_QUIT = "dev.pocketfoundry.QUIT"
     }
 }

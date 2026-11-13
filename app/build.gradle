@@ -7,7 +7,8 @@ android {
     ndkVersion termuxX11NdkVersion   // :lorie's, so one NDK builds both
 
     defaultConfig {
-        applicationId 'app.pocketfoundry'
+        // From 0.9, after pocketfoundry.dev. The code keeps its app.pocketfoundry packages.
+        applicationId 'dev.pocketfoundry'
         minSdk 29
         targetSdk 34
         versionCode project.versionCode.toInteger()   // both in gradle.properties

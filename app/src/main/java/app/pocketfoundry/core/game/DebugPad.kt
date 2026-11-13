@@ -21,7 +21,7 @@ import app.pocketfoundry.core.system.mainHandler
  *   adb shell am broadcast -a app.pocketfoundry.debug.PAD --es run pocketfoundry-padtest   (a files/usr/bin tool)
  */
 object DebugPad : BroadcastReceiver() {
-    private const val ACTION = "app.pocketfoundry.debug.PAD"
+    private const val ACTION = "dev.pocketfoundry.debug.PAD"
     private const val TAP_MS = 120L
 
     fun registerIfDebuggable(context: Context) {

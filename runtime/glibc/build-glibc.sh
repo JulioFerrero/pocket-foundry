@@ -83,7 +83,7 @@ mkdir -p build && cd build
 ../configure \
     --prefix=$PREFIX --libdir=$PREFIX/lib --libexecdir=$PREFIX/lib --includedir=$PREFIX/include \
     --host=$T --build="$(gcc -dumpmachine)" \
-    --with-pkgversion="GNU libc for Android/app.pocketfoundry" \
+    --with-pkgversion="GNU libc for Android/dev.pocketfoundry" \
     --enable-bind-now --enable-fortify-source --disable-multi-arch \
     --enable-stack-protector=strong --disable-nscd --disable-profile --disable-werror \
     --disable-default-pie --enable-memory-tagging

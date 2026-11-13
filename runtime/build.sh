@@ -9,7 +9,7 @@ set -e
 cd "$(dirname "$0")"
 here=
 [ "$1" = --here ] && { here=1; shift; }
-PREFIX=/data/data/app.pocketfoundry/files/usr   # where the app unpacks the runtime (core/system/Paths.kt)
+PREFIX=/data/data/dev.pocketfoundry/files/usr   # where the app unpacks the runtime (core/system/Paths.kt)
 # In build order: hybris compiles against Mesa's Vulkan headers.
 PIECES="glibc mesa sdl programs hybris"
 

@@ -20,7 +20,7 @@ emulation, no streaming, no game files in the app.
 1. Install Pocket Foundry with [Obtainium](https://github.com/ImranR98/Obtainium), which also brings each new
    version, or the APK from [Releases](https://github.com/JulioFerrero/pocket-foundry/releases).
 
-   <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22app.pocketfoundry%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FJulioFerrero%2Fpocket-foundry%22%2C%22author%22%3A%22JulioFerrero%22%2C%22name%22%3A%22Pocket%20Foundry%22%7D"><img src="docs/badges/obtainium.png" alt="Get it on Obtainium" width="161" height="48"></a>
+   <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22dev.pocketfoundry%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FJulioFerrero%2Fpocket-foundry%22%2C%22author%22%3A%22JulioFerrero%22%2C%22name%22%3A%22Pocket%20Foundry%22%7D"><img src="docs/badges/obtainium.png" alt="Get it on Obtainium" width="161" height="48"></a>
 
 2. Buy Factorio and download the **Linux (arm64) .tar.xz** from [factorio.com/download](https://factorio.com/download).
 3. Open Pocket Foundry, tap **Import Factorio** and pick the file.

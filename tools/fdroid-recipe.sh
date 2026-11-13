@@ -1,5 +1,5 @@
 #!/bin/sh
-# Prints F-Droid's build recipe for a commit: the metadata/app.pocketfoundry.yml we keep in fdroiddata, and what
+# Prints F-Droid's build recipe for a commit: the metadata/dev.pocketfoundry.yml we keep in fdroiddata, and what
 # tools/fdroid-build.sh builds our releases with. Both build the same way so the APKs match: F-Droid ships ours, signed
 # with Pocket Foundry's key, only when its own build of the commit comes out the same.
 #   tools/fdroid-recipe.sh [commit [repository]]     HEAD and GitHub by default

@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 SRC=$PWD
 source /etc/profile.d/bsenv.sh   # the image's home_vagrant, fdroidserver and ANDROID_HOME
 export ANDROID_HOME=/opt/android-sdk serverwebroot=/tmp
-appid=app.pocketfoundry
+appid=dev.pocketfoundry
 code=$(sed -n 's/^versionCode=//p' gradle.properties)
 
 # fdroid build clones this checkout as F-Droid's vagrant user.
