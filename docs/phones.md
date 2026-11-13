@@ -1,165 +1,111 @@
 # Phones and drivers
 
-Pocket Foundry draws the game with Mesa's Zink, which runs OpenGL on a Vulkan driver. It picks the driver for the
-phone's GPU by itself, marked Recommended in **Settings -> Driver**:
+Pocket Foundry picks a graphics driver for your phone's GPU by itself and checks it before the first game, so most
+phones need nothing from you. **Settings -> Driver** shows the one in use and lets you pick another.
 
-- **Adreno 6xx and newer:** Turnip, which the app downloads the first time it starts. It's the one Pocket
-  Foundry tests.
-- **Other GPUs with Vulkan 1.1:** the [Phone's driver](#the-phones-driver-any-gpu), experimental.
-- **Every driver is checked first:** when the app starts for the first time or after an update, and when a driver
-  is picked in **Settings -> Driver**, Pocket Foundry draws test pictures with it and the game's textures at their
-  full size. From what the driver does, not which GPU it is, it turns off the newer features the driver gets wrong,
-  keeps the textures compressed the best way the driver can (its own, or converted to ASTC where it lacks the game's
-  format), turns fast start off where the driver gives them back wrong, and picks High or Medium sprites by the
-  driver's free memory. Logs says what it found.
-- **A driver that fails the check, or doesn't start:** the next one in line instead, then
-  [MobileGlues](#mobileglues-the-phones-opengl-es-any-gpu), then the [CPU](#any-other-phone-the-cpu). A driver that
-  can't keep the textures compressed fails: unpacked, they need about four times the memory.
+![Settings -> Driver](../fastlane/metadata/android/en-US/images/phoneScreenshots/5-driver.jpg)
 
-The GPU drivers aren't in the app: they come from
-[pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers), where CI builds each one from
-source, with the list of phones it was tested on. The app downloads and checks the one for the phone's GPU when it
-starts, and again when there's a newer build.
+## What each GPU gets
 
-Picking another driver there keeps it; picking the Recommended one hands the choice back. Community drivers can be
-imported too (**Settings -> Driver -> Import**). Others make and test them; what's here comes from players' reports,
-and a driver's bugs belong to its developers.
+| GPU | Picked first |
+|---|---|
+| Adreno 6xx and newer (Snapdragon) | Turnip |
+| Mali-G615 | PanVK-kbase 26.3.1 |
+| Mali-G77, G78 | PanVK-kbase RC3 |
+| Mali-G76 | PanVK 1.2.9 |
+| Xclipse (Samsung Exynos) | RADV for Xclipse |
+| Other Malis, PowerVR and other GPUs with Vulkan 1.1 | The Phone's driver |
+| GPUs without Vulkan 1.1 (Adreno 5xx and older) | MobileGlues |
 
-**Loads, but slow?** Check **Settings -> Driver**: CPU there means no GPU driver started on the phone, not even
-MobileGlues. Its Last game line says how each driver did.
+If the first one can't play, the app moves on by itself: the next one for your GPU, then the Phone's driver, then
+MobileGlues, then the CPU.
 
-## Adreno 6xx and newer (Snapdragon)
+## The check
 
-Works out of the box. Tested on a vivo X200 Ultra (Adreno 830, Android 16): 60 FPS and 60 UPS on an early-game save.
+Before the first game on a driver, and after each update, Pocket Foundry draws test pictures and the game's textures
+with it. From what it sees, not from which GPU it is, it:
 
-A newer Turnip can be imported, such as the `turnip_*_arm64.tar.gz` builds from
-[lfdevs/mesa-for-android-container](https://github.com/lfdevs/mesa-for-android-container/releases). Freedreno
-(OpenGL straight on the GPU) is in the same list. If text looks garbled, try Freedreno.
+- turns off the driver features that draw wrong;
+- keeps the textures compressed, a quarter of the memory (a driver that can't, fails);
+- turns fast start off where the driver gives the textures back wrong;
+- picks High or Medium sprites by the driver's free memory.
 
-## The Phone's driver (any GPU)
+**Logs** says what it found.
 
-Zink on the Vulkan driver the phone already has, loaded through [libhybris](https://github.com/taowen/libhybris)
-with [MaliBridge](https://github.com/ASEbrahim/MaliBridge)'s fixes for Mali. Mali, PowerVR and Xclipse phones start
-with it. It's experimental: it plays at 60 FPS on an Adreno 830, a Pixel 8's Mali-G715 and a Xiaomi 15T Pro's
-Mali-G925. If it doesn't start, the next game runs on MobileGlues. How it runs on yours:
-[open an issue](https://github.com/JulioFerrero/pocket-foundry/issues).
+## The drivers
 
-## MobileGlues: the phone's OpenGL ES (any GPU)
+- **Turnip:** Mesa's open Vulkan driver for Adreno, under Zink. Pocket Foundry is tested on it. **Freedreno**
+  (OpenGL straight on the GPU) comes next: try it if the text looks garbled, as on the Adreno 642L.
+- **PanVK:** Mesa's open Vulkan driver for Mali, in community builds by
+  [zenithblue](https://github.com/zenithblue-oss/panvk-kbase-android) and
+  [soulexit](https://github.com/soulexit/panvk-kirin990). Malis they weren't made for find them under **To try**.
+- **RADV for Xclipse:** [JimVulkan](https://github.com/JimVulkan/radv-xclipse)'s driver for Samsung's GPUs.
+- **The Phone's driver:** the Vulkan driver your phone already has, loaded through
+  [libhybris](https://github.com/taowen/libhybris), with [MaliBridge](https://github.com/ASEbrahim/MaliBridge)'s
+  fixes for Mali. Experimental.
+- **MobileGlues:** turns the game's OpenGL into the phone's own OpenGL ES, without Zink or Vulkan, so it plays where
+  the Vulkan drivers don't. **Wait for each frame** in its settings can look smoother on a phone that already reaches
+  60 FPS.
+- **CPU:** draws on the processor, no GPU needed. Slow and hard on the battery; it sets Medium sprites, Light
+  graphics and the lowest resolution.
 
-Experimental, from 0.8.18-beta.3: under For any GPU in **Settings -> Driver**. From 0.8.18-beta.4 a game falls back
-on it when no other driver starts, before the CPU.
-[MobileGlues](https://github.com/MobileGL-Dev/MobileGlues), made for Minecraft, turns the game's OpenGL into the
-OpenGL ES driver the phone already has, loaded through libhybris: no Zink and no Vulkan, so it can run where the
-phone's Vulkan driver fails. It plays at 59 FPS on an Adreno 830, 60 on a Tecno Camon 50 Ultra's Mali-G615, 55-60 on
-a Galaxy XCover7's Mali-G57 and 45-60 on a Redmi 12's Mali-G52. The processor draws the next frame while the GPU
-finishes this one; **Wait for each frame** in its settings turns that off, which can look smoother on a phone that
-already reaches 60 FPS. Malis and PowerVR lack the game's compressed textures: from MobileGlues 2.3.0 with
-0.8.18-beta.5 it keeps them compressed in a format they have (ASTC), 423 MB instead of about 990 on a Redmi 12, and
-the first start after the update builds them again, which takes a minute or two there. It starts on Medium sprites.
-Its build, with fixes for Factorio, is in
-[pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers).
+They all come from [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers), where CI builds
+each one from source. The app downloads the one it picks, and a newer build when there is one. The community drivers
+are made and tested by others, and their bugs belong to their developers.
 
-## Xclipse (Samsung Exynos)
+## Picking a driver yourself
 
-The [Phone's driver](#the-phones-driver-any-gpu) first. Or import `RADV-Xclipse-upstream-Linux.zip` from
-[The412Banner/droiddeck-nonadreno-drivers](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/tag/radv-xclipse-upstream).
-It's a community build of [JimVulkan/radv-xclipse](https://github.com/JimVulkan/radv-xclipse), not made by Pocket
-Foundry. On a Galaxy A56 (Xclipse 540) the Phone's driver crashes and RADV plays
-([#62](https://github.com/JulioFerrero/pocket-foundry/issues/62)).
-
-## Mali (MediaTek, Google Tensor, older Exynos)
-
-Malis start on the [Phone's driver](#the-phones-driver-any-gpu). The community driver, PanVK, can be imported in
-**Settings -> Driver -> Import**; which one depends on the Mali.
-
-| Mali | Driver | |
-|---|---|---|
-| G57, G68, G77, G78 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Plays. The Phone's driver plays on a G57 too, 50–60 FPS ([#51](https://github.com/JulioFerrero/pocket-foundry/issues/51)), on a G68 at 60 FPS ([#64](https://github.com/JulioFerrero/pocket-foundry/issues/64)), and on a G77 at 60 FPS with Medium sprites; High sprites need PanVK there ([#55](https://github.com/JulioFerrero/pocket-foundry/issues/55)) |
-| G615 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase v26.3.1](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v26.3.1), with `DRIRC_CONFIGURATION=pan_enable_vertex_pipeline_stores_atomics=false` in **Settings -> Driver -> Options** (without it the game freezes once a save loads) | Plays. The Phone's driver plays on a G615 too, 60 FPS at native resolution ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)). On a Tecno Camon 50 Ultra PanVK loses the GPU while the game loads and the Phone's driver draws the textures black since 0.8.17; MobileGlues plays there, 60 FPS ([#76](https://github.com/JulioFerrero/pocket-foundry/issues/76)) |
-| G610, G710 | The G615's, worth a try | The Phone's driver plays on a G710, about 40 FPS with High sprites ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)), and on a G610 since 0.8.16, 30–46 FPS with Medium sprites ([#27](https://github.com/JulioFerrero/pocket-foundry/issues/27)). With PanVK, the G615's stops halfway through the sprites on a G710, and the older [PanVK-Mali-G615-Linux.zip](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/download/panvk-mali-g615/PanVK-Mali-G615-Linux.zip) gets past the sprites on a G610, then stops |
-| G715, G720, G925 | `libvulkan_panfrost-glibc-aarch64.so` from [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3), with `PANVK_DEBUG=noafbc,bc_compute` in **Settings -> Driver -> Options** | Reaches the main menu on a G720, slowly. The Phone's driver plays on a G715 ([#13](https://github.com/JulioFerrero/pocket-foundry/issues/13)) and a G925 ([#2](https://github.com/JulioFerrero/pocket-foundry/issues/2)) |
-| G52, G72 | The G76's PanVK, under To try: it plays on a G52, 25–32 FPS on a Redmi Note 9 ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)). Since 0.8.18 it keeps the textures compressed, with less than half the memory. PanVK-kbase 26.3.1 doesn't draw on a G52 | The Phone's driver plays on a G52, 35–52 FPS with Medium sprites and Light graphics ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)), and on a G72 since 0.8.16 ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
-| G76 | [soulexit/panvk-kirin990](https://github.com/soulexit/panvk-kirin990) v1.2.8, which the app downloads by itself | Plays on a Kirin 980, about 60 FPS ([#56](https://github.com/JulioFerrero/pocket-foundry/issues/56)), and on a Galaxy S10 (Exynos 9820), 29–37 FPS. Reaches the main menu on a Kirin 990, where the Phone's driver loses the GPU |
-
-These are community builds from
-[zenithblue-oss/panvk-kbase-android](https://github.com/zenithblue-oss/panvk-kbase-android),
-[The412Banner/droiddeck-nonadreno-drivers](https://github.com/The412Banner/droiddeck-nonadreno-drivers) and
-[soulexit/panvk-kirin990](https://github.com/soulexit/panvk-kirin990), not made by Pocket Foundry. Releases usually
-have a build for Android and one for Linux: Pocket Foundry needs the glibc (Linux) one. soulexit's are Android only,
-so the Kirin one is their source built for Linux, unchanged.
-Status and reports: [Mali GPUs](https://github.com/JulioFerrero/pocket-foundry/issues/21).
-
-## PowerVR and Adreno 5xx
-
-PowerVR (Pixel 10 and 11) plays on the [Phone's driver](#the-phones-driver-any-gpu): a Pixel 10 Pro with Android 17
-at 58-60 FPS with High sprites and Full graphics. Adreno 5xx and older can't run Turnip, and their kernels lack what
-freedreno needs: they use [MobileGlues](#mobileglues-the-phones-opengl-es-any-gpu), or the
-[CPU](#any-other-phone-the-cpu) if it doesn't start.
-
-## Any other phone: the CPU
-
-**CPU** in **Settings -> Driver** draws the game on the phone's processor with Mesa's llvmpipe, no GPU driver
-needed. Phones where no GPU driver starts, not even MobileGlues, end up on it, and download it (13 MB) the first
-time. It's experimental: slow, and it uses a lot of battery. How fast it runs depends on the processor, not on
-Pocket Foundry.
-
-Choosing it also sets Medium sprites, **Graphics: Light** (Factorio's smoke, clouds, decoratives, shadows and terrain
-effects off) and the lowest resolution, which keeps the same view, only softer. A vivo X200 Ultra runs it at 60 FPS;
-phones with slower processors will run lower. How it runs on yours:
-[open an issue](https://github.com/JulioFerrero/pocket-foundry/issues).
+- **Use** switches to another driver. Using the one the app picked hands the choice back to it.
+- **Options** pass `NAME=value` settings to a driver (`PANVK_DEBUG=…`, `TU_DEBUG=…`).
+- **Import** takes a Linux (glibc) build: a `.tar.gz`, `.tar.xz`, `.zip` or the `.so` alone, or a MobileGlues
+  package (`libmobileglues.so` and `libmgx11.so`). Android builds (AdrenoTools, Winlator) can't load in the game.
+- **Slow?** If it says CPU, no GPU driver started on your phone:
+  [open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with the Logs.
 
 ## Reported working
 
 From players' reports, and tests on the vivo and on remote test phones.
 
-| Phone | GPU | Driver | |
+| Phone | GPU | Driver | FPS |
 |---|---|---|---|
-| vivo X200 Ultra | Adreno 830 | Turnip | 60 FPS |
-| Galaxy S25 Ultra | Adreno 830 | Turnip | 60 FPS ([#69](https://github.com/JulioFerrero/pocket-foundry/issues/69)) |
+| vivo X200 Ultra | Adreno 830 | Turnip | 60 |
+| Galaxy S25 Ultra | Adreno 830 | Turnip | 60 ([#69](https://github.com/JulioFerrero/pocket-foundry/issues/69)) |
 | OnePlus 15 | Adreno 840 | Turnip | |
 | Galaxy S24 Ultra | Adreno 750 | Turnip | |
+| Galaxy S23 | Adreno 740 | Turnip | 60 |
 | Xiaomi 13 | Adreno 740 | Turnip | |
-| AYN Thor | Adreno 740 | Turnip | 60 FPS on a big factory save, with its own controls |
-| POCO F5 Pro | Adreno 730 | Turnip | 60 FPS ([#20](https://github.com/JulioFerrero/pocket-foundry/issues/20)) |
+| AYN Thor | Adreno 740 | Turnip | 60 on a big factory |
+| POCO F5 Pro | Adreno 730 | Turnip | 60 ([#20](https://github.com/JulioFerrero/pocket-foundry/issues/20)) |
 | Galaxy Z Fold 8 Ultra | Adreno | Turnip | Folded and unfolded |
-| Retroid Pocket Flip 2 | Adreno 650 | Turnip | With its own controls |
-| Galaxy S20 FE | Adreno 650 | Turnip | Since 0.6.1 ([#12](https://github.com/JulioFerrero/pocket-foundry/issues/12)) |
-| Redmi Note 10 Pro | Adreno 618 | Turnip | Since 0.6.2 ([#17](https://github.com/JulioFerrero/pocket-foundry/issues/17)) |
-| Nothing Phone (1) | Adreno 642L | Freedreno | Turnip garbles the main menu's text |
-| POCO X5 Pro 5G | Adreno 642L | Freedreno | Turnip garbles the text ([#36](https://github.com/JulioFerrero/pocket-foundry/issues/36)) |
-| Galaxy S25 FE | Xclipse 940 | [RADV-Xclipse-upstream](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/tag/radv-xclipse-upstream) | 60 FPS ([#18](https://github.com/JulioFerrero/pocket-foundry/issues/18)) |
-| Galaxy A56 | Xclipse 540 | [RADV-Xclipse-upstream](https://github.com/The412Banner/droiddeck-nonadreno-drivers/releases/tag/radv-xclipse-upstream) | The Phone's driver crashes there ([#62](https://github.com/JulioFerrero/pocket-foundry/issues/62)) |
-| Pixel 8 | Mali-G715 | Phone's driver | 60 FPS, Medium sprites ([#13](https://github.com/JulioFerrero/pocket-foundry/issues/13)) |
-| Xiaomi 15T Pro | Mali-G925 | Phone's driver | 60 FPS, Medium sprites ([#2](https://github.com/JulioFerrero/pocket-foundry/issues/2)) |
-| OnePlus Nord 3 5G | Mali-G710 | Phone's driver | About 40 FPS, High sprites, full graphics ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)) |
-| Redmi Note 13 Pro+ | Mali-G610 | Phone's driver | 30–46 FPS, Medium sprites, since 0.8.16 ([#27](https://github.com/JulioFerrero/pocket-foundry/issues/27)) |
-| Poco X6 Pro | Mali-G615 | Phone's driver | 60 FPS at native resolution ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)) |
-| Tecno Camon 50 Ultra | Mali-G615 | Phone's driver | 30 FPS on a Space Age save, Medium sprites ([#40](https://github.com/JulioFerrero/pocket-foundry/issues/40)); the textures are black since 0.8.17 ([#76](https://github.com/JulioFerrero/pocket-foundry/issues/76)) |
-| Tecno Camon 50 Ultra | Mali-G615 | MobileGlues | 60 FPS, since 0.8.18-beta.5 ([#76](https://github.com/JulioFerrero/pocket-foundry/issues/76)) |
-| Xiaomi 11T | Mali-G77 | Phone's driver | 60 FPS, Medium sprites ([#55](https://github.com/JulioFerrero/pocket-foundry/issues/55)). High sprites run out of memory there; [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) plays High at 60 FPS ([#45](https://github.com/JulioFerrero/pocket-foundry/issues/45), [#55](https://github.com/JulioFerrero/pocket-foundry/issues/55)) |
-| Galaxy A54 | Mali-G68 | Phone's driver | 60 FPS ([#64](https://github.com/JulioFerrero/pocket-foundry/issues/64)) |
-| Poco M6 Pro 4G | Mali-G57 | Phone's driver | 50–60 FPS, 60 UPS ([#51](https://github.com/JulioFerrero/pocket-foundry/issues/51)). 25–30 FPS with [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) ([#25](https://github.com/JulioFerrero/pocket-foundry/issues/25)) |
-| Infinix Hot 60i | Mali-G52 | Phone's driver | 35–52 FPS, Medium sprites, Light graphics ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)) |
-| Redmi Note 9 | Mali-G52 | soulexit's PanVK | 25–32 FPS, Medium sprites, Light graphics ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)) |
-| Redmi 12 | Mali-G52 | soulexit's PanVK | 26–33 FPS, Medium sprites, textures kept compressed, since 0.8.18-beta.1 |
-| Redmi 12 | Mali-G52 | MobileGlues | 45–60 FPS (60 standing, 45 moving), since MobileGlues 2.1.0 |
-| vivo X200 Ultra | Adreno 830 | MobileGlues | 59 FPS at 3016×1290, Medium sprites, since 0.8.18-beta.2 |
-| Galaxy Tab S6 Lite | Mali-G72 | Phone's driver | 29–60 FPS at 1000×600, Medium sprites, Light graphics, since 0.8.16 ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
-| Pixel 6 | Mali-G78 | [PanVK-kbase RC3](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v0.1.0-rc3) | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
-| realme 16 Pro | Mali-G615 | [PanVK-kbase v26.3.1](https://github.com/zenithblue-oss/panvk-kbase-android/releases/tag/panvk-kbase-v26.3.1) with the G615's Options | 60 FPS, High sprites ([#35](https://github.com/JulioFerrero/pocket-foundry/issues/35)) |
-| Huawei P30 | Mali-G76 | soulexit's PanVK | About 60 FPS, about 55 with High graphics ([#56](https://github.com/JulioFerrero/pocket-foundry/issues/56)) |
-| Pixel 10 Pro | PowerVR DXT-48-1536 | Phone's driver | 58–60 FPS, High sprites, full graphics, since 0.8.17-beta.12 |
+| Retroid Pocket Flip 2 | Adreno 650 | Turnip | |
+| Galaxy S20 FE | Adreno 650 | Turnip | [#12](https://github.com/JulioFerrero/pocket-foundry/issues/12) |
+| Redmi Note 10 Pro | Adreno 618 | Turnip | [#17](https://github.com/JulioFerrero/pocket-foundry/issues/17) |
+| Nothing Phone (1) | Adreno 642L | Freedreno | |
+| POCO X5 Pro 5G | Adreno 642L | Freedreno | [#36](https://github.com/JulioFerrero/pocket-foundry/issues/36) |
+| Galaxy S25 FE | Xclipse 940 | RADV for Xclipse | 60 ([#18](https://github.com/JulioFerrero/pocket-foundry/issues/18)) |
+| Galaxy A56 | Xclipse 540 | RADV for Xclipse | 54–59 ([#62](https://github.com/JulioFerrero/pocket-foundry/issues/62)) |
+| realme 16 Pro | Mali-G615 | PanVK-kbase 26.3.1 | 60, High sprites ([#35](https://github.com/JulioFerrero/pocket-foundry/issues/35)) |
+| Xiaomi 14T | Mali-G615 | PanVK-kbase 26.3.1 | 46–59, High sprites |
+| Poco X6 Pro | Mali-G615 | Phone's driver | 60 ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)) |
+| Tecno Camon 50 Ultra | Mali-G615 | MobileGlues | 60 ([#76](https://github.com/JulioFerrero/pocket-foundry/issues/76)) |
+| Xiaomi 11T | Mali-G77 | PanVK-kbase RC3 | 60, High sprites ([#55](https://github.com/JulioFerrero/pocket-foundry/issues/55)) |
+| Galaxy S20 | Mali-G77 | PanVK-kbase RC3 | 37–45 |
+| Pixel 6 | Mali-G78 | PanVK-kbase RC3 | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
+| Huawei P30 | Mali-G76 | PanVK 1.2.9 | 60 ([#56](https://github.com/JulioFerrero/pocket-foundry/issues/56)) |
+| Galaxy S10 | Mali-G76 | PanVK 1.2.9 | 17–37 |
+| Pixel 8 | Mali-G715 | Phone's driver | 60, Medium sprites ([#13](https://github.com/JulioFerrero/pocket-foundry/issues/13)) |
+| Xiaomi 15T Pro | Mali-G925 | Phone's driver | 60, Medium sprites ([#2](https://github.com/JulioFerrero/pocket-foundry/issues/2)) |
+| OnePlus Nord 3 5G | Mali-G710 | Phone's driver | About 40, High sprites ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)) |
+| Redmi Note 13 Pro+ | Mali-G610 | Phone's driver | 30–46, Medium sprites ([#27](https://github.com/JulioFerrero/pocket-foundry/issues/27)) |
+| Galaxy A54 | Mali-G68 | Phone's driver | 60 ([#64](https://github.com/JulioFerrero/pocket-foundry/issues/64)) |
+| Poco M6 Pro 4G | Mali-G57 | Phone's driver | 50–60 ([#51](https://github.com/JulioFerrero/pocket-foundry/issues/51)) |
+| Galaxy XCover7 | Mali-G57 | MobileGlues | 55–60 |
+| Galaxy Tab S6 Lite | Mali-G72 | Phone's driver | 29–60, Medium sprites ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
+| Infinix Hot 60i | Mali-G52 | Phone's driver | 35–52, Medium sprites ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)) |
+| Redmi 12C | Mali-G52 | Phone's driver | 30–50 ([#71](https://github.com/JulioFerrero/pocket-foundry/issues/71)) |
+| Redmi 12 | Mali-G52 | MobileGlues | 45–60 |
+| Redmi Note 9 | Mali-G52 | PanVK 1.2.9 | 25–32 ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)) |
+| Pixel 10 Pro | PowerVR | Phone's driver | 58–60, High sprites |
 
 Yours works, or doesn't? [Open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with the Logs
 screen's Copy.
-
-## Importing a driver
-
-- Linux (glibc) builds only. Android builds (AdrenoTools, Winlator, emulator packages) can't load in the game.
-- A MobileGlues package from pocket-foundry-drivers (`libmobileglues.so` and `libmgx11.so`), to try a build before
-  the driver list has it.
-- A `.tar.gz`, `.tar.xz`, `.zip` or the `.so` alone. Libraries in the package come along.
-- Pocket Foundry checks that the driver loads before keeping it.
-- Each driver's **Options** pass `NAME=value` settings to it (`PANVK_DEBUG=…`, `TU_DEBUG=…`). Logs shows them.
-
-![Choosing the graphics driver](../fastlane/metadata/android/en-US/images/phoneScreenshots/5-driver.jpg)
