@@ -12,6 +12,7 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.ResolutionScale
 import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.core.system.WEBSITE
 import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.core.system.appVersion
@@ -81,7 +82,8 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val layoutLater = label(launcher, "In a game", 15f, Factorio.FAINT)
     // Up by the title, out of the bar below: on a narrow phone the bar has no room for it.
     private val credit = row(launcher) {
-        add(label(launcher, "Pocket Foundry ${launcher.appVersion()} · GPL-3.0 · ", 13f, Factorio.FAINT))
+        add(link(launcher, "Pocket Foundry", WEBSITE, 13f))
+        add(label(launcher, " ${launcher.appVersion()} · GPL-3.0 · ", 13f, Factorio.FAINT))
         add(link(launcher, "GitHub", GITHUB, 13f))
     }
     private val importAgain = button(launcher, "Import game", size = 15f, onClick = launcher::pickGame)

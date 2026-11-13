@@ -32,6 +32,7 @@ val Context.isDebuggable get() = applicationInfo.flags and ApplicationInfo.FLAG_
 
 const val REPOSITORY = "JulioFerrero/pocket-foundry"
 const val GITHUB = "https://github.com/$REPOSITORY"
+const val WEBSITE = "https://pocketfoundry.dev"
 
 private const val STOCK = 0xa5013371.toInt()
 
