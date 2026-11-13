@@ -83,6 +83,13 @@ class DriversTest {
         assertEquals(null, environment["VK_DRIVER_FILES"])
     }
 
+    @Test fun `every driver reads Mesa's per-application settings from the runtime, whatever path it was built for`() {
+        for ((id, kind) in listOf("turnip" to "vulkan", "freedreno" to "opengl", "cpu" to "cpu")) {
+            val environment = Drivers.environment(paths, id, entry(id, kind, "{}"), emptyMap())
+            assertEquals(id, paths.drirc.path, environment["DRIRC_CONFIGDIR"])
+        }
+    }
+
     @Test fun `the catalog's CPU driver is its own Mesa too, picked by the catalog's settings`() {
         val cpu = entry("cpu", "cpu", """{"MESA_LOADER_DRIVER_OVERRIDE": "llvmpipe", "LIBGL_ALWAYS_SOFTWARE": "1"}""")
         val environment = Drivers.environment(paths, "cpu", cpu, emptyMap())

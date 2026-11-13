@@ -350,7 +350,10 @@ object Drivers {
     internal fun environment(paths: Paths, id: String, installed: Catalog.Entry?, fixes: Map<String, String>,
                              vndk: () -> String = { Runtime.properties["ro.vndk.version"].orEmpty() }):
             Map<String, String> {
-        val base = mapOf("__EGL_VENDOR_LIBRARY_DIRS" to paths.eglVendors.path, "MESA_LOADER_DRIVER_OVERRIDE" to "zink")
+        // DRIRC_CONFIGDIR: Mesa looks for these settings under the path a driver was built for, which may be another
+        // app id's (pocket-foundry-drivers built for app.pocketfoundry, before 0.9); here they're always found.
+        val base = mapOf("__EGL_VENDOR_LIBRARY_DIRS" to paths.eglVendors.path, "MESA_LOADER_DRIVER_OVERRIDE" to "zink",
+                         "DRIRC_CONFIGDIR" to paths.drirc.path)
         return base + when (id) {
             // Zink on Android's own Vulkan driver, which libhybris loads (runtime/hybris). Its compat layer adds what
             // Zink needs and the driver may lack, like null descriptors on Mali.

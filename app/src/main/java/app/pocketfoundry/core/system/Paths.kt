@@ -24,6 +24,8 @@ class Paths(val files: File, nativeLibs: File) {
     /** Our SDL, which the game's built-in one hands everything to (runtime/sdl). */
     val sdl = File(lib, "libSDL3.so.0")
     val eglVendors = File(prefix, "share/glvnd/egl_vendor.d")
+    /** Mesa's per-application settings, from the runtime's Mesa: every driver reads them here (Drivers.environment). */
+    val drirc = File(prefix, "share/drirc.d")
     /** libhybris and its Vulkan layers (runtime/hybris). */
     val hybris = File(lib, "hybris")
     val hybrisIcd = File(hybris, "hybris_icd.json")
@@ -34,8 +36,8 @@ class Paths(val files: File, nativeLibs: File) {
     val speedTest = program("pocketfoundry-speedtest")
 
     /** What the app reads from the runtime, beside the libraries it loads: RuntimeContractTest finds each in it. */
-    val shipped get() = listOf(xkb, xLocales, gconv, sdl, eglVendors, hybris, hybrisIcd, windowManager, driverCheck,
-                                    speedTest)
+    val shipped get() = listOf(xkb, xLocales, gconv, sdl, eglVendors, drirc, hybris, hybrisIcd, windowManager,
+                                    driverCheck, speedTest)
 
     /** No /tmp on Android: the X server's socket and lock live in [tmp], and DISPLAY names the socket itself. */
     val xSocket = File(tmp, ".X11-unix/X$DISPLAY")
