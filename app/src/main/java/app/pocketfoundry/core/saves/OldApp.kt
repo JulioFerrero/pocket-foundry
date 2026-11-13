@@ -1,6 +1,7 @@
 package app.pocketfoundry.core.saves
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
@@ -8,8 +9,9 @@ import java.io.File
 
 /**
  * Pocket Foundry before 0.9, when its id was app.pocketfoundry: another app to Android. Its Files provider
- * (GameFilesProvider) shares Factorio's folder, so this one brings the saves, mods and config over, with the access
- * Android's folder picker grants. The game itself is imported again: the provider doesn't share it.
+ * (GameFilesProvider) shares Factorio's folder, so this one brings the saves, mods and config over: 0.8.18 hands
+ * the folder over when asked ([sendSaves]), older ones through Android's folder picker. The game itself is imported
+ * again: the provider doesn't share it.
  */
 object OldApp {
     const val ID = "app.pocketfoundry"
@@ -18,6 +20,12 @@ object OldApp {
     val folder: Uri = DocumentsContract.buildDocumentUri(AUTHORITY, "/")
 
     fun installed(context: Context) = runCatching { context.packageManager.getPackageInfo(ID, 0) }.isSuccess
+
+    /** 0.8.18's SendSavesActivity: its folder back, with read access, for Pocket Foundry signed with its key. */
+    val sendSaves: Intent get() = Intent("$ID.SEND_SAVES").setPackage(ID)
+
+    /** The old app is 0.8.18, which hands its folder over: older ones need the folder picker. */
+    fun sends(context: Context) = context.packageManager.resolveActivity(sendSaves, 0) != null
 
     /** The folder picked in the picker is the old app's, not some other. */
     fun isOldAppsFolder(tree: Uri) = tree.authority == AUTHORITY

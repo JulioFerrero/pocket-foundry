@@ -317,29 +317,34 @@ class LauncherActivity : Activity() {
 
     /**
      * 0.9 is a new app to Android (OldApp): once per launch until it's done, the saves, mods and config of the one
-     * before, through Android's folder picker, which only lets an app read another's folder that way.
+     * before. 0.8.18 hands its folder over; an older one is picked in Android's folder picker, where both apps'
+     * folders are called Pocket Foundry.
      */
     private fun offerOldSaves() {
         if (settings.oldSavesBrought || !OldApp.installed(this)) return
+        val sends = OldApp.sends(this)
         val bring = button(this, "Bring them", Tone.GREEN, Arrow.RIGHT) {
             host.close()
+            val ask = if (sends) OldApp.sendSaves else Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                .putExtra(DocumentsContract.EXTRA_INITIAL_URI, OldApp.folder)
             @Suppress("DEPRECATION")
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                .putExtra(DocumentsContract.EXTRA_INITIAL_URI, OldApp.folder), PICK_OLD_APP)
+            startActivityForResult(ask, PICK_OLD_APP)
         }
         host.show("Your saves from before 0.9", 460, "Not now", bring) {
             add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
                 add(label(this@LauncherActivity, "Bring the old Pocket Foundry's saves, mods and config here?", 16f,
                     weight = 600))
-                add(label(this@LauncherActivity, "Android opens its folder: tap Use this folder, then Allow.", 14f,
-                    Factorio.MUTED))
+                add(label(this@LauncherActivity,
+                    if (sends) "Factorio needs importing once more." else "In Android's menu, pick Pocket Foundry, " +
+                        "then Use this folder and Allow. Updating the old app to 0.8.18 first skips this.",
+                    14f, Factorio.MUTED))
             })
         }
     }
 
     private fun bringOldSaves(tree: Uri) {
         if (!OldApp.isOldAppsFolder(tree)) {
-            error = "That folder isn't the old Pocket Foundry's: try again from its folder."
+            error = "That folder isn't the old Pocket Foundry's: try the other Pocket Foundry in the menu."
             refresh()
             return
         }
@@ -349,8 +354,12 @@ class LauncherActivity : Activity() {
         val bring = { OldApp.bring(this, tree, paths.gameData) { step("Bringing your saves", it / 100f) } }
         background("old-saves", bring) {
             loading = false
-            it.onSuccess { settings.oldSavesBrought = true }
-                .onFailure { e -> error = "Couldn't bring the saves: ${e.message}" }
+            it.onSuccess { files ->
+                settings.oldSavesBrought = true
+                host.show("Your saves are here", 420, "OK") {
+                    add(label(this@LauncherActivity, "$files files from the old Pocket Foundry.", 16f, weight = 600))
+                }
+            }.onFailure { e -> error = "Couldn't bring the saves: ${e.message}" }
             refresh()
         }
     }
