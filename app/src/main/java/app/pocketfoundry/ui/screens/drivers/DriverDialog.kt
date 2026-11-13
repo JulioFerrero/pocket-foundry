@@ -29,6 +29,7 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.system.background
+import app.pocketfoundry.ui.kit.Arrow
 import app.pocketfoundry.ui.kit.ButtonDrawable
 import app.pocketfoundry.ui.kit.Choice
 import app.pocketfoundry.ui.kit.Factorio
@@ -219,8 +220,9 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val text = withNote("Downloads are off", "More drivers from GitHub, outside F-Droid's checks", NOTE, 12,
             gap = "\n")
         add(label(launcher, text, 15f, Color.BLACK, 600), 0, WRAP, weight = 1f)
-        add(button(launcher, "Turn on", Tone.GREEN, size = 14f) { launcher.turnOnDriverDownloads { listDrivers() } },
-            start = 8)
+        add(button(launcher, "Turn on", Tone.GREEN, Arrow.RIGHT, size = 15f) {
+            launcher.turnOnDriverDownloads { listDrivers() }
+        }, height = 38, start = 8)
     }.apply {
         background = ButtonDrawable(launcher, Tone.GREY)
         pad(ROW_SIDE, ROW_PAD)

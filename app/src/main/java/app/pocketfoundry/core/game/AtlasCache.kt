@@ -19,7 +19,7 @@ object AtlasCache {
         prefs.edit().putString(MAKER, maker.takeIf { kept }).apply()
     }
 
-    /** With whatever else Factorio named after it. */
+    /** With whatever else Factorio named after it (OldApp skips the same). */
     fun delete(paths: Paths) {
         paths.gameData.listFiles { file -> file.name.startsWith(paths.atlasCache.name) }?.forEach { it.delete() }
     }

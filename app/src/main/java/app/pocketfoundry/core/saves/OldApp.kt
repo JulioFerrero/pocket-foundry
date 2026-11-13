@@ -33,7 +33,8 @@ object OldApp {
     /** What the game remakes by itself: its sprite atlas (hundreds of MB, made for the old app's settings) and logs. */
     private val REMADE = Regex("""atlas-cache\.dat.*|crop-cache\.dat|factorio-(current|previous)\.log""")
 
-    private class Item(val id: String, val path: String, val size: Long)
+    /** [modified]: the old app's date for it, kept so the newest save is still the newest. */
+    private class Item(val id: String, val path: String, val size: Long, val modified: Long)
 
     /**
      * Copies what the old app's folder ([tree], from the picker) holds into [target], keeping the files [target]
@@ -46,7 +47,7 @@ object OldApp {
         fun walk(parentId: String, path: String) {
             val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
             val columns = arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE,
-                                  Document.COLUMN_SIZE)
+                                  Document.COLUMN_SIZE, Document.COLUMN_LAST_MODIFIED)
             resolver.query(children, columns, null, null, null)?.use { cursor ->
                 while (cursor.moveToNext()) {
                     val id = cursor.getString(0)
@@ -54,7 +55,7 @@ object OldApp {
                     if (!GameFilesProvider.isPlainName(name) || REMADE.matches(name)) continue
                     val childPath = if (path.isEmpty()) name else "$path/$name"
                     if (cursor.getString(2) == Document.MIME_TYPE_DIR) walk(id, childPath)
-                    else items += Item(id, childPath, cursor.getLong(3))
+                    else items += Item(id, childPath, cursor.getLong(3), cursor.getLong(4))
                 }
             }
         }
@@ -73,6 +74,7 @@ object OldApp {
                     part.outputStream().use { input.copyTo(it) }
                 } ?: error("Couldn't read ${item.path}")
                 check(part.renameTo(file)) { "Couldn't keep ${item.path}" }
+                if (item.modified > 0) file.setLastModified(item.modified)
                 copied++
             }
             done += item.size
