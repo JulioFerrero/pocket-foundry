@@ -18,7 +18,8 @@
 
 ```sh
 tools/setup.sh                                       # Termux:X11 with Pocket Foundry's patches
-runtime/build.sh all                                 # the Linux runtime, built in Docker
+runtime/build.sh all                                 # the Linux runtime, in an arm64 Docker container
+runtime/build.sh --here all                          # or on this Debian 13 machine, after runtime/deps.sh as root
 tools/build.sh                                       # the debug APK
 tools/build.sh :app:assembleRelease                  # the release APK
 ```
