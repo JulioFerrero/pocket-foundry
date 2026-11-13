@@ -264,6 +264,27 @@ class LauncherActivity : Activity() {
             loading = false
             result.getOrThrow().onFailure { error = it.message }
             refresh()
+            if (!Session.inGame && !host.isOpen) showMoving()
+        }
+    }
+
+    /**
+     * 0.8.18 is this app's last version: 0.9 installs as a new one, dev.pocketfoundry, from the domain Pocket Foundry
+     * owns. Once per launch, the way there.
+     */
+    private fun showMoving() {
+        val newApp = packageManager.getLaunchIntentForPackage(NEW_APP)
+        val go = button(this, if (newApp != null) "Open 0.9" else "Get 0.9", Tone.GREEN, Arrow.RIGHT) {
+            host.close()
+            startActivity(newApp ?: Intent(Intent.ACTION_VIEW, Uri.parse("$GITHUB/releases/latest")))
+        }
+        host.show("Pocket Foundry is moving", 460, "Later", go) {
+            add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
+                add(label(this@LauncherActivity, "0.9 installs as a new app. This one gets no more updates.", 16f,
+                    weight = 600))
+                add(label(this@LauncherActivity, "0.9 brings your saves over. Factorio needs importing once more.", 14f,
+                    Factorio.MUTED))
+            })
         }
     }
 
@@ -338,6 +359,8 @@ class LauncherActivity : Activity() {
         const val PICK_FILES = 1
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3
+        /** Pocket Foundry from 0.9 on (showMoving). */
+        const val NEW_APP = "dev.pocketfoundry"
         var checked = false
         /** The start screen's steps ran: once per launch. */
         var started = false
