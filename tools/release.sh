@@ -75,7 +75,9 @@ check)
     ! unzip -p "$apk" assets/runtime.tar.xz | xz -dc | tar -t | grep -Eq "$game" || fail "The runtime holds game files."
     rm -rf "$out" && mkdir -p "$out"
     cp "$apk" "$out/$name"
-    (cd "$out" && sha256sum "$name" > "$name.sha256")
+    # SHA256SUMS, not $name.sha256: the in-app updater of 0.8.17 and older only offers a release with that file, and
+    # can't install this app (dev.pocketfoundry since 0.9), so those copies get 0.8.18, which says where to go.
+    (cd "$out" && sha256sum "$name" > SHA256SUMS)
     ;;
 publish)
     beta "$version" && prerelease=1 || prerelease=
@@ -102,9 +104,9 @@ publish)
         echo "**Since $previous:**"
         git log --reverse --no-merges --format='- %s' "$previous..$tag" | grep -Ev "$BUMP" || true
         echo
-        echo "**Built on GitHub** from [$tag]($repo/tree/$tag), GPL-3.0, in [this run]($run): the APK and the runtime inside it (glibc, Mesa, libhybris, SDL, Termux:X11's X server), from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. To check a download came from that build: \`gh attestation verify $name -R $GITHUB_REPOSITORY\`. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/$name.sha256")\`"
+        echo "**Built on GitHub** from [$tag]($repo/tree/$tag), GPL-3.0, in [this run]($run): the APK and the runtime inside it (glibc, Mesa, libhybris, SDL, Termux:X11's X server), from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. To check a download came from that build: \`gh attestation verify $name -R $GITHUB_REPOSITORY\`. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/SHA256SUMS")\`"
     } > "$notes"
     gh release create "$tag" --verify-tag ${prerelease:+--prerelease} --title "Pocket Foundry $version" \
-        --notes-file "$notes" "$out/$name" "$out/$name.sha256"
+        --notes-file "$notes" "$out/$name" "$out/SHA256SUMS"
     ;;
 esac
