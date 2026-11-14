@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Termux:X11 asks for it to turn its keyboard service on by itself; that service is removed below. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:node="remove" />
 
     <!-- Pocket Foundry before 0.9, another app: whether it's installed, to bring its saves over (OldApp). -->
     <queries>
