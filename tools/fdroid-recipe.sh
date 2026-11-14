@@ -19,6 +19,9 @@ deps() { git show "$commit:runtime/deps.sh" | sh -s -- "$@"; }
 packages=$(deps --list amd64 | fold -s -w 100 | sed -e 's/ *$//' -e '2,$s/^/        /')
 snapshot=$(deps --snapshot)
 
+# What F-Droid's scanner flags in the submodules: scanignore, text it takes for binaries by their names (glibc's Hurd
+# linker scripts, a test ld.so.conf, libhybris's symbol lists) and glibc's info directory, which make install copies;
+# scandelete, test data no piece builds from (charsets, time zones, freedreno traces) and a file of SDL's Xcode folder.
 cat <<EOF
 AntiFeatures:
   NonFreeDep:
@@ -55,6 +58,18 @@ Builds:
     prebuild:
       - ../tools/setup.sh
       - sed -i -e 's/-Xmx4g/-Xmx2g/' ../gradle.properties
+    scanignore:
+      - runtime/glibc/src/elf/tst-ldconfig-cache.root/etc/ld.so.conf
+      - runtime/glibc/src/htl/libpthread.a
+      - runtime/glibc/src/htl/libpthread_pic.a
+      - runtime/glibc/src/htl/libpthread_syms.a
+      - runtime/glibc/src/manual/dir
+      - runtime/hybris/libhybris/utils/generate_nfc/symbols
+    scandelete:
+      - runtime/glibc/src/iconvdata/testdata
+      - runtime/glibc/src/timezone/testdata
+      - runtime/mesa/src/src/freedreno/tests/traces
+      - runtime/sdl/src/Xcode/SDL/pkg-support/resources/SDL_DS_Store
     build: ../runtime/build.sh --here all
     ndk: $ndk
 
