@@ -1,3 +1,27 @@
 [submodule "third_party/termux-x11"]
 	path = third_party/termux-x11
 	url = https://github.com/termux/termux-x11
+[submodule "runtime/glibc/src"]
+	path = runtime/glibc/src
+	url = https://sourceware.org/git/glibc.git
+	shallow = true
+[submodule "runtime/mesa/src"]
+	path = runtime/mesa/src
+	url = https://github.com/lfdevs/mesa-for-android-container
+	shallow = true
+[submodule "runtime/sdl/src"]
+	path = runtime/sdl/src
+	url = https://github.com/libsdl-org/SDL
+	shallow = true
+[submodule "runtime/hybris/libhybris"]
+	path = runtime/hybris/libhybris
+	url = https://github.com/taowen/libhybris
+	shallow = true
+[submodule "runtime/hybris/android-headers"]
+	path = runtime/hybris/android-headers
+	url = https://github.com/Halium/android-headers
+	shallow = true
+[submodule "runtime/hybris/vulkan-extensionlayer"]
+	path = runtime/hybris/vulkan-extensionlayer
+	url = https://github.com/KhronosGroup/Vulkan-ExtensionLayer
+	shallow = true

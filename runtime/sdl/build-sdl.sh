@@ -3,15 +3,13 @@
 set -euo pipefail
 . "$RUNTIME/toolchain.sh"
 
+# The source: the submodule src, at tag release-3.4.20. Its release tarball adds only the revision, given below.
 VERSION=3.4.20
-SHA256=f3bb06f55bed9557227a700af2ea62e49497ebdf58037732a731a5fb3ef8581f
+REVISION=SDL-release-3.4.20-0-gf00dc919c
 SRC=$WORK/sdl
 
-cd "$CACHE"
-[ -f SDL3-$VERSION.tar.gz ] || curl -fL -o SDL3-$VERSION.tar.gz \
-    https://github.com/libsdl-org/SDL/releases/download/release-$VERSION/SDL3-$VERSION.tar.gz
-echo "$SHA256  SDL3-$VERSION.tar.gz" | sha256sum -c -
-rm -rf "$SRC" && mkdir -p "$SRC" && tar -xzf SDL3-$VERSION.tar.gz -C "$SRC" --strip-components=1
+grep -q "VERSION \"$VERSION\"" "$RUNTIME/sdl/src/CMakeLists.txt" || { echo "src isn't SDL $VERSION" >&2; exit 1; }
+unpack "$RUNTIME/sdl/src" "$SRC"
 cd "$SRC"
 for p in "$RUNTIME"/sdl/patches/*.patch; do patch -p1 --silent < "$p"; done
 mkdir -p src/pocketfoundry && cp "$RUNTIME"/sdl/pocketfoundry/* src/pocketfoundry/
@@ -23,7 +21,7 @@ mkdir -p src/pocketfoundry && cp "$RUNTIME"/sdl/pocketfoundry/* src/pocketfoundr
 cmake -S . -B build -G Ninja $CMAKE_CROSS \
     -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_INSTALL_LIBDIR=lib \
     -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
-    -DSDL_INSTALL_DOCS=OFF -DSDL_RPATH=OFF \
+    -DSDL_INSTALL_DOCS=OFF -DSDL_RPATH=OFF -DSDL_REVISION=$REVISION \
     -DSDL_POCKETFOUNDRY=ON \
     -DSDL_X11=ON -DSDL_X11_XTEST=OFF -DSDL_WAYLAND=OFF -DSDL_KMSDRM=OFF -DSDL_OPENGL=ON -DSDL_OPENGLES=ON -DSDL_VULKAN=ON \
     -DSDL_ALSA=OFF -DSDL_JACK=OFF -DSDL_PIPEWIRE=OFF -DSDL_PULSEAUDIO=OFF -DSDL_SNDIO=OFF -DSDL_OSS=OFF \

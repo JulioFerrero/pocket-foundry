@@ -4,7 +4,13 @@
 # arm64's, which the pieces link and the runtime ships.
 #   deps.sh --list [arch]   prints the packages instead, for a machine of arch (this one's by default). F-Droid's
 #                           recipe installs those for amd64 in its sudo lines, before our source is there to run this.
+#   deps.sh --snapshot      prints the Debian snapshot the packages come from.
 set -e
+# Every package comes from Debian as it was at this moment (snapshot.debian.org), here and on F-Droid's build server,
+# so a Debian update between our release build and F-Droid's can't change what's built. Move it forward to take
+# Debian's updates, then rebuild the runtime.
+SNAPSHOT=20261114T000000Z
+[ "${1:-}" = --snapshot ] && { echo $SNAPSHOT; exit; }
 arch=${2:-$(dpkg --print-architecture)}
 if [ "$arch" = arm64 ]; then
     compilers="gcc g++"
@@ -16,7 +22,7 @@ else
     emulator=qemu-user
 fi
 
-tools="$compilers $emulator make gawk bison flex python3 texinfo gettext jq curl ca-certificates xz-utils patch file
+tools="$compilers $emulator make gawk bison flex python3 texinfo gettext jq ca-certificates xz-utils patch file
        meson ninja-build cmake autoconf automake libtool
        python3-mako python3-yaml python3-packaging glslang-tools"
 # Mesa, SDL and libhybris build against these; linux-libc-dev and libc6-dev are glibc's own headers to build it.
@@ -42,7 +48,14 @@ if [ "${1:-}" = --list ]; then
 fi
 export DEBIAN_FRONTEND=noninteractive
 [ "$arch" = arm64 ] || dpkg --add-architecture arm64
+# The snapshot server is https: its certificates first, from the usual mirror (their version builds nothing).
+if ! [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+    apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates > /dev/null
+fi
+echo "APT::Snapshot \"$SNAPSHOT\";" > /etc/apt/apt.conf.d/50snapshot
+# Its versions win even over newer ones already installed, so the image's age doesn't matter.
+printf 'Package: *\nPin: origin snapshot.debian.org\nPin-Priority: 1001\n' > /etc/apt/preferences.d/snapshot
 apt-get update -qq
 # shellcheck disable=SC2086
-apt-get install -y -qq --no-install-recommends $packages > /dev/null
+apt-get install -y -qq --no-install-recommends --allow-downgrades $packages > /dev/null
 rm -rf /var/lib/apt/lists/*

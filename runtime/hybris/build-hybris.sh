@@ -5,24 +5,17 @@
 set -euo pipefail
 . "$RUNTIME/toolchain.sh"
 
-COMMIT=226b247d90adcb5eb1b120885fac8b96063726ee    # branch arlinux, 2026-11-02
-HEADERS=2c6ac3dcc4f8db593dd69906b0ec22822abfed91   # Halium/android-headers, as taowen/arlinux-rootfs pins it
-# Vulkan headers newer than Debian's: those of the Mesa we build (its build fetched the tarball).
-MESA=$(sed -n 's/^COMMIT=\([0-9a-f]*\).*/\1/p' "$RUNTIME/mesa/build-mesa.sh")
+# The sources, submodules: libhybris (taowen's branch arlinux) and android-headers (as taowen/arlinux-rootfs pins it),
+# with Vulkan headers newer than Debian's: those of the Mesa we build.
 SRC=$WORK/hybris
 LIB=$PREFIX/lib/hybris
 
-cd "$CACHE"
-# No checksums: GitHub's generated tarballs aren't byte-stable; the commits pin the sources.
-[ -f libhybris-$COMMIT.tar.gz ] || curl -fL -o libhybris-$COMMIT.tar.gz \
-    https://codeload.github.com/taowen/libhybris/tar.gz/$COMMIT
-[ -f android-headers-$HEADERS.tar.gz ] || curl -fL -o android-headers-$HEADERS.tar.gz \
-    https://codeload.github.com/Halium/android-headers/tar.gz/$HEADERS
-rm -rf "$SRC" && mkdir -p "$SRC/headers"
-tar -xzf libhybris-$COMMIT.tar.gz -C "$SRC" --strip-components=1
-tar -xzf android-headers-$HEADERS.tar.gz -C "$SRC/headers" --strip-components=1
-tar -xzf mesa-$MESA.tar.gz -C "$SRC/headers" --strip-components=1 --wildcards '*/include/vulkan' '*/include/vk_video' \
-    '*/src/vulkan/registry/vk.xml'
+unpack "$RUNTIME/hybris/libhybris" "$SRC"
+unpack "$RUNTIME/hybris/android-headers" "$SRC/headers"
+MESA=$RUNTIME/mesa/src
+mkdir -p "$SRC/headers/include" "$SRC/headers/src/vulkan/registry"
+cp -R "$MESA/include/vulkan" "$MESA/include/vk_video" "$SRC/headers/include/"
+cp "$MESA/src/vulkan/registry/vk.xml" "$SRC/headers/src/vulkan/registry/"
 cd "$SRC"
 for p in "$RUNTIME"/hybris/patches/*.patch; do patch -p1 --silent < "$p"; done
 # The compat layer copies the feature structures Zink chains to vkCreateDevice and refuses any it has no size for:
@@ -72,13 +65,9 @@ EOF
 # Khronos's timeline semaphore layer (Vulkan-ExtensionLayer, Apache-2.0): the timeline semaphores Zink needs, on Android
 # drivers from before Vulkan 1.2 without them (a Huawei P40's Mali-G76 r18p0). It takes them over even where the driver
 # has its own, so the app turns it on only where the driver check finds Zink stopping for them (DriverCheck.kt).
-EXTENSION_LAYER=38ced57f063a288ecd4f401523638b7bdb3ac9d2
+# Its source: the submodule vulkan-extensionlayer.
 LAYER_SRC=$WORK/vulkan-extensionlayer
-cd "$CACHE"
-[ -f Vulkan-ExtensionLayer-$EXTENSION_LAYER.tar.gz ] || curl -fL -o Vulkan-ExtensionLayer-$EXTENSION_LAYER.tar.gz \
-    https://codeload.github.com/KhronosGroup/Vulkan-ExtensionLayer/tar.gz/$EXTENSION_LAYER
-rm -rf "$LAYER_SRC" && mkdir -p "$LAYER_SRC"
-tar -xzf Vulkan-ExtensionLayer-$EXTENSION_LAYER.tar.gz -C "$LAYER_SRC" --strip-components=1
+unpack "$RUNTIME/hybris/vulkan-extensionlayer" "$LAYER_SRC"
 cd "$LAYER_SRC"
 for p in "$RUNTIME"/hybris/timeline/*.patch; do patch -p1 --silent < "$p"; done
 cd layers

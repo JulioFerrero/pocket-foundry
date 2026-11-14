@@ -13,9 +13,8 @@ local.properties
 *.keystore
 .DS_Store
 
-# Runtime build output and download cache
+# Runtime build output
 /runtime/out/
-/runtime/cache/
 /runtime/work/
 /runtime/out-*.log
 .cxx/

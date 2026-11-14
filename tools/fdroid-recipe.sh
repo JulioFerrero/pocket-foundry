@@ -13,8 +13,11 @@ version=$(prop versionName)
 code=$(prop versionCode)
 ndk=$(sed -n 's/.*termuxX11NdkVersion = "\(.*\)"/\1/p' third_party/termux-x11/lorie/version.gradle)
 [ -n "$version" ] && [ -n "$code" ] && [ -n "$ndk" ] || { echo "No version or NDK found" >&2; exit 1; }
-# The runtime's tools and arm64 libraries (runtime/deps.sh): the recipe's sudo lines run before our source is there.
-packages=$(sh runtime/deps.sh --list amd64 | fold -s -w 100 | sed -e 's/ *$//' -e '2,$s/^/        /')
+# The runtime's tools and arm64 libraries (runtime/deps.sh), from its Debian snapshot: the recipe's sudo lines run
+# before our source is there, so they say what deps.sh does.
+deps() { git show "$commit:runtime/deps.sh" | sh -s -- "$@"; }
+packages=$(deps --list amd64 | fold -s -w 100 | sed -e 's/ *$//' -e '2,$s/^/        /')
+snapshot=$(deps --snapshot)
 
 cat <<EOF
 AntiFeatures:
@@ -23,6 +26,7 @@ AntiFeatures:
 Categories:
   - Emulator
 License: GPL-3.0-only
+AuthorName: ~Hulio
 WebSite: https://pocketfoundry.dev
 SourceCode: https://github.com/JulioFerrero/pocket-foundry
 IssueTracker: https://github.com/JulioFerrero/pocket-foundry/issues
@@ -42,8 +46,10 @@ Builds:
     submodules: true
     sudo:
       - dpkg --add-architecture arm64
+      - echo 'APT::Snapshot "$snapshot";' > /etc/apt/apt.conf.d/50snapshot
+      - 'printf "Package: *\nPin: origin snapshot.debian.org\nPin-Priority: 1001\n" > /etc/apt/preferences.d/snapshot'
       - apt-get update
-      - apt-get install -y --no-install-recommends $packages
+      - apt-get install -y --no-install-recommends --allow-downgrades $packages
     gradle:
       - yes
     prebuild:

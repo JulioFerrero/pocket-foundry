@@ -54,14 +54,14 @@ case "$1" in
     *) pieces=$(named "$@") ;;
 esac
 
-mkdir -p out cache
+mkdir -p out
 # The commit's time stands for the build's, so the same commit packs the same bytes (assemble, and compilers' dates).
 export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
-# A piece: its script sees this folder as RUNTIME, writes to OUT, downloads to CACHE and unpacks to WORK.
+# A piece: its script sees this folder as RUNTIME (sources are its submodules), writes to OUT and unpacks to WORK.
 if [ -n "$here" ]; then
     run() {
         env PREFIX="$PREFIX" VERSION="${VERSION:-}" SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
-            RUNTIME="$PWD" OUT="$PWD/out" CACHE="$PWD/cache" WORK="$PWD/work" \
+            RUNTIME="$PWD" OUT="$PWD/out" WORK="$PWD/work" \
             bash "$1/build-$1.sh"
     }
 else
@@ -69,8 +69,8 @@ else
     # WORK stays in the container: a Mac bind mount is slow for builds.
     run() {
         docker run --rm --platform linux/arm64 -e PREFIX="$PREFIX" -e VERSION="${VERSION:-}" -e SOURCE_DATE_EPOCH \
-            -e RUNTIME=/runtime -e OUT=/out -e CACHE=/cache -e WORK=/work \
-            -v "$PWD:/runtime:ro" -v "$PWD/out:/out" -v "$PWD/cache:/cache" \
+            -e RUNTIME=/runtime -e OUT=/out -e WORK=/work \
+            -v "$PWD:/runtime:ro" -v "$PWD/out:/out" \
             pocketfoundry-build bash "/runtime/$1/build-$1.sh"
     }
 fi

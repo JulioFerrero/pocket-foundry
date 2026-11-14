@@ -3,15 +3,13 @@
 set -euo pipefail
 . "$RUNTIME/toolchain.sh"
 
+# The source: the submodule src, at tag glibc-2.44 (the same files as the release tarball).
 VERSION=2.44
-SHA256=37f600f2bef3c5e8300147059568b2a2e40a7ad6ccc65ce942556d49429cc667
 PATCHES=$RUNTIME/glibc/termux-patches
 SRC=$WORK/glibc-$VERSION
 
-cd "$CACHE"
-[ -f glibc-$VERSION.tar.xz ] || curl -fLO https://ftp.gnu.org/gnu/libc/glibc-$VERSION.tar.xz
-echo "$SHA256  glibc-$VERSION.tar.xz" | sha256sum -c
-rm -rf "$SRC" && mkdir -p "$WORK" && tar -xf glibc-$VERSION.tar.xz -C "$WORK"
+grep -q "^#define VERSION \"$VERSION\"" "$RUNTIME/glibc/src/version.h" || { echo "src isn't glibc $VERSION" >&2; exit 1; }
+unpack "$RUNTIME/glibc/src" "$SRC"
 cd "$SRC"
 
 # system()/popen() get Android's shell: an app can't exec files from its data dir.

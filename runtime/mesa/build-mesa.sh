@@ -5,14 +5,10 @@
 set -euo pipefail
 . "$RUNTIME/toolchain.sh"
 
-COMMIT=eb3e7fd4f009cab04b1482aad4843c0bde28a786   # tag mesa-27.0.0-devel-20261025-r1
+# The source: the submodule src, at tag mesa-27.0.0-devel-20261025-r1.
 SRC=$WORK/mesa
 
-cd "$CACHE"
-# No checksum: GitHub's generated tarballs aren't byte-stable; the commit pins the source.
-[ -f mesa-$COMMIT.tar.gz ] || curl -fL -o mesa-$COMMIT.tar.gz \
-    https://codeload.github.com/lfdevs/mesa-for-android-container/tar.gz/$COMMIT
-rm -rf "$SRC" && mkdir -p "$SRC" && tar -xzf mesa-$COMMIT.tar.gz -C "$SRC" --strip-components=1
+unpack "$RUNTIME/mesa/src" "$SRC"
 cd "$SRC"
 for p in "$RUNTIME"/mesa/patches/*.patch; do patch -p1 --silent < "$p"; done
 

@@ -17,12 +17,18 @@
 ## Building
 
 ```sh
+git submodule update --init --recursive              # the sources: Termux:X11, and the runtime's (glibc, Mesa, SDL...)
 tools/setup.sh                                       # Termux:X11 with Pocket Foundry's patches
 runtime/build.sh all                                 # the Linux runtime, in an arm64 Docker container
 runtime/build.sh --here all                          # or on this Debian 13 machine, after runtime/deps.sh as root
 tools/build.sh                                       # the debug APK
 tools/build.sh :app:assembleRelease                  # the release APK
 ```
+
+Every source comes from this repository: the runtime's are submodules in its pieces' folders (`runtime/mesa/src`
+and so on), pinned to a commit, and the build downloads none. Debian's packages come from one snapshot of Debian,
+`SNAPSHOT` in [runtime/deps.sh](../runtime/deps.sh), so the same commit builds the same bytes later, here and on
+F-Droid's build server.
 
 Builds are signed with Pocket Foundry's key when `../pocketfoundry-keys/keystore.properties` exists (or
 `$POCKETFOUNDRY_SIGNING` points at one; relative paths start at the repo root), otherwise with the usual debug
@@ -35,7 +41,8 @@ builds it from source as F-Droid's build server does ([release.yml](../.github/w
 then [tools/fdroid-build.sh](../tools/fdroid-build.sh) in F-Droid's image with the recipe from
 [tools/fdroid-recipe.sh](../tools/fdroid-recipe.sh)), signs it with Pocket Foundry's key and publishes a
 pre-release, which Obtainium skips unless Include prereleases is on. Once the betas work, merge `dev` into `main`
-and run `tools/release.sh 0.8.17` there for the release.
+and run `tools/release.sh 0.8.17` there for the release. A release needs its news for F-Droid first, in
+`fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (500 characters at most); release.sh says which.
 
 Every APK carries a build attestation: `gh attestation verify pocket-foundry-0.8.17.apk -R JulioFerrero/pocket-foundry`
 shows the commit and the run that built it. The build signs with Pocket Foundry's key from the repository's Actions
