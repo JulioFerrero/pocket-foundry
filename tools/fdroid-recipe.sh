@@ -27,7 +27,7 @@ AntiFeatures:
   NonFreeDep:
     en-US: Needs your own copy of Factorio, a paid game.
 Categories:
-  - Emulator
+  - Strategy Game
 License: GPL-3.0-only
 AuthorName: JulioFerrero
 WebSite: https://pocketfoundry.dev
