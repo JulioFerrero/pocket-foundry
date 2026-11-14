@@ -29,7 +29,7 @@ AntiFeatures:
 Categories:
   - Emulator
 License: GPL-3.0-only
-AuthorName: ~Hulio
+AuthorName: JulioFerrero
 WebSite: https://pocketfoundry.dev
 SourceCode: https://github.com/JulioFerrero/pocket-foundry
 IssueTracker: https://github.com/JulioFerrero/pocket-foundry/issues
