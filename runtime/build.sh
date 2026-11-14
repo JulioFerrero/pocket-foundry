@@ -17,7 +17,8 @@ PIECES="glibc mesa sdl programs hybris"
 sources() {
     from="$1 Dockerfile deps.sh toolchain.sh aarch64.ini build.sh"
     [ "$1" = hybris ] && from="$from mesa"
-    if [ -n "$(git status --porcelain -- $from)" ]; then echo "uncommitted $(date +%s)"
+    # A submodule's own files don't count: F-Droid's scandelete removes test data from them before building.
+    if [ -n "$(git status --porcelain --ignore-submodules=dirty -- $from)" ]; then echo "uncommitted $(date +%s)"
     else for f in $from; do git rev-parse "HEAD:./$f"; done | tr '\n' ' '; echo; fi
 }
 
