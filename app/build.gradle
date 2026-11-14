@@ -32,6 +32,11 @@ android {
         assets.srcDirs += '../runtime/out/apk/assets'
         jniLibs.srcDirs += '../runtime/out/apk/jniLibs'
     }
+    // Betas (0.9-beta.1) wear the icon on a blueprint, releases over the fire: both install as the same app.
+    if (project.versionName.contains('-beta')) {
+        sourceSets.debug.res.srcDirs += 'src/beta/res'
+        sourceSets.release.res.srcDirs += 'src/beta/res'
+    }
 
     // The release key signs debug builds too, so either installs over the other and the imported game stays.
     // Its paths start at the repo root, as in tools/release.sh.
