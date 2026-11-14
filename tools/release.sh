@@ -40,6 +40,15 @@ tag)
         fail "$branch and origin/$branch differ: pull or push first."
     ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null || fail "$tag already exists."
 
+    # F-Droid builds releases, not betas, and shows each one's news from the fastlane folder, named by its versionCode.
+    if ! beta "$version"; then
+        next=$(sed -n 's/^versionCode=//p' gradle.properties)
+        grep -qxF "versionName=$version" gradle.properties || next=$((next + 1))
+        news=fastlane/metadata/android/en-US/changelogs/$next.txt
+        [ -f "$news" ] || fail "Write and commit $news first: what's new in $version, for F-Droid."
+        [ "$(wc -m < "$news")" -le 500 ] || fail "$news is over F-Droid's 500 characters."
+    fi
+
     # So every beta installs over the one before.
     if ! grep -qxF "versionName=$version" gradle.properties; then
         code=$(sed -n 's/^versionCode=//p' gradle.properties)
