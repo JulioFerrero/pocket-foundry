@@ -11,7 +11,6 @@ Pocket Foundry runs the official Linux (arm64) build of Factorio on your phone, 
 <b>Graphics drivers</b>
 Pocket Foundry can draw through the phone's own graphics driver. On first start it offers to download a better one for your GPU, such as Turnip for Adreno 6xx and newer, from github.com/JulioFerrero/pocket-foundry-drivers, where they are built from source. Those downloads come from outside F-Droid and aren't checked by it. You can decline and play on the phone's own driver, which works on fewer phones.
 
-Needs Android 10 or later on an arm64 phone. Phones tested so far:
-https://github.com/JulioFerrero/pocket-foundry/blob/main/docs/phones.md
+Needs Android 10 or later on an arm64 phone. Phones tested so far: https://pocketfoundry.dev/phones/
 
 Factorio is a trademark of Wube Software. Pocket Foundry is not affiliated with or endorsed by Wube Software.
