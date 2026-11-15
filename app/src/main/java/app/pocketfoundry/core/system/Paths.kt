@@ -44,6 +44,8 @@ class Paths(val files: File, nativeLibs: File) {
     val inputSocket = File(tmp, "pocketfoundry-input")
     /** Read by the game's SDL once a second. */
     val frameRate = File(tmp, "pocketfoundry-frame-rate")
+    /** The game's frames, counted by its SDL for the FPS counter (FrameCounter). */
+    val frames = File(tmp, "pocketfoundry-frames")
 
     val game = File(files, "game")
     val gameBinary = File(game, "bin/arm64/factorio")

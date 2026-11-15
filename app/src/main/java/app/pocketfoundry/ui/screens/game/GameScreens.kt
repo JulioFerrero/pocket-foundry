@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -21,6 +22,7 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.ui.controller.ControllerView
 import app.pocketfoundry.core.controller.Gamepads
 import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.ui.controller.InputRouter
 import app.pocketfoundry.ui.controller.PointerGestures
@@ -102,6 +104,7 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
         applyRefreshRate(activity)
         val screen = screens[activity]
         screen?.border?.apply()
+        screen?.showFps(activity)
         if (editorRequested) {
             editorRequested = false
             screen?.view?.startEditing()
@@ -138,7 +141,8 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
 private class GameScreen(activity: MainActivity) {
     private val keyboard = Session.keyboard
     private val settings = Settings(activity)
-    val view = ControllerView(activity, keyboard)
+    private val fps = FpsCounterView(activity, FrameCounter(Paths(activity).frames))
+    val view = ControllerView(activity, keyboard, fps)
     private val gestures = PointerGestures(activity, padMode = !keyboard) {
         if (settings.vibration) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
@@ -148,9 +152,20 @@ private class GameScreen(activity: MainActivity) {
 
     init {
         activity.addContentView(view, ViewGroup.LayoutParams(MATCH, MATCH))
+        activity.addContentView(fps, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                              ViewGroup.LayoutParams.WRAP_CONTENT,
+                                                              Gravity.TOP or Gravity.START))
+        fps.shown = false
         view.onKeyboard = { activity.lorieView.toggleKeyboardVisible() }
         takeKeysFirst(activity, pads::key)
         activity.window.callback = InputRouter(activity.window.callback, view, gestures, pads::key, pads::motion, launcher)
+    }
+
+    /** The FPS counter, on or off as Settings has it now: it shows at once, no new game needed. */
+    fun showFps(activity: MainActivity) {
+        fps.shown = settings.fpsCounter
+        fps.border = activity.dpi(settings.border)
+        if (fps.shown) fps.post(fps::place)
     }
 
     fun pause() {

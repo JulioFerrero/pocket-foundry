@@ -22,6 +22,7 @@ object Sdl {
         "POCKETFOUNDRY_AUDIO" to paths.audioSocket.path,
         "POCKETFOUNDRY_INPUT" to paths.inputSocket.path,
         "POCKETFOUNDRY_FRAME_RATE" to paths.frameRate.path,
+        "POCKETFOUNDRY_FRAMES" to paths.frames.path,
         // Only our virtual pad, which SDL never filters. Where /dev/input is readable, SDL would also open the real pad
         // and every press would count twice. No device has id 0000:0000.
         "SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT" to "0x0000/0x0000",

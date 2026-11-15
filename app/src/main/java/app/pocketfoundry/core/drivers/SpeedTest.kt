@@ -53,9 +53,8 @@ object SpeedTest {
         val sizes = scales(x11).let { listOf(it.first(), it.last()).distinct() }.map(x11::gameSize)
         paths.driverCheckLog.appendText("── speed test\n")
         val command = listOf(paths.speedTest.path) + sizes.map { (width, height) -> "${width}x$height" }
-        // No frame counter drawn into its frames, and no waiting for the display.
-        val program = Program.start(paths, command, paths.driverCheckLog,
-                                    environment - "GALLIUM_HUD" + ("vblank_mode" to "0"),
+        // No waiting for the display.
+        val program = Program.start(paths, command, paths.driverCheckLog, environment + ("vblank_mode" to "0"),
                                     Drivers.libraryPath(paths, driver), appendLog = true)
         val exit = program.waitFor(TIMEOUT_S) ?: run {
             program.kill()

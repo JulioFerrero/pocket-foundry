@@ -4,6 +4,7 @@ import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.controller.PadButton
+import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.AudioBridge
 import app.pocketfoundry.core.logs.DetailedLogs
 import app.pocketfoundry.core.logs.ScreenLog
@@ -38,6 +39,7 @@ class SourceContractTest {
 
     @Test fun `the sound and pad messages are spelled the same`() {
         assertIn(sdl, "#define AUDIO_MAGIC \"${AudioBridge.MAGIC}\"", "SDL_pocketfoundry.c")
+        assertIn(sdl, "#define FRAMES_MAGIC \"${FrameCounter.MAGIC}\"", "SDL_pocketfoundry.c")
         assertIn(sdl, "message[0] == '${InputBridge.BUTTON}'", "SDL_pocketfoundry.c")
         assertIn(sdl, "message[0] == '${InputBridge.AXIS}'", "SDL_pocketfoundry.c")
         assertIn(sdl, "message[4] = { '${InputBridge.RUMBLE}',", "SDL_pocketfoundry.c")

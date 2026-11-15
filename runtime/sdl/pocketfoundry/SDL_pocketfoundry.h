@@ -6,5 +6,6 @@ extern void SDL_POCKETFOUNDRY_StartInput(void);
 extern void SDL_POCKETFOUNDRY_StopInput(void);
 
 extern void SDL_POCKETFOUNDRY_PaceFrame(void);
+extern void SDL_POCKETFOUNDRY_CountFrame(void);
 
 #endif // SDL_pocketfoundry_h_

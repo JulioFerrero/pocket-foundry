@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
+import android.graphics.RectF
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.View
@@ -18,14 +19,15 @@ import app.pocketfoundry.ui.kit.GuiSprites
  * Factorio is in its keyboard-and-mouse mode, which ignores the pad: the controls show only in the layout editor.
  */
 @SuppressLint("ViewConstructor")
-class ControllerView(context: Context, private val keyboard: Boolean) : View(context) {
+class ControllerView(context: Context, private val keyboard: Boolean, private val counter: Movable) : View(context) {
     private val layout = PadLayout(context)
     private val painter = PadPainter(context, layout)
     private val toolbar = Toolbar(layout, painter)
-    private val editor = LayoutEditor(layout, painter, toolbar, ::haptic)
+    private val editor = LayoutEditor(layout, painter, toolbar, counter, ::haptic)
     private val vibrator = context.getSystemService(Vibrator::class.java)
     private val settings = Settings(context)
     private val pressed = arrayOfNulls<Control>(POINTER_IDS)
+    private val counterBox = RectF()
 
     var onKeyboard: () -> Unit = {}
 
@@ -45,6 +47,7 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
 
     fun reload() {
         layout.load()
+        counter.moveTo(layout.counter, layout.counterScale)
         alpha = layout.opacity
         invalidate()
     }
@@ -138,6 +141,10 @@ class ControllerView(context: Context, private val keyboard: Boolean) : View(con
         val controls = layout.shownControls
         // Indexed: an iterator would be made every frame.
         if (controlsShown) for (i in controls.indices) painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected)
+        if (editor.counterSelected) {
+            counter.bounds(counterBox)
+            if (!counterBox.isEmpty) painter.drawSelection(canvas, counterBox)
+        }
         toolbar.draw(canvas, sheet, tools, editor.adding)
         if (editor.adding) editor.drawAddList(canvas, sheet)
     }
