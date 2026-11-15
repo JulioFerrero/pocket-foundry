@@ -53,7 +53,7 @@ with it. From what it sees, not from which GPU it is, it:
 They all come from [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers), where CI builds
 each one from source. With **Settings -> Driver downloads** on (the app asks once, after the import), it downloads
 the one it picks, and a newer build when there is one; they come from outside F-Droid's checks. Without them it plays
-on the Phone's driver or an imported one. The community drivers are made and tested by others, and their bugs belong
+on Phone's Vulkan or an imported one. The community drivers are made and tested by others, and their bugs belong
 to their developers.
 
 ## Picking a driver yourself
