@@ -1,0 +1,1047 @@
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index fc1ad25..f905986 100644
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -20,7 +20,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/multiviewport.c compat/multiviewport.h \
+     compat/robustness2.c compat/robustness2.h compat/null_descriptors.c compat/null_descriptors.h compat/null_map.h \
+     compat/bc_decode.c compat/bc_decode.h compat/shaders/bc_decode.inc \
+-    compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h \
++    compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h compat/bc_shadow.c compat/bc_shadow.h \
+     compat/bc_context.c compat/bc_context.h compat/bc_commands.c compat/bc_resources.c compat/bc_record.c compat/bc_barriers.c compat/bc_image_copy.c compat/bc_policy.c compat/bc_policy.h \
+     compat/application_policy.c compat/application_policy.h \
+     compat/memory_visibility.c compat/memory_visibility.h compat/rendering_segments.c compat/rendering_segments.h \
+diff --git a/hybris/vulkan/compat/bc_barriers.c b/hybris/vulkan/compat/bc_barriers.c
+index f46825b..084a9b2 100644
+--- a/hybris/vulkan/compat/bc_barriers.c
++++ b/hybris/vulkan/compat/bc_barriers.c
+@@ -24,7 +24,7 @@ static VkBufferMemoryBarrier *prepare(struct hybris_bc_device *device,
+     uint64_t count = buffer_count;
+     for (uint32_t i = 0; i < image_count; ++i) {
+         struct hybris_bc_resource *resource = hybris_bc_resource_find(device, images[i].image);
+-        if (resource && resource->emulated.image) count += level_count(&resource->emulated, &images[i].subresourceRange);
++        if (resource && resource->emulated.image && resource->emulated.blocks) count += level_count(&resource->emulated, &images[i].subresourceRange);
+     }
+     if (count == buffer_count) return NULL;
+     if (count > UINT32_MAX || count > SIZE_MAX / sizeof(VkBufferMemoryBarrier)) {
+@@ -37,7 +37,7 @@ static VkBufferMemoryBarrier *prepare(struct hybris_bc_device *device,
+     uint32_t index = buffer_count;
+     for (uint32_t i = 0; i < image_count; ++i) {
+         struct hybris_bc_resource *resource = hybris_bc_resource_find(device, images[i].image);
+-        if (!resource || !resource->emulated.image) continue;
++        if (!resource || !resource->emulated.image || !resource->emulated.blocks) continue;
+         const struct hybris_bc_image *image = &resource->emulated;
+         uint32_t levels = level_count(image, &images[i].subresourceRange);
+         for (uint32_t j = 0; j < levels; ++j) {
+@@ -61,7 +61,7 @@ static VkBufferMemoryBarrier2 *prepare2(struct hybris_bc_device *device,
+     for (uint32_t i = 0; i < info->imageMemoryBarrierCount; ++i) {
+         const VkImageMemoryBarrier2 *barrier = &info->pImageMemoryBarriers[i];
+         struct hybris_bc_resource *resource = hybris_bc_resource_find(device, barrier->image);
+-        if (resource && resource->emulated.image) count += level_count(&resource->emulated, &barrier->subresourceRange);
++        if (resource && resource->emulated.image && resource->emulated.blocks) count += level_count(&resource->emulated, &barrier->subresourceRange);
+     }
+     if (count == info->bufferMemoryBarrierCount) return NULL;
+     if (count > UINT32_MAX || count > SIZE_MAX / sizeof(VkBufferMemoryBarrier2)) {
+@@ -76,7 +76,7 @@ static VkBufferMemoryBarrier2 *prepare2(struct hybris_bc_device *device,
+     for (uint32_t i = 0; i < info->imageMemoryBarrierCount; ++i) {
+         const VkImageMemoryBarrier2 *original = &info->pImageMemoryBarriers[i];
+         struct hybris_bc_resource *resource = hybris_bc_resource_find(device, original->image);
+-        if (!resource || !resource->emulated.image) continue;
++        if (!resource || !resource->emulated.image || !resource->emulated.blocks) continue;
+         const struct hybris_bc_image *image = &resource->emulated;
+         uint32_t levels = level_count(image, &original->subresourceRange);
+         for (uint32_t j = 0; j < levels; ++j) {
+diff --git a/hybris/vulkan/compat/bc_image.c b/hybris/vulkan/compat/bc_image.c
+index 46f5529..678db00 100644
+--- a/hybris/vulkan/compat/bc_image.c
++++ b/hybris/vulkan/compat/bc_image.c
+@@ -1,6 +1,7 @@
+ /* SPDX-License-Identifier: Apache-2.0 */
+ #define VK_NO_PROTOTYPES
+ #include "bc_image.h"
++#include "bc_shadow.h"
+ #include <string.h>
+ 
+ #define PROC(name) PFN_vk##name name = (PFN_vk##name)image->resolver(image->device, "vk" #name)
+@@ -53,6 +54,15 @@ VkFormat hybris_bc_transcode_format(VkFormat format)
+     }
+ }
+ 
++VkFormat hybris_bc_image_decoded_format(const VkImageCreateInfo *info, unsigned rgb_mask, VkFormat output_format)
++{
++    if (output_format != VK_FORMAT_UNDEFINED) return output_format;
++    if (!(info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT)) {
++        if (info->format == VK_FORMAT_BC1_RGB_UNORM_BLOCK && (rgb_mask & 1)) return VK_FORMAT_R5G6B5_UNORM_PACK16;
++        if (info->format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK && (rgb_mask & 2)) return VK_FORMAT_A1R5G5B5_UNORM_PACK16;
++    }
++    return hybris_bc_image_format(info->format);
++}
+ int hybris_bc_mutable_format(VkFormat format)
+ {
+     return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK;
+@@ -95,6 +105,7 @@ void hybris_bc_image_destroy(struct hybris_bc_image *image, const VkAllocationCa
+     if (image->image) DestroyImage(image->device, image->image, allocator);
+     if (image->blocks) DestroyBuffer(image->device, image->blocks, allocator);
+     if (image->decoded_memory) FreeMemory(image->device, image->decoded_memory, NULL);
++    if (image->shadow) hybris_bc_shadow_release(image->shadow, image->shadow_offset, image->block_size);
+     memset(image, 0, sizeof(*image));
+ }
+ 
+@@ -201,14 +212,7 @@ VkResult hybris_bc_image_create(VkDevice device, PFN_vkGetDeviceProcAddr resolve
+     VkImageCreateInfo decoded = *info;
+     decoded.pNext = NULL;
+     /* The two transfer functions must use the same storage representation. */
+-    image->decoded_format = hybris_bc_image_format(info->format);
+-    if (output_format != VK_FORMAT_UNDEFINED) image->decoded_format = output_format;
+-    else if (!(info->flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT)) {
+-        if (info->format == VK_FORMAT_BC1_RGB_UNORM_BLOCK && (rgb_mask & 1))
+-            image->decoded_format = VK_FORMAT_R5G6B5_UNORM_PACK16;
+-        if (info->format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK && (rgb_mask & 2))
+-            image->decoded_format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;
+-    }
++    image->decoded_format = hybris_bc_image_decoded_format(info, rgb_mask, output_format);
+     decoded.format = image->decoded_format;
+     decoded.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+     result = CreateImage(device, &decoded, allocator, &image->image);
+@@ -222,6 +226,14 @@ VkResult hybris_bc_image_create(VkDevice device, PFN_vkGetDeviceProcAddr resolve
+         .image = image->image};
+     GetImageMemoryRequirements2(device, &request, &queried);
+     VkMemoryRequirements requirements = queried.memoryRequirements;
++    if (hybris_bc_shadow_enabled()) {
++        /* The application's allocation backs the converted image itself; the blocks go to storage. */
++        image->requirements = requirements;
++        image->requires_dedicated = dedicated.requiresDedicatedAllocation;
++        image->prefers_dedicated = dedicated.prefersDedicatedAllocation;
++        image->shadow = hybris_bc_shadow_reserve(image->block_size, &image->shadow_offset);
++        return VK_SUCCESS;
++    }
+     uint32_t type = memory->memoryTypeCount;
+     for (uint32_t i = 0; i < memory->memoryTypeCount; ++i) {
+         if (!(requirements.memoryTypeBits & (1u << i))) continue;
+@@ -259,7 +271,11 @@ fail:
+ VkResult hybris_bc_image_bind(const struct hybris_bc_image *image,
+     VkDeviceMemory memory, VkDeviceSize offset)
+ {
+-    if (!image || !image->blocks) return VK_ERROR_INITIALIZATION_FAILED;
++    if (!image || !image->image) return VK_ERROR_INITIALIZATION_FAILED;
++    if (!image->blocks) {
++        PROC(BindImageMemory);
++        return BindImageMemory(image->device, image->image, memory, offset);
++    }
+     PROC(BindBufferMemory);
+     return BindBufferMemory(image->device, image->blocks, memory, offset);
+ }
+diff --git a/hybris/vulkan/compat/bc_image.h b/hybris/vulkan/compat/bc_image.h
+index 987d430..932692f 100644
+--- a/hybris/vulkan/compat/bc_image.h
++++ b/hybris/vulkan/compat/bc_image.h
+@@ -17,11 +17,18 @@ struct hybris_bc_image {
+     VkExtent3D extent;
+     uint32_t mip_levels, layers, block_bytes;
+     VkDeviceSize mip_offset[32], block_size;
++    /* Pocket Foundry: without blocks in GPU memory (bc_shadow.h), where they are on storage, and whether the GPU
++     * wrote some the file couldn't follow. */
++    unsigned char *shadow;
++    VkDeviceSize shadow_offset;
++    int stale;
+ };
+ VkFormat hybris_bc_image_format(VkFormat format);
+ VkFormat hybris_bc_transcode_format(VkFormat format);
+ int hybris_bc_mutable_format(VkFormat format);
+ int hybris_bc_view_format_allowed(VkFormat base, VkFormat view, VkImageCreateFlags flags);
++/* The format the converted image is created with, as hybris_bc_image_create picks it. */
++VkFormat hybris_bc_image_decoded_format(const VkImageCreateInfo *info, unsigned rgb_mask, VkFormat output_format);
+ VkResult hybris_bc_image_describe(const VkImageCreateInfo *info, struct hybris_bc_image *image);
+ void hybris_bc_image_backing_info(const struct hybris_bc_image *image,
+     const VkImageCreateInfo *info, VkBufferCreateInfo *backing);
+diff --git a/hybris/vulkan/compat/bc_image_copy.c b/hybris/vulkan/compat/bc_image_copy.c
+index 2e7327c..55df9e4 100644
+--- a/hybris/vulkan/compat/bc_image_copy.c
++++ b/hybris/vulkan/compat/bc_image_copy.c
+@@ -98,6 +98,104 @@ static VkDeviceSize block_offset(const struct hybris_bc_image *image,
+         (uint32_t)offset.x / 4 * (VkDeviceSize)image->block_bytes;
+ }
+ static uint32_t minimum(uint32_t a, uint32_t b) { return a < b ? a : b; }
++/* Pocket Foundry: images whose blocks are on storage (bc_shadow.h). Between two of them the file copies the
++ * blocks at submission and the GPU copies the converted images, or converts again from the file where they were
++ * converted differently. From a native image (Factorio's GPU compressor) the GPU converts from a copy of it, which
++ * the file can't follow. To a native image the blocks come from the file. */
++static void shadow_images(struct hybris_bc_device *device, struct hybris_bc_command *command,
++    const struct hybris_bc_resource *source, VkImageLayout source_layout,
++    const struct hybris_bc_resource *destination, VkImageLayout destination_layout,
++    const VkImageCopy *region, uint32_t bytes, VkExtent3D source_block, VkExtent3D destination_block)
++{
++    PROC(CmdCopyImage); PROC(CmdCopyImageToBuffer); PROC(CmdCopyBufferToImage);
++    struct hybris_bc_transfer *t = &command->transfer;
++    uint32_t columns = (region->extent.width + (uint64_t)source_block.width - 1) / source_block.width;
++    uint32_t rows = (region->extent.height + (uint64_t)source_block.height - 1) / source_block.height;
++    uint32_t layers = source->type == VK_IMAGE_TYPE_3D ? region->extent.depth : region->srcSubresource.layerCount;
++    if (layers == VK_REMAINING_ARRAY_LAYERS) layers = source->layers - region->srcSubresource.baseArrayLayer;
++    VkExtent3D destination_extent = region->extent;
++    VkExtent3D bound = mip_extent(destination, region->dstSubresource.mipLevel);
++    if (source_block.width != destination_block.width)
++        destination_extent.width = minimum((uint64_t)columns * destination_block.width,
++            bound.width - (uint32_t)region->dstOffset.x);
++    if (source_block.height != destination_block.height)
++        destination_extent.height = minimum((uint64_t)rows * destination_block.height,
++            bound.height - (uint32_t)region->dstOffset.y);
++    VkDeviceSize row = (VkDeviceSize)columns * bytes, slice = row * rows;
++    /* The destination as a buffer-to-image region, for the converter. */
++    VkBufferImageCopy converted = {.imageSubresource = region->dstSubresource,
++        .imageOffset = region->dstOffset, .imageExtent = destination_extent};
++    converted.imageSubresource.layerCount = destination->type == VK_IMAGE_TYPE_3D ? 1 : layers;
++    converted.imageExtent.depth = destination->type == VK_IMAGE_TYPE_3D ? layers : 1;
++    VkResult result = VK_SUCCESS;
++    if (source->emulated.image && destination->emulated.image) {
++        struct hybris_bc_shadow_op *copy = hybris_bc_shadow_record(&t->shadow, HYBRIS_BC_SHADOW_COPY, destination->handle);
++        if (!copy) { command->state.error = VK_ERROR_OUT_OF_HOST_MEMORY; return; }
++        copy->source = source->handle;
++        for (uint32_t layer = 0; layer < layers; ++layer)
++            for (uint32_t y = 0; y < rows; ++y)
++                if (!hybris_bc_shadow_segment(copy,
++                        block_offset(&source->emulated, &region->srcSubresource, region->srcOffset, layer, y),
++                        block_offset(&destination->emulated, &region->dstSubresource, region->dstOffset, layer, y), row)) {
++                    command->state.error = VK_ERROR_OUT_OF_HOST_MEMORY; return;
++                }
++        if (source->emulated.decoded_format == destination->emulated.decoded_format) {
++            CmdCopyImage(command->handle, source->handle, source_layout, destination->handle, destination_layout, 1, region);
++            return;
++        }
++        VkBuffer staging;
++        struct hybris_bc_shadow_op *fill = hybris_bc_shadow_record(&t->shadow, HYBRIS_BC_SHADOW_FILL, destination->handle);
++        if (!fill) { command->state.error = VK_ERROR_OUT_OF_HOST_MEMORY; return; }
++        result = hybris_bc_transfer_buffer(t, slice * layers, 1, &staging, &fill->staging);
++        for (uint32_t layer = 0; layer < layers && result == VK_SUCCESS; ++layer)
++            for (uint32_t y = 0; y < rows; ++y)
++                if (!hybris_bc_shadow_segment(fill,
++                        block_offset(&destination->emulated, &region->dstSubresource, region->dstOffset, layer, y),
++                        layer * slice + y * row, row)) { result = VK_ERROR_OUT_OF_HOST_MEMORY; break; }
++        if (result == VK_SUCCESS)
++            hybris_bc_decode_buffer(t, command->handle, &command->state, &destination->emulated, destination_layout,
++                &converted, staging, 0, row, slice);
++    } else if (destination->emulated.image) {
++        VkBuffer copied;
++        result = hybris_bc_transfer_buffer(t, slice * layers, 0, &copied, NULL);
++        for (uint32_t layer = 0; layer < layers && result == VK_SUCCESS; ++layer) {
++            VkBufferImageCopy copy = {.bufferOffset = layer * slice,
++                .bufferRowLength = columns * source_block.width, .bufferImageHeight = rows * source_block.height,
++                .imageSubresource = region->srcSubresource, .imageOffset = region->srcOffset,
++                .imageExtent = {region->extent.width, region->extent.height, 1}};
++            copy.imageSubresource.layerCount = 1;
++            if (source->type == VK_IMAGE_TYPE_3D) copy.imageOffset.z += layer;
++            else copy.imageSubresource.baseArrayLayer += layer;
++            CmdCopyImageToBuffer(command->handle, source->handle, source_layout, copied, 1, &copy);
++        }
++        if (result == VK_SUCCESS)
++            hybris_bc_decode_buffer(t, command->handle, &command->state, &destination->emulated, destination_layout,
++                &converted, copied, 0, row, slice);
++        if (result == VK_SUCCESS && !hybris_bc_shadow_record(&t->shadow, HYBRIS_BC_SHADOW_STALE, destination->handle))
++            result = VK_ERROR_OUT_OF_HOST_MEMORY;
++    } else {
++        VkBuffer staging;
++        struct hybris_bc_shadow_op *fill = hybris_bc_shadow_record(&t->shadow, HYBRIS_BC_SHADOW_FILL, source->handle);
++        if (!fill) { command->state.error = VK_ERROR_OUT_OF_HOST_MEMORY; return; }
++        result = hybris_bc_transfer_buffer(t, slice * layers, 1, &staging, &fill->staging);
++        for (uint32_t layer = 0; layer < layers && result == VK_SUCCESS; ++layer) {
++            for (uint32_t y = 0; y < rows; ++y)
++                if (!hybris_bc_shadow_segment(fill,
++                        block_offset(&source->emulated, &region->srcSubresource, region->srcOffset, layer, y),
++                        layer * slice + y * row, row)) { result = VK_ERROR_OUT_OF_HOST_MEMORY; break; }
++            VkBufferImageCopy copy = {.bufferOffset = layer * slice,
++                .bufferRowLength = columns * destination_block.width, .bufferImageHeight = rows * destination_block.height,
++                .imageSubresource = region->dstSubresource, .imageOffset = region->dstOffset,
++                .imageExtent = {destination_extent.width, destination_extent.height, 1}};
++            copy.imageSubresource.layerCount = 1;
++            if (destination->type == VK_IMAGE_TYPE_3D) copy.imageOffset.z += layer;
++            else copy.imageSubresource.baseArrayLayer += layer;
++            if (result == VK_SUCCESS)
++                CmdCopyBufferToImage(command->handle, staging, destination->handle, destination_layout, 1, &copy);
++        }
++    }
++    if (result != VK_SUCCESS && command->state.error == VK_SUCCESS) command->state.error = result;
++}
+ static void copy_images(struct hybris_bc_device *device, struct hybris_bc_command *command,
+     const struct hybris_bc_resource *source, VkImageLayout source_layout,
+     const struct hybris_bc_resource *destination, VkImageLayout destination_layout,
+@@ -110,6 +208,14 @@ static void copy_images(struct hybris_bc_device *device, struct hybris_bc_comman
+         command->state.error = VK_ERROR_FORMAT_NOT_SUPPORTED;
+         return;
+     }
++    if ((source->emulated.image && !source->emulated.blocks) ||
++        (destination->emulated.image && !destination->emulated.blocks)) {
++        for (uint32_t i = 0; i < count && command->state.error == VK_SUCCESS; ++i)
++            shadow_images(device, command, source, source_layout, destination, destination_layout,
++                &regions[i], bytes, source_block, destination_block);
++        if (destination->emulated.image && count) hybris_bc_restore_compute(&command->state, command->handle);
++        return;
++    }
+     PROC(CmdCopyBuffer); PROC(CmdCopyImageToBuffer); PROC(CmdCopyBufferToImage);
+     for (uint32_t i = 0; i < count; ++i) {
+         const VkImageCopy *region = &regions[i];
+diff --git a/hybris/vulkan/compat/bc_resources.c b/hybris/vulkan/compat/bc_resources.c
+index 486b56b..c0b4d58 100644
+--- a/hybris/vulkan/compat/bc_resources.c
++++ b/hybris/vulkan/compat/bc_resources.c
+@@ -2,6 +2,7 @@
+ #define VK_NO_PROTOTYPES
+ #include "bc_context.h"
+ #include "bc_policy.h"
++#include "bc_shadow.h"
+ #include <stdlib.h>
+ #include <string.h>
+ #include <stdio.h>
+@@ -76,7 +77,8 @@ static void requirements2(VkDevice handle, const VkImageMemoryRequirementsInfo2
+     struct hybris_bc_device *device = hybris_bc_device_find(handle);
+     if (!device) return;
+     struct hybris_bc_resource *resource = hybris_bc_resource_find(device, info->image);
+-    if (resource && resource->emulated.image) {
++    /* Without blocks in GPU memory the application's handle is the converted image: ask the driver. */
++    if (resource && resource->emulated.image && resource->emulated.blocks) {
+         PROC(GetBufferMemoryRequirements2);
+         VkBufferMemoryRequirementsInfo2 buffer = {.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+             .buffer = resource->emulated.blocks};
+@@ -108,6 +110,20 @@ static void device_requirements(VkDevice handle, const VkDeviceImageMemoryRequir
+         out->memoryRequirements = (VkMemoryRequirements){0};
+         return;
+     }
++    if (hybris_bc_shadow_enabled()) {
++        /* What creation makes: the converted image alone (bc_image.c). */
++        VkImageCreateInfo decoded = *info->pCreateInfo;
++        decoded.pNext = NULL;
++        decoded.format = hybris_bc_image_decoded_format(info->pCreateInfo, device->rgb_mask,
++            hybris_bc_storage_format(device->physical, info->pCreateInfo));
++        decoded.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
++        VkDeviceImageMemoryRequirements query = *info;
++        query.pCreateInfo = &decoded;
++        PFN_vkGetDeviceImageMemoryRequirements get =
++            (PFN_vkGetDeviceImageMemoryRequirements)device->resolver(handle, name);
++        get(handle, &query, out);
++        return;
++    }
+     VkBufferCreateInfo backing;
+     hybris_bc_image_backing_info(&image, info->pCreateInfo, &backing);
+     VkDeviceBufferMemoryRequirements query = {
+@@ -177,7 +193,7 @@ static VkResult bind_images(VkDevice handle, uint32_t count, const VkBindImageMe
+     for (uint32_t i = 0; i < count; ++i) {
+         struct hybris_bc_resource *resource = hybris_bc_resource_find(device, infos[i].image);
+         VkResult result;
+-        if (resource && resource->emulated.image) {
++        if (resource && resource->emulated.image && resource->emulated.blocks) {
+             VkBindBufferMemoryDeviceGroupInfo group = {
+                 .sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO};
+             VkBindBufferMemoryInfo buffer = {.sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
+@@ -264,7 +280,8 @@ static VkResult VKAPI_CALL allocate_memory(VkDevice handle, const VkMemoryAlloca
+             resource = hybris_bc_resource_find(device, dedicated->image);
+             break;
+         }
+-    if (!resource || !resource->emulated.image) return AllocateMemory(handle, info, allocator, memory);
++    if (!resource || !resource->emulated.image || !resource->emulated.blocks)
++        return AllocateMemory(handle, info, allocator, memory);
+     VkMemoryDedicatedAllocateInfo translated = *dedicated;
+     translated.image = VK_NULL_HANDLE;
+     translated.buffer = resource->emulated.blocks;
+diff --git a/hybris/vulkan/compat/bc_shadow.c b/hybris/vulkan/compat/bc_shadow.c
+new file mode 100644
+index 0000000..4fd62ad
+--- /dev/null
++++ b/hybris/vulkan/compat/bc_shadow.c
+@@ -0,0 +1,257 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#define _GNU_SOURCE
++#define VK_NO_PROTOTYPES
++#include "bc_shadow.h"
++#include "bc_context.h"
++#include "memory_visibility.h"
++#include <errno.h>
++#include <fcntl.h>
++#include <pthread.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/auxv.h>
++#include <sys/mman.h>
++#include <unistd.h>
++
++#define ALIGN (UINT64_C(1) << 16)
++#define REPORT_STEP (UINT64_C(256) << 20)
++
++static pthread_once_t mode_once = PTHREAD_ONCE_INIT;
++static int enabled;
++static void read_mode(void)
++{
++    const char *value = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_BC_BLOCKS");
++    enabled = !value || strcmp(value, "gpu");
++}
++int hybris_bc_shadow_enabled(void)
++{
++    pthread_once(&mode_once, read_mode);
++    return enabled;
++}
++
++static pthread_mutex_t file_guard = PTHREAD_MUTEX_INITIALIZER;
++static int file = -2;
++static VkDeviceSize file_end, written, reported;
++
++static int open_file(void)
++{
++    if (file != -2) return file;
++    const char *folder = getauxval(AT_SECURE) ? NULL : getenv("TMPDIR");
++    char path[4096];
++    snprintf(path, sizeof(path), "%s/hybris-bc-blocks-XXXXXX", folder && *folder ? folder : "/tmp");
++    file = mkostemp(path, O_CLOEXEC);
++    if (file >= 0) {
++        unlink(path);
++        fprintf(stderr, "HYBRIS_BC_SHADOW converted textures keep their BC blocks on storage, in %s\n",
++            folder && *folder ? folder : "/tmp");
++    } else {
++        fprintf(stderr, "HYBRIS_BC_SHADOW no file for the BC blocks (%s): read-backs come back empty\n",
++            strerror(errno));
++        file = -1;
++    }
++    return file;
++}
++/* Mapped, the blocks of a row are a memory copy rather than a system call: Factorio uploads its sprites a few
++ * rows at a time. The range is allocated on storage first, so a full storage fails here, not in a later copy. */
++unsigned char *hybris_bc_shadow_reserve(VkDeviceSize size, VkDeviceSize *offset)
++{
++    unsigned char *map = NULL;
++    pthread_mutex_lock(&file_guard);
++    VkDeviceSize length = (size + ALIGN - 1) / ALIGN * ALIGN;
++    if (open_file() >= 0 && size && file_end <= (VkDeviceSize)INT64_MAX - length) {
++        int error = fallocate(file, 0, (off_t)file_end, (off_t)length) ? errno : 0;
++        void *mapped = error ? MAP_FAILED :
++            mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, file, (off_t)file_end);
++        if (mapped != MAP_FAILED) {
++            map = mapped;
++            *offset = file_end;
++            file_end += length;
++        } else {
++            static int told;
++            if (!error) error = errno;
++            if (!told) {
++                told = 1;
++                fprintf(stderr, "HYBRIS_BC_SHADOW no room on storage for a texture's blocks (%s): reading it "
++                    "back gives zeros\n", strerror(error));
++            }
++            fallocate(file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, (off_t)file_end, (off_t)length);
++        }
++    }
++    pthread_mutex_unlock(&file_guard);
++    return map;
++}
++void hybris_bc_shadow_release(unsigned char *map, VkDeviceSize offset, VkDeviceSize size)
++{
++    VkDeviceSize length = (size + ALIGN - 1) / ALIGN * ALIGN;
++    munmap(map, length);
++    /* The range is never handed out again: give its storage back. */
++    fallocate(file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, (off_t)offset, (off_t)length);
++}
++
++struct hybris_bc_shadow_op *hybris_bc_shadow_record(struct hybris_bc_shadow_ops *ops,
++    enum hybris_bc_shadow_kind kind, VkImage image)
++{
++    struct hybris_bc_shadow_op *op = calloc(1, sizeof(*op));
++    if (!op) return NULL;
++    op->kind = kind;
++    op->image = image;
++    if (ops->last) ops->last->next = op; else ops->first = op;
++    ops->last = op;
++    return op;
++}
++int hybris_bc_shadow_segment(struct hybris_bc_shadow_op *op, VkDeviceSize from, VkDeviceSize to, VkDeviceSize size)
++{
++    if (!size) return 1;
++    if (op->count) {
++        struct hybris_bc_shadow_segment *last = &op->segments[op->count - 1];
++        /* Rows that follow each other on both sides: one read or write. */
++        if (last->from + last->size == from && last->to + last->size == to) { last->size += size; return 1; }
++    }
++    if (op->count == op->capacity) {
++        uint32_t capacity = op->capacity ? op->capacity * 2 : 16;
++        void *grown = realloc(op->segments, (size_t)capacity * sizeof(*op->segments));
++        if (!grown) return 0;
++        op->segments = grown;
++        op->capacity = capacity;
++    }
++    op->segments[op->count++] = (struct hybris_bc_shadow_segment){from, to, size};
++    return 1;
++}
++void hybris_bc_shadow_clear(struct hybris_bc_shadow_ops *ops)
++{
++    while (ops->first) {
++        struct hybris_bc_shadow_op *next = ops->first->next;
++        free(ops->first->segments);
++        free(ops->first);
++        ops->first = next;
++    }
++    ops->last = NULL;
++}
++
++/* What the copies of a submission touched stays in the file and the page cache, but not in this process's memory:
++ * the kernel writes it out and can drop it, and Android doesn't count it against the game. Let go once per
++ * submission, while its images are surely alive: once per copy cost Factorio's first start 8 s out of 44. */
++struct touched { unsigned char *map; VkDeviceSize low, high; };
++#define TOUCHED_MAX 64
++static struct touched touched[TOUCHED_MAX];
++static uint32_t touched_count;
++static void let_go_all(void)
++{
++    static VkDeviceSize page;
++    if (!page) page = (VkDeviceSize)sysconf(_SC_PAGESIZE);
++    for (uint32_t i = 0; i < touched_count; ++i) {
++        VkDeviceSize low = touched[i].low / page * page, high = (touched[i].high + page - 1) / page * page;
++        madvise(touched[i].map + low, high - low, MADV_DONTNEED);
++    }
++    touched_count = 0;
++}
++static void let_go(unsigned char *map, const struct hybris_bc_shadow_op *op, int destination)
++{
++    VkDeviceSize low = UINT64_MAX, high = 0;
++    for (uint32_t i = 0; i < op->count; ++i) {
++        VkDeviceSize at = destination ? op->segments[i].to : op->segments[i].from;
++        if (at < low) low = at;
++        if (at + op->segments[i].size > high) high = at + op->segments[i].size;
++    }
++    if (low >= high) return;
++    for (uint32_t i = 0; i < touched_count; ++i)
++        if (touched[i].map == map) {
++            if (low < touched[i].low) touched[i].low = low;
++            if (high > touched[i].high) touched[i].high = high;
++            return;
++        }
++    if (touched_count == TOUCHED_MAX) let_go_all();
++    touched[touched_count++] = (struct touched){map, low, high};
++}
++static void stale(struct hybris_bc_resource *resource, const char *why)
++{
++    static int told;
++    resource->emulated.stale = 1;
++    if (!told) {
++        told = 1;
++        fprintf(stderr, "HYBRIS_BC_SHADOW the blocks of a %ux%u texture aren't on storage: %s; reading it back "
++            "gives what was there before\n", resource->extent.width, resource->extent.height, why);
++    }
++}
++static void upload(struct hybris_bc_device *device, struct hybris_bc_resource *resource,
++    const struct hybris_bc_shadow_op *op)
++{
++    VkDeviceSize begin = UINT64_MAX, end = 0;
++    for (uint32_t i = 0; i < op->count; ++i) {
++        if (op->segments[i].from < begin) begin = op->segments[i].from;
++        if (op->segments[i].from + op->segments[i].size > end) end = op->segments[i].from + op->segments[i].size;
++    }
++    const void *mapped = NULL;
++    if (!op->count || !hybris_memory_visibility_host_pointer(device->handle, op->buffer, begin, end - begin, &mapped)) {
++        if (op->count) stale(resource, "uploaded from a buffer the CPU can't see");
++        return;
++    }
++    const unsigned char *bytes = (const unsigned char *)mapped - begin;
++    VkDeviceSize sum = 0;
++    for (uint32_t i = 0; i < op->count; ++i) {
++        const struct hybris_bc_shadow_segment *s = &op->segments[i];
++        memcpy(resource->emulated.shadow + s->to, bytes + s->from, s->size);
++        sum += s->size;
++    }
++    let_go(resource->emulated.shadow, op, 1);
++    written += sum;
++    if (written >= reported + REPORT_STEP) {
++        reported = written / REPORT_STEP * REPORT_STEP;
++        fprintf(stderr, "HYBRIS_BC_SHADOW %llu MB of BC blocks written to storage\n",
++            (unsigned long long)(written >> 20));
++    }
++}
++static void fill(struct hybris_bc_resource *resource, const struct hybris_bc_shadow_op *op)
++{
++    static int told;
++    if (resource->emulated.stale && !told) {
++        told = 1;
++        fprintf(stderr, "HYBRIS_BC_SHADOW reading back a texture whose blocks only the GPU saw\n");
++    }
++    for (uint32_t i = 0; i < op->count; ++i) {
++        const struct hybris_bc_shadow_segment *s = &op->segments[i];
++        memcpy(op->staging + s->to, resource->emulated.shadow + s->from, s->size);
++    }
++    let_go(resource->emulated.shadow, op, 0);
++}
++void hybris_bc_shadow_submit(VkDevice handle, VkCommandBuffer command_handle)
++{
++    if (!hybris_bc_shadow_enabled()) return;
++    struct hybris_bc_device *device = NULL;
++    struct hybris_bc_command *command = hybris_bc_command_find(command_handle, &device);
++    if (!command || !device || device->handle != handle || !command->transfer.shadow.first) return;
++    pthread_mutex_lock(&file_guard);
++    for (const struct hybris_bc_shadow_op *op = command->transfer.shadow.first; op; op = op->next) {
++        struct hybris_bc_resource *resource = hybris_bc_resource_find(device, op->image);
++        if (!resource || !resource->emulated.image) continue;
++        int has_file = resource->emulated.shadow != NULL;
++        switch (op->kind) {
++        case HYBRIS_BC_SHADOW_UPLOAD:
++            if (has_file) upload(device, resource, op);
++            break;
++        case HYBRIS_BC_SHADOW_FILL:
++            if (has_file) fill(resource, op);
++            else for (uint32_t i = 0; i < op->count; ++i)
++                memset(op->staging + op->segments[i].to, 0, op->segments[i].size);
++            break;
++        case HYBRIS_BC_SHADOW_COPY: {
++            struct hybris_bc_resource *source = hybris_bc_resource_find(device, op->source);
++            if (!has_file || !source || !source->emulated.shadow) break;
++            for (uint32_t i = 0; i < op->count; ++i) {
++                const struct hybris_bc_shadow_segment *s = &op->segments[i];
++                memmove(resource->emulated.shadow + s->to, source->emulated.shadow + s->from, s->size);
++            }
++            let_go(resource->emulated.shadow, op, 1);
++            let_go(source->emulated.shadow, op, 0);
++            if (source->emulated.stale) resource->emulated.stale = 1;
++            break;
++        }
++        case HYBRIS_BC_SHADOW_STALE:
++            stale(resource, "written by the GPU");
++            break;
++        }
++    }
++    let_go_all();
++    pthread_mutex_unlock(&file_guard);
++}
+diff --git a/hybris/vulkan/compat/bc_shadow.h b/hybris/vulkan/compat/bc_shadow.h
+new file mode 100644
+index 0000000..1e36ec0
+--- /dev/null
++++ b/hybris/vulkan/compat/bc_shadow.h
+@@ -0,0 +1,44 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++/* Pocket Foundry: a converted BC image keeps only its converted copy (ASTC, EAC) in GPU memory. Its original
++ * blocks, which an application may read back (Factorio saves its atlases that way), live in one deleted file on
++ * storage, whose pages the kernel can drop, as MobileGlues' bc_shadow keeps them for OpenGL ES. The file follows
++ * the GPU at submission: what each recorded command does to an image's blocks runs then, in recording order, from
++ * the application's own mapped upload buffers. HYBRIS_BC_BLOCKS=gpu keeps the blocks in GPU memory instead. */
++#ifndef HYBRIS_BC_SHADOW_H
++#define HYBRIS_BC_SHADOW_H
++#include <vulkan/vulkan.h>
++
++int hybris_bc_shadow_enabled(void);
++/* A range of the file for an image's blocks, mapped, with its place in the file in [offset]; NULL if there is no
++ * file or no room on storage. Released when the image goes. */
++unsigned char *hybris_bc_shadow_reserve(VkDeviceSize size, VkDeviceSize *offset);
++void hybris_bc_shadow_release(unsigned char *map, VkDeviceSize offset, VkDeviceSize size);
++
++enum hybris_bc_shadow_kind {
++    HYBRIS_BC_SHADOW_UPLOAD, /* application buffer -> image blocks */
++    HYBRIS_BC_SHADOW_FILL,   /* image blocks -> our host staging buffer */
++    HYBRIS_BC_SHADOW_COPY,   /* source image blocks -> image blocks */
++    HYBRIS_BC_SHADOW_STALE,  /* the GPU wrote blocks the file can't see */
++};
++/* Byte offsets: in the buffer or staging, and relative to the image's first block. */
++struct hybris_bc_shadow_segment { VkDeviceSize from, to, size; };
++struct hybris_bc_shadow_op {
++    enum hybris_bc_shadow_kind kind;
++    VkImage image, source;
++    VkBuffer buffer;
++    unsigned char *staging;
++    uint32_t count, capacity;
++    struct hybris_bc_shadow_segment *segments;
++    struct hybris_bc_shadow_op *next;
++};
++struct hybris_bc_shadow_ops { struct hybris_bc_shadow_op *first, *last; };
++
++/* Recording: a new op at the end, then its segments. NULL when out of host memory. */
++struct hybris_bc_shadow_op *hybris_bc_shadow_record(struct hybris_bc_shadow_ops *ops,
++    enum hybris_bc_shadow_kind kind, VkImage image);
++int hybris_bc_shadow_segment(struct hybris_bc_shadow_op *op, VkDeviceSize from, VkDeviceSize to, VkDeviceSize size);
++void hybris_bc_shadow_clear(struct hybris_bc_shadow_ops *ops);
++
++/* At submission, for each command buffer in submission order, before the driver sees it. */
++void hybris_bc_shadow_submit(VkDevice device, VkCommandBuffer command);
++#endif
+diff --git a/hybris/vulkan/compat/bc_transfer.c b/hybris/vulkan/compat/bc_transfer.c
+index 76ea1fd..3215129 100644
+--- a/hybris/vulkan/compat/bc_transfer.c
++++ b/hybris/vulkan/compat/bc_transfer.c
+@@ -47,6 +47,11 @@ struct hybris_bc_scratch {
+     VkDeviceSize size, used;
+     struct hybris_bc_scratch *next;
+ };
++struct hybris_bc_owned_buffer {
++    VkBuffer buffer;
++    VkDeviceMemory memory;
++    struct hybris_bc_owned_buffer *next;
++};
+ static pthread_mutex_t scratch_guard = PTHREAD_MUTEX_INITIALIZER;
+ static VkDeviceSize scratch_live, scratch_idle;
+ 
+@@ -83,6 +88,14 @@ void hybris_bc_transfer_device_finish(struct hybris_bc_decoder *d)
+ void hybris_bc_transfer_finish(struct hybris_bc_transfer *t)
+ {
+     PROC(DestroyDescriptorPool);
++    hybris_bc_shadow_clear(&t->shadow);
++    while (t->owned) {
++        struct hybris_bc_owned_buffer *next = t->owned->next;
++        ((PFN_vkDestroyBuffer)t->decoder->resolver(t->decoder->device, "vkDestroyBuffer"))(t->decoder->device, t->owned->buffer, NULL);
++        ((PFN_vkFreeMemory)t->decoder->resolver(t->decoder->device, "vkFreeMemory"))(t->decoder->device, t->owned->memory, NULL);
++        free(t->owned);
++        t->owned = next;
++    }
+     while (t->pools) {
+         struct hybris_bc_transfer_pool *next = t->pools->next;
+         DestroyDescriptorPool(t->decoder->device, t->pools->handle, NULL);
+@@ -277,8 +290,11 @@ static VkResult slot(struct upload *u, VkDeviceSize want, VkDeviceSize alignment
+         t->current = t->chunks;
+     }
+ }
++/* Where a region's blocks are read from: the first block, and the pitches of rows and slices in bytes. */
++struct source { VkBuffer buffer; VkDeviceSize base, row, slice; };
+ static VkResult decode(struct hybris_bc_transfer *t, VkCommandBuffer command,
+-    const struct hybris_bc_image *image, VkImageLayout layout, const VkBufferImageCopy *region)
++    const struct hybris_bc_image *image, VkImageLayout layout, const VkBufferImageCopy *region,
++    const struct source *from)
+ {
+     VkResult result;
+     struct upload upload = {.transfer=t, .command=command, .image=image, .layout=layout};
+@@ -286,7 +302,6 @@ static VkResult decode(struct hybris_bc_transfer *t, VkCommandBuffer command,
+     PROC(UpdateDescriptorSets);
+     uint32_t mip = region->imageSubresource.mipLevel;
+     VkExtent3D extent = hybris_bc_image_extent(image, mip);
+-    VkDeviceSize row_bytes = ((extent.width + UINT64_C(3)) / 4) * image->block_bytes;
+     VkDeviceSize alignment = t->limits->minStorageBufferOffsetAlignment;
+     if (!alignment) alignment = 1;
+     struct hybris_bc_region representation = {.format = image->format, .output_format = image->decoded_format,
+@@ -297,7 +312,6 @@ static VkResult decode(struct hybris_bc_transfer *t, VkCommandBuffer command,
+     VkDeviceSize slot_alignment = alignment > 256 ? alignment : 256;
+     int volume = image->type == VK_IMAGE_TYPE_3D;
+     uint32_t slices = volume ? region->imageExtent.depth : region->imageSubresource.layerCount;
+-    uint32_t first_slice = volume ? (uint32_t)region->imageOffset.z : region->imageSubresource.baseArrayLayer;
+     for (uint32_t layer = 0; layer < slices; ++layer) {
+         VkDeviceSize wanted = ((region->imageExtent.width + UINT64_C(3)) / 4) *
+             ((region->imageExtent.height + UINT64_C(3)) / 4) * block_bytes;
+@@ -327,24 +341,22 @@ static VkResult decode(struct hybris_bc_transfer *t, VkCommandBuffer command,
+                 if (width < region->imageExtent.width - x && !band_height && height > 4) height = 4;
+                 if (!band_height) band_height = height;
+                 if (height != band_height) { chunk->used = chunk->size; continue; }
+-                VkDeviceSize source = image->mip_offset[mip] +
+-                    ((VkDeviceSize)first_slice + layer) * hybris_bc_image_slice_size(image, mip) +
+-                    ((uint32_t)region->imageOffset.y / 4 + y / 4) * row_bytes +
+-                    ((uint32_t)region->imageOffset.x / 4 + x / 4) * (VkDeviceSize)image->block_bytes;
++                VkDeviceSize source = from->base + (VkDeviceSize)layer * from->slice + (y / 4) * from->row +
++                    (x / 4) * (VkDeviceSize)image->block_bytes;
+                 VkDeviceSize base = source - source % alignment;
+                 VkDeviceSize available = t->limits->maxStorageBufferRange;
+                 if (source - base >= available) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+                 available = (available - (source - base)) / image->block_bytes;
+                 if (!available) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+                 if ((width + UINT64_C(3)) / 4 > available) width = (uint32_t)(available * 4);
+-                VkDeviceSize range = source - base + (((height + UINT64_C(3)) / 4 - 1) * row_bytes) +
++                VkDeviceSize range = source - base + (((height + UINT64_C(3)) / 4 - 1) * from->row) +
+                     ((width + UINT64_C(3)) / 4) * image->block_bytes;
+                 if (range > t->limits->maxStorageBufferRange) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+                 VkDescriptorSet set;
+                 result = descriptors(t, &set);
+                 if (result != VK_SUCCESS) return result;
+                 VkDescriptorBufferInfo buffers[2] = {
+-                    {.buffer = image->blocks, .offset = base, .range = range},
++                    {.buffer = from->buffer, .offset = base, .range = range},
+                     {.buffer = chunk->buffer, .offset = destination,
+                         .range = ((VkDeviceSize)width + 3) / 4 * ((height + UINT64_C(3)) / 4) * block_bytes}};
+                 VkWriteDescriptorSet writes[2] = {0};
+@@ -362,7 +374,7 @@ static VkResult decode(struct hybris_bc_transfer *t, VkCommandBuffer command,
+                     .rgb16 = image->decoded_format == VK_FORMAT_R16G16B16_SFLOAT,
+                     .rgb8 = image->decoded_format == VK_FORMAT_R8G8B8_UNORM || image->decoded_format == VK_FORMAT_R8G8B8_SRGB,
+                     .width = width, .height = height, .layers = 1,
+-                    .row_length = (extent.width + 3u) & ~3u,
++                    .row_length = (uint32_t)(from->row / image->block_bytes * 4),
+                     .source_offset = source - base, .source_range = range,
+                     .destination_range = buffers[1].range};
+                 result = hybris_bc_decode_record(t->decoder, command, set, &decoding, t->limits);
+@@ -392,15 +404,139 @@ VkResult hybris_bc_decode_image(struct hybris_bc_transfer *t,
+     const struct hybris_bc_image *image, VkImageLayout layout, const VkBufferImageCopy *region)
+ {
+     if (state->error != VK_SUCCESS) return state->error;
++    uint32_t mip = region->imageSubresource.mipLevel;
++    VkExtent3D extent = hybris_bc_image_extent(image, mip);
++    VkDeviceSize row = ((extent.width + UINT64_C(3)) / 4) * image->block_bytes;
++    VkDeviceSize slice = hybris_bc_image_slice_size(image, mip);
++    uint32_t first_slice = image->type == VK_IMAGE_TYPE_3D ? (uint32_t)region->imageOffset.z :
++        region->imageSubresource.baseArrayLayer;
++    struct source from = {image->blocks, image->mip_offset[mip] + first_slice * slice +
++        ((uint32_t)region->imageOffset.y / 4) * row + ((uint32_t)region->imageOffset.x / 4) * (VkDeviceSize)image->block_bytes,
++        row, slice};
+     buffer_barrier(t, command, image->blocks, VK_PIPELINE_STAGE_TRANSFER_BIT,
+         VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
+-    VkResult result = decode(t, command, image, layout, region);
++    VkResult result = decode(t, command, image, layout, region, &from);
+     if (result != VK_SUCCESS) { state->error = result; return result; }
+     buffer_barrier(t, command, image->blocks, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+         VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+         VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT);
+     return VK_SUCCESS;
+ }
++VkResult hybris_bc_decode_buffer(struct hybris_bc_transfer *t,
++    VkCommandBuffer command, struct hybris_bc_command_state *state,
++    const struct hybris_bc_image *image, VkImageLayout layout, const VkBufferImageCopy *region,
++    VkBuffer buffer, VkDeviceSize base, VkDeviceSize row, VkDeviceSize slice)
++{
++    if (state->error != VK_SUCCESS) return state->error;
++    /* Written by the host before submission or by earlier commands of any kind; read here by compute. */
++    buffer_barrier(t, command, buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_WRITE_BIT,
++        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
++    struct source from = {buffer, base, row, slice};
++    VkResult result = decode(t, command, image, layout, region, &from);
++    if (result != VK_SUCCESS) { state->error = result; return result; }
++    buffer_barrier(t, command, buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT,
++        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT);
++    return VK_SUCCESS;
++}
++VkResult hybris_bc_transfer_buffer(struct hybris_bc_transfer *t, VkDeviceSize size, int host,
++    VkBuffer *buffer, unsigned char **mapped)
++{
++    PROC(CreateBuffer); PROC(DestroyBuffer); PROC(GetBufferMemoryRequirements); PROC(AllocateMemory);
++    PROC(FreeMemory); PROC(BindBufferMemory); PROC(MapMemory);
++    struct hybris_bc_owned_buffer *owned = calloc(1, sizeof(*owned));
++    if (!owned) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    VkBufferCreateInfo info = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = size ? size : 4,
++        .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
++        .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
++    VkResult result = CreateBuffer(t->decoder->device, &info, NULL, &owned->buffer);
++    if (result != VK_SUCCESS) { free(owned); return result; }
++    VkMemoryRequirements requirements;
++    GetBufferMemoryRequirements(t->decoder->device, owned->buffer, &requirements);
++    VkMemoryPropertyFlags need = host ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT : 0;
++    uint32_t type = t->memory->memoryTypeCount;
++    for (uint32_t i = 0; i < t->memory->memoryTypeCount; ++i) {
++        VkMemoryPropertyFlags flags = t->memory->memoryTypes[i].propertyFlags;
++        if (!(requirements.memoryTypeBits & (1u << i)) || (flags & need) != need) continue;
++        if (type == t->memory->memoryTypeCount) type = i;
++        if (!host && (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) { type = i; break; }
++    }
++    result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
++    if (type < t->memory->memoryTypeCount) {
++        VkMemoryAllocateInfo allocation = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
++            .allocationSize = requirements.size, .memoryTypeIndex = type};
++        result = AllocateMemory(t->decoder->device, &allocation, NULL, &owned->memory);
++    }
++    if (result == VK_SUCCESS) result = BindBufferMemory(t->decoder->device, owned->buffer, owned->memory, 0);
++    void *pointer = NULL;
++    if (result == VK_SUCCESS && host) result = MapMemory(t->decoder->device, owned->memory, 0, VK_WHOLE_SIZE, 0, &pointer);
++    if (result != VK_SUCCESS) {
++        DestroyBuffer(t->decoder->device, owned->buffer, NULL);
++        if (owned->memory) FreeMemory(t->decoder->device, owned->memory, NULL);
++        free(owned);
++        return result;
++    }
++    owned->next = t->owned;
++    t->owned = owned;
++    *buffer = owned->buffer;
++    if (mapped) *mapped = pointer;
++    return VK_SUCCESS;
++}
++/* Pocket Foundry: the image's blocks are on storage (bc_shadow.h). Uploads convert straight from the
++ * application's buffer and are written to the file at submission; read-backs come from the file through a staging
++ * buffer filled at submission. */
++static VkResult shadow_copy(struct hybris_bc_transfer *t, VkCommandBuffer command,
++    struct hybris_bc_command_state *state, const struct hybris_bc_image *image, VkImage handle,
++    VkImageLayout layout, VkBuffer buffer, const VkBufferImageCopy *region, int to_image)
++{
++    PROC(CmdCopyBuffer);
++    uint32_t mip = region->imageSubresource.mipLevel;
++    VkExtent3D extent = hybris_bc_image_extent(image, mip);
++    VkDeviceSize row = ((extent.width + UINT64_C(3)) / 4) * image->block_bytes;
++    VkDeviceSize slice = hybris_bc_image_slice_size(image, mip);
++    VkDeviceSize buffer_row = (((region->bufferRowLength ? region->bufferRowLength :
++        region->imageExtent.width) + UINT64_C(3)) / 4) * image->block_bytes;
++    VkDeviceSize buffer_slice = buffer_row * (((region->bufferImageHeight ? region->bufferImageHeight :
++        region->imageExtent.height) + UINT64_C(3)) / 4);
++    VkDeviceSize rows = (region->imageExtent.height + UINT64_C(3)) / 4;
++    VkDeviceSize width = ((region->imageExtent.width + UINT64_C(3)) / 4) * image->block_bytes;
++    int volume = image->type == VK_IMAGE_TYPE_3D;
++    uint32_t slices = volume ? region->imageExtent.depth : region->imageSubresource.layerCount;
++    uint32_t first_slice = volume ? (uint32_t)region->imageOffset.z : region->imageSubresource.baseArrayLayer;
++    VkDeviceSize first = image->mip_offset[mip] + first_slice * slice +
++        ((uint32_t)region->imageOffset.y / 4) * row + ((uint32_t)region->imageOffset.x / 4) * (VkDeviceSize)image->block_bytes;
++    struct hybris_bc_shadow_op *op = hybris_bc_shadow_record(&t->shadow,
++        to_image ? HYBRIS_BC_SHADOW_UPLOAD : HYBRIS_BC_SHADOW_FILL, handle);
++    if (!op) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    if (to_image) {
++        op->buffer = buffer;
++        for (uint32_t layer = 0; layer < slices; ++layer)
++            for (VkDeviceSize y = 0; y < rows; ++y)
++                if (!hybris_bc_shadow_segment(op, region->bufferOffset + layer * buffer_slice + y * buffer_row,
++                        first + layer * slice + y * row, width)) return VK_ERROR_OUT_OF_HOST_MEMORY;
++        return hybris_bc_decode_buffer(t, command, state, image, layout, region, buffer,
++            region->bufferOffset, buffer_row, buffer_slice);
++    }
++    /* Staging, packed: the rows of each slice one after the other. */
++    VkBuffer staging;
++    VkResult result = hybris_bc_transfer_buffer(t, slices * rows * width, 1, &staging, &op->staging);
++    if (result != VK_SUCCESS) return result;
++    for (uint32_t layer = 0; layer < slices; ++layer) {
++        VkBufferCopy copies[64];
++        uint32_t n = 0;
++        for (VkDeviceSize y = 0; y < rows; ++y) {
++            VkDeviceSize packed = (layer * rows + y) * width;
++            if (!hybris_bc_shadow_segment(op, first + layer * slice + y * row, packed, width))
++                return VK_ERROR_OUT_OF_HOST_MEMORY;
++            VkDeviceSize target = region->bufferOffset + layer * buffer_slice + y * buffer_row;
++            if (n && copies[n - 1].srcOffset + copies[n - 1].size == packed &&
++                copies[n - 1].dstOffset + copies[n - 1].size == target) { copies[n - 1].size += width; continue; }
++            if (n == 64) { CmdCopyBuffer(command, staging, buffer, n, copies); n = 0; }
++            copies[n++] = (VkBufferCopy){.srcOffset = packed, .dstOffset = target, .size = width};
++        }
++        if (n) CmdCopyBuffer(command, staging, buffer, n, copies);
++    }
++    return VK_SUCCESS;
++}
+ VkResult hybris_bc_copy_buffer_image(struct hybris_bc_transfer *t,
+     VkCommandBuffer command, struct hybris_bc_command_state *state,
+     const struct hybris_bc_image *image, VkImageLayout layout, VkBuffer buffer,
+@@ -413,6 +549,11 @@ VkResult hybris_bc_copy_buffer_image(struct hybris_bc_transfer *t,
+         if (normalized.imageSubresource.layerCount == VK_REMAINING_ARRAY_LAYERS)
+             normalized.imageSubresource.layerCount = image->layers - normalized.imageSubresource.baseArrayLayer;
+         const VkBufferImageCopy *region = &normalized;
++        if (!image->blocks) {
++            VkResult result = shadow_copy(t, command, state, image, image->image, layout, buffer, region, to_image);
++            if (result != VK_SUCCESS) { state->error = result; return result; }
++            continue;
++        }
+         uint32_t mip = region->imageSubresource.mipLevel;
+         VkExtent3D extent = hybris_bc_image_extent(image, mip);
+         VkDeviceSize row = ((extent.width + UINT64_C(3)) / 4) * image->block_bytes;
+diff --git a/hybris/vulkan/compat/bc_transfer.h b/hybris/vulkan/compat/bc_transfer.h
+index 8c5751a..7fff45d 100644
+--- a/hybris/vulkan/compat/bc_transfer.h
++++ b/hybris/vulkan/compat/bc_transfer.h
+@@ -4,7 +4,9 @@
+ #include "bc_decode.h"
+ #include "bc_image.h"
+ #include "bc_command_state.h"
++#include "bc_shadow.h"
+ struct hybris_bc_transfer_pool;
++struct hybris_bc_owned_buffer;
+ struct hybris_bc_transfer {
+     struct hybris_bc_decoder *decoder;
+     const VkPhysicalDeviceMemoryProperties *memory;
+@@ -12,6 +14,10 @@ struct hybris_bc_transfer {
+     struct hybris_bc_transfer_pool *pools;
+     struct hybris_bc_scratch *chunks, *current;
+     VkDeviceSize held_bytes;
++    /* Pocket Foundry: what the recorded commands do to blocks kept on storage (bc_shadow.h), run at submission,
++     * and the buffers they use, both kept until the command buffer retires. */
++    struct hybris_bc_shadow_ops shadow;
++    struct hybris_bc_owned_buffer *owned;
+ };
+ void hybris_bc_transfer_init(struct hybris_bc_transfer *transfer,
+     struct hybris_bc_decoder *decoder, const VkPhysicalDeviceMemoryProperties *memory,
+@@ -22,6 +28,16 @@ void hybris_bc_transfer_device_finish(struct hybris_bc_decoder *decoder);
+ VkResult hybris_bc_decode_image(struct hybris_bc_transfer *transfer,
+     VkCommandBuffer command, struct hybris_bc_command_state *state,
+     const struct hybris_bc_image *image, VkImageLayout layout, const VkBufferImageCopy *region);
++/* Pocket Foundry: convert a region into the image from any storage buffer holding its BC blocks: [base] is the
++ * region's first block, [row] and [slice] the buffer's pitches in bytes. The caller restores compute state. */
++VkResult hybris_bc_decode_buffer(struct hybris_bc_transfer *transfer,
++    VkCommandBuffer command, struct hybris_bc_command_state *state,
++    const struct hybris_bc_image *image, VkImageLayout layout, const VkBufferImageCopy *region,
++    VkBuffer buffer, VkDeviceSize base, VkDeviceSize row, VkDeviceSize slice);
++/* A buffer of ours until the command buffer retires: host-visible, coherent and mapped into [mapped] when [host],
++ * else in device memory. */
++VkResult hybris_bc_transfer_buffer(struct hybris_bc_transfer *transfer, VkDeviceSize size, int host,
++    VkBuffer *buffer, unsigned char **mapped);
+ VkResult hybris_bc_copy_buffer_image(struct hybris_bc_transfer *transfer,
+     VkCommandBuffer command, struct hybris_bc_command_state *state,
+     const struct hybris_bc_image *image, VkImageLayout layout, VkBuffer buffer,
+diff --git a/hybris/vulkan/compat/memory_visibility.c b/hybris/vulkan/compat/memory_visibility.c
+index 11605b4..f9e6a31 100644
+--- a/hybris/vulkan/compat/memory_visibility.c
++++ b/hybris/vulkan/compat/memory_visibility.c
+@@ -22,6 +22,7 @@ struct allocation {
+     VkMemoryPropertyFlags properties;
+     VkAllocationCallbacks allocator;
+     int custom_allocator, mapped;
++    void *pointer; /* where map_offset is mapped (Pocket Foundry: bc_shadow reads uploads from it) */
+     struct allocation *next, *lookup_next;
+ };
+ struct buffer {
+@@ -257,6 +258,7 @@ static VkResult VKAPI_CALL map_memory(VkDevice handle, VkDeviceMemory memory, Vk
+         if (a) {
+             changed_upload_mapping(a);
+             a->mapped = 1; a->map_offset = offset; a->map_size = size == VK_WHOLE_SIZE ? a->size - offset : size;
++            a->pointer = *out;
+         }
+         pthread_mutex_unlock(&guard);
+     }
+@@ -268,7 +270,7 @@ static void VKAPI_CALL unmap_memory(VkDevice handle, VkDeviceMemory memory)
+     if (hybris_layer_lookup_device(handle, &device)) {
+         pthread_mutex_lock(&guard);
+         struct allocation *a = find_memory(&device, memory);
+-        if (a) { changed_upload_mapping(a); a->mapped = 0; }
++        if (a) { changed_upload_mapping(a); a->mapped = 0; a->pointer = NULL; }
+         pthread_mutex_unlock(&guard);
+     }
+     ((PFN_vkUnmapMemory)hybris_layer_device_inner_proc(handle, "vkUnmapMemory"))(handle, memory);
+@@ -485,6 +487,23 @@ static void VKAPI_CALL draw_indexed_indirect(VkCommandBuffer command, VkBuffer b
+     ((PFN_vkCmdDrawIndexedIndirect)hybris_layer_device_inner_proc(device.handle,
+         "vkCmdDrawIndexedIndirect"))(command, buffer, offset, count, stride);
+ }
++int hybris_memory_visibility_host_pointer(VkDevice handle, VkBuffer buffer, VkDeviceSize offset,
++    VkDeviceSize size, const void **out)
++{
++    *out = NULL;
++    struct hybris_layer_device device;
++    if (!hybris_layer_lookup_device(handle, &device)) return 0;
++    pthread_mutex_lock(&guard);
++    struct buffer *b = find_buffer(&device, buffer);
++    struct allocation *a = b && b->memory ? find_memory(&device, b->memory) : NULL;
++    if (a && a->generation == b->memory_generation && a->mapped && a->pointer && b->offset <= UINT64_MAX - offset) {
++        VkDeviceSize begin = b->offset + offset;
++        if (begin >= a->map_offset && size <= a->map_size && begin - a->map_offset <= a->map_size - size)
++            *out = (const char *)a->pointer + (begin - a->map_offset);
++    }
++    pthread_mutex_unlock(&guard);
++    return *out != NULL;
++}
+ void hybris_memory_visibility_release_device(VkDevice device)
+ {
+     hybris_readback_release_submissions(device);
+diff --git a/hybris/vulkan/compat/memory_visibility.h b/hybris/vulkan/compat/memory_visibility.h
+index e4d56bb..c965d38 100644
+--- a/hybris/vulkan/compat/memory_visibility.h
++++ b/hybris/vulkan/compat/memory_visibility.h
+@@ -16,5 +16,8 @@ VkResult hybris_memory_visibility_readback_range(const struct hybris_layer_devic
+     VkBuffer buffer, VkDeviceSize offset, VkDeviceSize size, struct hybris_readback_range *range);
+ VkResult hybris_memory_visibility_invalidate(const struct hybris_layer_device *device,
+     const struct hybris_readback_range *range);
++/* Pocket Foundry: where [size] bytes at [offset] of [buffer] are mapped for the host now; 0 if they aren't. */
++int hybris_memory_visibility_host_pointer(VkDevice device, VkBuffer buffer, VkDeviceSize offset,
++    VkDeviceSize size, const void **out);
+ VkResult hybris_memory_visibility_buffer_size(const struct hybris_layer_device *device, VkBuffer buffer, VkDeviceSize *size);
+ #endif
+diff --git a/hybris/vulkan/compat/readback_submit.c b/hybris/vulkan/compat/readback_submit.c
+index 073bcb3..2309d33 100644
+--- a/hybris/vulkan/compat/readback_submit.c
++++ b/hybris/vulkan/compat/readback_submit.c
+@@ -1,6 +1,7 @@
+ /* SPDX-License-Identifier: Apache-2.0 */
+ #define VK_NO_PROTOTYPES
+ #include "readback.h"
++#include "bc_shadow.h"
+ #include "polygon_record.h"
+ #include "memory_visibility.h"
+ #include "application_policy.h"
+@@ -196,6 +197,10 @@ static VkResult VKAPI_CALL queue_submit(VkQueue queue, uint32_t count,
+         if (result == VK_SUCCESS) result = publish(s);
+         if (result != VK_SUCCESS) { destroy(s); return result; }
+     }
++    /* Pocket Foundry: blocks kept on storage follow these command buffers first (bc_shadow.h). */
++    for (uint32_t i = 0; i < count; ++i)
++        for (uint32_t j = 0; j < info[i].commandBufferCount; ++j)
++            hybris_bc_shadow_submit(device.handle, info[i].pCommandBuffers[j]);
+     VkResult result=hybris_polygon_submit(queue,count,info,fence,(PFN_vkQueueSubmit)hybris_layer_device_inner_proc(device.handle,"vkQueueSubmit"));
+     submitted(s, result);
+     return result;
+@@ -217,6 +222,9 @@ static VkResult queue_submit2(VkQueue queue, uint32_t count, const VkSubmitInfo2
+         if (result == VK_SUCCESS) result = publish(s);
+         if (result != VK_SUCCESS) { destroy(s); return result; }
+     }
++    for (uint32_t i = 0; i < count; ++i)
++        for (uint32_t j = 0; j < info[i].commandBufferInfoCount; ++j)
++            hybris_bc_shadow_submit(device.handle, info[i].pCommandBufferInfos[j].commandBuffer);
+     VkResult result=hybris_polygon_submit2(queue,count,info,fence,(PFN_vkQueueSubmit2)hybris_layer_device_inner_proc(device.handle,name));
+     submitted(s, result);
+     return result;

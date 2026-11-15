@@ -36,9 +36,10 @@ object Session {
 
     /**
      * [exit] is Factorio's when it failed, null after a normal quit. [noWindow] says it never opened its window: the
-     * graphics driver didn't start. [deviceLost]: the app stopped it when the driver lost the GPU.
+     * graphics driver didn't start. [failure]: the driver failed it later, at [stage].
      */
-    class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean, val deviceLost: Boolean = false)
+    class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean,
+                 val failure: GameEnding.Failure? = null, val stage: GameEnding.Stage? = null)
 
     /** A files/usr/bin program that DebugPad or debug.env's test.program may run: no paths. */
     private val TOOL_NAME = Regex("[a-z0-9-]+")
@@ -51,6 +52,11 @@ object Session {
     private const val LOG_POLL_MS = 250L
     private const val WINDOW_OPENED = "Initialised OpenGL"
     private const val DEVICE_LOST = "zink: DEVICE LOST!"
+    private const val CRASHED = "Factorio crashed"
+    /** The line Factorio writes as it opens its crash dialog, after the stack trace. */
+    private const val CRASH_DIALOG = "Unexpected error occurred"
+    private const val CRASH_TRACE_MS = 20_000L
+    private val MARKER_LENGTH = maxOf(DEVICE_LOST.length, CRASHED.length, CRASH_DIALOG.length)
     private const val DEVICE_POLL_MS = 1_000L
     /**
      * glibc gives blocks of 1 MB and more back to Android as soon as the game frees them, instead of keeping them for
@@ -265,7 +271,7 @@ object Session {
         val app = context.applicationContext
         thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(app, game, started.waitFor()) }
         watchForNoWindow(game, paths.gameLog)
-        watchForDeviceLost(game, paths.gameLog)
+        watchForFailure(game, paths.gameLog)
         context.startForegroundService(Intent(context, GameService::class.java))
     }
 
@@ -342,10 +348,15 @@ object Session {
         this.game = null
         // Killed by a signal before its window opened: the driver crashed starting, like one that opens no window.
         val noWindow = game.noWindow || failed && !game.windowOpened && exit.signal != null
-        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow, game.deviceLost)
+        val log = if (failed && !noWindow) runCatching { Paths(context).gameLog.readText() }.getOrDefault("") else ""
+        val failure = if (failed && !noWindow) GameEnding.failure(game.deviceLost, exit.signal, log) else null
+        val stage = failure?.let { GameEnding.stage(log) }
+        if (failure != null) ScreenLog.add("the driver ${failure.words}, ${stage?.words}: the next game passes it over")
+        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow, failure, stage)
         val outcome = when {
             game.testing -> null
             noWindow -> Drivers.Outcome.DIDNT_START
+            failure != null -> Drivers.Outcome.FAILED
             failed -> Drivers.Outcome.STOPPED
             game.windowOpened -> Drivers.Outcome.RAN
             else -> null   // quit while loading
@@ -378,12 +389,21 @@ object Session {
 
     /**
      * Once Zink has lost the GPU, Factorio goes on with nothing to draw with: a black or frozen screen, and memory
-     * growing by gigabytes (a Mali-G52 on PanVK-kbase went from 2 to 5.6 GB in 20 s).
+     * growing by gigabytes (a Mali-G52 on PanVK-kbase went from 2 to 5.6 GB in 20 s). Once Factorio has crashed, it
+     * writes its stack trace, then waits on a small desktop dialog over a black screen ("Unexpected error occurred
+     * ... open the folder containing the log file?") that players can't make sense of: it goes once the trace is
+     * written, or after [CRASH_TRACE_MS].
      */
-    private fun watchForDeviceLost(game: Game, log: File) = thread(name = "pocketfoundry-game-gpu", isDaemon = true) {
+    private fun watchForFailure(game: Game, log: File) = thread(name = "pocketfoundry-game-failure", isDaemon = true) {
         var read = 0L
         var tail = ""
+        var crashedAt = 0L
         while (game.program.isAlive) {
+            if (crashedAt > 0 && System.currentTimeMillis() - crashedAt > CRASH_TRACE_MS) {
+                ScreenLog.add("Factorio crashed: game stopped")
+                game.program.kill()
+                return@thread
+            }
             val new = runCatching {
                 RandomAccessFile(log, "r").use { file ->
                     if (file.length() < read) read = 0
@@ -400,7 +420,13 @@ object Session {
                     game.program.kill()
                     return@thread
                 }
-                tail = text.takeLast(DEVICE_LOST.length)
+                if (crashedAt == 0L && CRASHED in text) crashedAt = System.currentTimeMillis()
+                if (crashedAt > 0 && CRASH_DIALOG in text) {
+                    ScreenLog.add("Factorio crashed: game stopped")
+                    game.program.kill()
+                    return@thread
+                }
+                tail = text.takeLast(MARKER_LENGTH)
             }
             Thread.sleep(DEVICE_POLL_MS)
         }

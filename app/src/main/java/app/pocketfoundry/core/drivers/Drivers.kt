@@ -25,7 +25,8 @@ object Drivers {
     class Driver(val id: String, val name: String, val origin: Origin, val note: String, val about: String = "",
                  val forGpus: String = "", val entry: Catalog.Entry? = null)
 
-    enum class Outcome { RAN, STOPPED, DIDNT_START }
+    /** [FAILED]: it lost the GPU, crashed or ran out of memory in a game (GameEnding). */
+    enum class Outcome { RAN, STOPPED, DIDNT_START, FAILED }
 
     const val PHONE = "phone"
     const val CPU = "cpu"
@@ -108,7 +109,8 @@ object Drivers {
 
     /**
      * A driver that didn't start, or that this version's check found draws wrong or can't draw (DriverCheck), is
-     * passed over for the next in line. With downloads off, only the drivers already here count.
+     * passed over for the next in line, and one that failed in a game for MobileGlues. With downloads off, only the
+     * drivers already here count.
      */
     fun recommended(context: Context): String {
         val online = downloads(context)
@@ -118,18 +120,24 @@ object Drivers {
             .sortedBy { it.priority }
         val fitting = listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id }
         val gles = listed.filter { it.kind == Catalog.Kind.GLES }.map { it.id }
-        return recommend(fitting, Gpu.hasVulkan(context), gles) {
+        return recommend(fitting, Gpu.hasVulkan(context), gles,
+                         failedInGame = { DriverRecords.outcome(context, it) == Outcome.FAILED }) {
             DriverRecords.outcome(context, it) == Outcome.DIDNT_START || DriverCheck.passed(context, it) == false
         }
     }
 
     /**
      * [fitting]: the catalog's drivers for this GPU, best first. [gles]: its ones on the phone's own OpenGL ES, for
-     * any GPU, which play where the CPU would crawl.
+     * any GPU, which play where the CPU would crawl. One of the others that failed in a game sends the choice
+     * straight to those: the rest go through the same Mesa and Vulkan and would likely fail the same way (#76: PanVK
+     * lost the GPU, the phone's driver drew black textures, MobileGlues played).
      */
     internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>,
-                           passedOver: (String) -> Boolean): String =
-        (fitting + listOfNotNull(PHONE.takeIf { vulkan }) + gles).firstOrNull { !passedOver(it) } ?: CPU
+                           failedInGame: (String) -> Boolean = { false }, passedOver: (String) -> Boolean): String {
+        val line = fitting + listOfNotNull(PHONE.takeIf { vulkan }) + gles
+        val usable = if (line.any { it !in gles && failedInGame(it) }) gles else line
+        return usable.firstOrNull { !passedOver(it) && !failedInGame(it) } ?: CPU
+    }
 
     fun record(context: Context, id: String, outcome: Outcome) =
         switching(context) { DriverRecords.setOutcome(context, id, outcome) }
@@ -422,7 +430,7 @@ object Drivers {
 
     /**
      * Whether High sprites fit in [freeMb] of GPU memory, the textures costing [cost] times their compressed size
-     * (DriverCheck.textureCost): about 2.5 GB at 1, 4 GB through the compat layer's converter. Unknown: they don't.
+     * (DriverCheck.textureCost): about 2.5 GB at 1. Unknown: they don't.
      */
     internal fun highSpritesFit(freeMb: Int?, cost: Double) =
         freeMb != null && freeMb >= HEADROOM * (HIGH_TEXTURES_MB * cost + REST_MB)

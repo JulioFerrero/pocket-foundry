@@ -3,7 +3,10 @@ package app.pocketfoundry.ui.screens.launcher
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -17,6 +20,7 @@ import android.util.Log
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
@@ -27,8 +31,11 @@ import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.drivers.SpeedTest
+import app.pocketfoundry.core.game.GameEnding
+import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
+import app.pocketfoundry.core.system.REPOSITORY
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.scaleUi
@@ -82,9 +89,11 @@ class LogActivity : Activity() {
             mainHandler.removeCallbacks(copied)
             mainHandler.postDelayed(copied, 2000)
         }
+        val report = FButton(this, "Report", size = 15f).apply { minWidth = dpi(110) }
+        report.setOnClickListener { report() }
         val panel = panel(this, "Logs") {
             add(stack(context, Frame.DEEP) { add(scroll, MATCH, MATCH) }, height = 0, weight = 1f)
-            add(buttonBar(context, "Back", ::finish, copy))
+            add(buttonBar(context, "Back", ::finish, report, copy))
         }
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Factorio.BODY)
@@ -96,6 +105,40 @@ class LogActivity : Activity() {
         super.onResume()
         immersive()
         mainHandler.post(refresh)
+        // Home's "Report it", once: back from the browser, the Logs stay.
+        if (intent.getBooleanExtra(REPORT, false)) {
+            intent.removeExtra(REPORT)
+            mainHandler.post(::report)
+        }
+    }
+
+    /** What happened in words, for the report's title and its "What happened". */
+    private val lastGame: String?
+        get() = Session.lastGame?.let { ending ->
+            ending.failure?.let { GameEnding.sentence(Drivers.find(this, ending.driver)?.name ?: ending.driver, it, ending.stage) }
+        }
+
+    /**
+     * The Logs onto the clipboard and a new bug report on GitHub, its phone and title filled in: the player sees the
+     * form and decides whether to post it. The app sends nothing itself.
+     */
+    private fun report() {
+        load()
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Pocket Foundry logs", shown))
+        val phone = "${Build.MANUFACTURER} ${Build.MODEL}"
+        val what = lastGame
+        val url = Uri.parse("https://github.com/$REPOSITORY/issues/new").buildUpon()
+            .appendQueryParameter("template", "1-bug.yml")
+            .appendQueryParameter("title", listOfNotNull("$phone, ${Gpu.name ?: "GPU unknown"}", what).joinToString(": "))
+            .appendQueryParameter("phone", phone)
+            .apply { if (what != null) appendQueryParameter("what", what) }
+            .build()
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, url))
+            Toast.makeText(this, "The Logs are copied: paste them in the report's Logs box.", Toast.LENGTH_LONG).show()
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "No browser to open the report in. The Logs are copied.", Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onPause() {
@@ -128,6 +171,7 @@ class LogActivity : Activity() {
                             "detailed logs ${onOff(settings.detailedLogs)}",
                             "fast start ${onOff(settings.fastStart)}")
         "── phone ──\n" + facts.joinToString(" · ") + "\n" +
+            (lastGame?.let { "Last game: $it\n" } ?: "") +
             "Settings: ${chosen.joinToString(" · ")}\n" +
             (if (pads.isNotEmpty()) "Controllers: $pads\n" else "") +
             (if (options.isNotEmpty()) "Driver options: $options\n" else "") +
@@ -197,6 +241,8 @@ class LogActivity : Activity() {
     }
 
     companion object {
+        /** From Home after a failed game: report it right away. */
+        const val REPORT = "report"
         private const val LOGCAT_PIECE = 3000
         private const val LOGCAT_BURST = 100
         private const val LOGCAT_PAUSE_MS = 250L

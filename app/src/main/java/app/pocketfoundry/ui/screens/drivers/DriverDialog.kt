@@ -258,6 +258,8 @@ class DriverDialog(private val launcher: LauncherActivity) {
             driver.id == chosen -> State("In use", Tone.GREEN.face, Tone.GREEN.dark)
             DriverRecords.outcome(launcher, driver.id) == Drivers.Outcome.DIDNT_START ->
                 State("Didn't start", Tone.RED.face, Tone.RED.dark)
+            DriverRecords.outcome(launcher, driver.id) == Drivers.Outcome.FAILED ->
+                State("Failed", Tone.RED.face, Tone.RED.dark)
             !downloaded && Drivers.toTry(driver) -> State("To try", Factorio.BAR, TRY_INK)
             !downloaded -> State(size(driver.entry) ?: "Download", CHIP, CHIP_INK)
             Drivers.pending(launcher, driver.id) != null -> State("Update", Factorio.LINK, UPDATE_INK)
@@ -406,6 +408,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
             Drivers.Outcome.RAN -> "ran fine"
             Drivers.Outcome.STOPPED -> "stopped unexpectedly"
             Drivers.Outcome.DIDNT_START -> "didn't start"
+            Drivers.Outcome.FAILED -> "lost the GPU or crashed"
             null -> "not tried yet"
         }
         // A size not downloaded yet is in the state next to the name.

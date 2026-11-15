@@ -60,6 +60,17 @@ class DriversTest {
         assertEquals("cpu", Drivers.recommend(listOf("turnip"), vulkan = true, gles) { true })
     }
 
+    @Test fun `a driver that failed in a game sends the app's choice to MobileGlues`() {
+        // #76: PanVK lost the GPU; the phone's driver, next in line, drew black textures there.
+        assertEquals("mobileglues",
+                     Drivers.recommend(listOf("panvk"), vulkan = true, gles, failedInGame = { it == "panvk" }) { false })
+        assertEquals("cpu", Drivers.recommend(listOf("panvk"), vulkan = true, gles,
+                                              failedInGame = { it == "panvk" || it == "mobileglues" }) { false })
+        // MobileGlues failing alone leaves the others as they were.
+        assertEquals("panvk",
+                     Drivers.recommend(listOf("panvk"), vulkan = true, gles, failedInGame = { it == "mobileglues" }) { false })
+    }
+
     private val paths = Paths(File("/files"), File("/lib"))
 
     private fun entry(id: String, kind: String, env: String = "{}") = Catalog.Entry(JSONObject("""
@@ -191,7 +202,7 @@ class DriversTest {
     @Test fun `High sprites need room for what the textures really cost`() {
         assertTrue(Drivers.highSpritesFit(15247, 1.0))
         assertFalse(Drivers.highSpritesFit(2322, 1.0))
-        // A Redmi Note 14 Pro 5G's PanVK had 5564 MB free: enough at 1, through the converter too.
+        // A Redmi Note 14 Pro 5G's PanVK had 5564 MB free: enough at 1, and at twice that too.
         assertTrue(Drivers.highSpritesFit(5564, 2.0))
         assertFalse(Drivers.highSpritesFit(3500, 2.0))
         assertFalse(Drivers.highSpritesFit(null, 1.0))
