@@ -184,7 +184,7 @@ class DriversTest {
     @Test fun `High sprites need room for what the textures really cost`() {
         assertTrue(Drivers.highSpritesFit(15247, 1.0))
         assertFalse(Drivers.highSpritesFit(2322, 1.0))
-        // A Redmi Note 14 Pro 5G's PanVK had 5564 MB free: enough at 1, through the converter too.
+        // A Redmi Note 14 Pro 5G's PanVK had 5564 MB free: enough at 1, and at twice that too.
         assertTrue(Drivers.highSpritesFit(5564, 2.0))
         assertFalse(Drivers.highSpritesFit(3500, 2.0))
         assertFalse(Drivers.highSpritesFit(null, 1.0))

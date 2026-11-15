@@ -67,9 +67,9 @@ object DriverCheck {
     internal data class Atlases(val draws: Boolean, val comesBack: Boolean, val copies: Boolean, val takesMb: Int,
                                 val compressedMb: Int) {
         /**
-         * Whether one stayed compressed, by the memory it took; null where the driver doesn't say. Converted, an atlas
-         * takes about twice its compressed size: the compat layer keeps the original blocks beside the ASTC, for
-         * reading back. Unpacked, four times or more.
+         * Whether one stayed compressed, by the memory it took; null where the driver doesn't say. Converted to ASTC,
+         * an atlas takes as much as in BC3 and twice BC1 (the compat layer keeps the original blocks on storage, for
+         * reading back). Unpacked, four times or more.
          */
         val compressed: Boolean? get() = if (takesMb <= 0) null else takesMb < 3 * compressedMb
 
@@ -167,16 +167,12 @@ object DriverCheck {
 
     /**
      * What the game's textures cost on this version of [driver], for each MB they'd take compressed: the memory the
-     * check's atlas took, else about 2 through the compat layer (the ASTC and the original blocks) and 1 otherwise.
+     * check's atlas took, else 1. Through the compat layer's converter too: its ASTC takes as much as the game's BC3.
      */
     fun textureCost(context: Context, driver: String): Double {
         val saved = current(context, driver) ?: return 1.0
         val taken = saved.optInt("atlasMb")
-        return when {
-            taken > 0 && saved.optInt("atlasOf") > 0 -> taken.toDouble() / saved.optInt("atlasOf")
-            saved.optString("textures").startsWith(Drivers.TextureWay.LAYER) -> 2.0
-            else -> 1.0
-        }
+        return if (taken > 0 && saved.optInt("atlasOf") > 0) taken.toDouble() / saved.optInt("atlasOf") else 1.0
     }
 
     /** Fast start's cache holds what one version of one driver gave back (AtlasCache): this one's, as a name. */
@@ -378,9 +374,18 @@ object DriverCheck {
             result.put("textures", NO_WAY)
             return
         }
-        result.put("textures", way.saved).put("cache", atlases.comesBack).put("gpuCompression", atlases.copies)
+        result.put("textures", way.saved).put("cache", atlases.comesBack)
+            .put("gpuCompression", gpuCompresses(way, atlases, "BC" in Gpu.textureFormats))
             .put("atlasMb", atlases.takesMb).put("atlasOf", atlases.compressedMb)
     }
+
+    /**
+     * Whether Factorio's GPU compressor can fill the atlases this [way]: the blocks it copies in on the GPU come out
+     * right, and the compat layer doesn't convert them. Converted, the layer keeps the original blocks on storage,
+     * which the GPU's copies never reach, and Factorio's test of its compressor reads them back wrong.
+     */
+    internal fun gpuCompresses(way: Drivers.TextureWay, atlases: Atlases, gpuHasBc: Boolean) =
+        atlases.copies && !(way.convertsWhatsMissing && !gpuHasBc)
 
     /** What the first try found wrong, in its words: the first squares that came out wrong, or where it crashed. */
     internal fun why(run: String) = run.lines().filter { it.startsWith("drivercheck: ") }

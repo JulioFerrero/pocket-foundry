@@ -403,7 +403,7 @@ object Drivers {
 
     /**
      * Whether High sprites fit in [freeMb] of GPU memory, the textures costing [cost] times their compressed size
-     * (DriverCheck.textureCost): about 2.5 GB at 1, 4 GB through the compat layer's converter. Unknown: they don't.
+     * (DriverCheck.textureCost): about 2.5 GB at 1. Unknown: they don't.
      */
     internal fun highSpritesFit(freeMb: Int?, cost: Double) =
         freeMb != null && freeMb >= HEADROOM * (HIGH_TEXTURES_MB * cost + REST_MB)

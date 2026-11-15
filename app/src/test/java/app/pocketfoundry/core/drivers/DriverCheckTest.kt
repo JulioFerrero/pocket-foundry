@@ -235,6 +235,13 @@ class DriverCheckTest {
         assertEquals(1, DriverCheck.rank(driverWay, atlases(takes = -1)))
     }
 
+    @Test fun `Factorio's GPU compressor stays off where the compat layer converts the textures`() {
+        assertEquals(true, DriverCheck.gpuCompresses(driverWay, atlases(), gpuHasBc = false))
+        assertEquals(false, DriverCheck.gpuCompresses(layerWay, atlases(), gpuHasBc = false))
+        // An Adreno reads BC itself: the layer converts nothing there.
+        assertEquals(true, DriverCheck.gpuCompresses(layerWay, atlases(), gpuHasBc = true))
+    }
+
     @Test fun `where the driver doesn't say its memory, the converter counts as compressed`() {
         assertEquals(3, DriverCheck.rank(layerWay, atlases(takes = -1)))
         assertEquals(2, DriverCheck.rank(layerWay, atlases(takes = -1, comesBack = false)))
