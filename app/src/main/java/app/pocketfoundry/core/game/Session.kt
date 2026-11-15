@@ -276,9 +276,7 @@ object Session {
     }
 
     private fun gameEnvironment(context: Context, paths: Paths, driver: String): Map<String, String> {
-        // Mesa's own counter, drawn into the game's frames, whichever driver draws them.
-        val fpsCounter = if (Settings(context).fpsCounter) mapOf("GALLIUM_HUD" to "simple,fps") else emptyMap()
-        return Drivers.environment(context, driver) + fpsCounter + MEMORY +
+        return Drivers.environment(context, driver) + MEMORY +
                DetailedLogs.environment(context) + Drivers.overrides(context, driver)
     }
 

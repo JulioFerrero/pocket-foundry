@@ -63,7 +63,7 @@ class Control(
 
     /** Clamped, unlike a saved scale read back as it is. */
     fun scaleTo(value: Float) {
-        scale = value.coerceIn(MIN_SCALE, MAX_SCALE)
+        scale = editorScale(value)
     }
 
     fun resetPlacement() {
@@ -150,8 +150,6 @@ class Control(
     }
 
     private companion object {
-        const val MIN_SCALE = 0.6f
-        const val MAX_SCALE = 1.8f
         /** The D-pad's middle presses nothing: this part of its radius. */
         const val DPAD_DEAD_ZONE = 0.2f
         const val SIN_22 = 0.38f   // sin 22.5°: where a straight direction meets a diagonal
@@ -178,3 +176,9 @@ fun defaultControls() = listOf(
     Control("L3", Kind.Button(PadButton.LEFT_STICK), 0.215f, 0.56f, 0.085f, "joycon/*/L-stick-press"),
     Control("R3", Kind.Button(PadButton.RIGHT_STICK), 0.785f, 0.56f, 0.085f, "joycon/*/R-stick-press"),
 )
+
+/** A size the layout editor allows, for a control or the FPS counter. */
+fun editorScale(value: Float) = value.coerceIn(MIN_SCALE, MAX_SCALE)
+
+private const val MIN_SCALE = 0.6f
+private const val MAX_SCALE = 1.8f

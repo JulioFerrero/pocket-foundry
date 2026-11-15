@@ -1,11 +1,14 @@
 /*
-  Pocket Foundry's additions to SDL: sound, a gamepad and a frame cap from the Android app.
+  Pocket Foundry's additions to SDL: sound, a gamepad and a frame cap from the Android app, and the game's frames for
+  its FPS counter.
   The game's glibc process can't load Android's libraries, so sound and gamepad go over Unix sockets.
   Delaying buffer swaps is enough for the cap: Factorio keeps its 60 updates a second and draws fewer frames.
 
   Audio socket: a 12-byte header ("PFA1", then rate and channels as little-endian int32), then F32LE frames.
   Input socket: 4-byte messages: a type ('B' button, 'A' axis, 'R' rumble back to the app), an index, then a
   little-endian int16 value.
+  Frames file: "PFF1", then the frames the game has swapped, a little-endian uint32 that wraps. Every driver's frames
+  pass here, so the app's counter is the same whichever one draws.
   These names and values are the app's too (core/runtime/Sdl.kt, AudioBridge.kt, InputBridge.kt, Settings.kt):
   SourceContractTest checks they agree.
 
@@ -21,11 +24,13 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 
 #define AUDIO_MAGIC "PFA1"  // AudioBridge in the app checks it
+#define FRAMES_MAGIC "PFF1" // FrameCounter in the app checks it
 #define RECONNECT_MS 1000
 #define GAME_UPS 60         // Factorio's updates a second: a cap at or above it is no cap
 
@@ -359,6 +364,33 @@ void SDL_POCKETFOUNDRY_PaceFrame(void)
         now = SDL_GetTicksNS();
     }
     next = (next && now < next + interval) ? next + interval : now + interval;
+}
+
+void SDL_POCKETFOUNDRY_CountFrame(void)
+{
+    static bool looked;
+    static Uint32 *frames;
+
+    if (!looked) {
+        const char *path = SDL_getenv("POCKETFOUNDRY_FRAMES");
+        looked = true;
+        if (path) {
+            // A file the app maps too: one add a frame, no system call.
+            int fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+            if (fd >= 0) {
+                void *map = ftruncate(fd, 8) == 0 ? mmap(NULL, 8, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0) : MAP_FAILED;
+                close(fd);
+                if (map != MAP_FAILED) {
+                    frames = (Uint32 *)((Uint8 *)map + 4);
+                    __atomic_store_n(frames, 0, __ATOMIC_RELAXED);
+                    SDL_memcpy(map, FRAMES_MAGIC, 4);
+                }
+            }
+        }
+    }
+    if (frames) {
+        __atomic_add_fetch(frames, 1, __ATOMIC_RELAXED);
+    }
 }
 
 #endif // SDL_POCKETFOUNDRY

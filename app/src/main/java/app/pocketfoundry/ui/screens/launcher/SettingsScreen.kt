@@ -45,8 +45,8 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val settings = Settings(launcher)
     private val paths = Paths(launcher)
     private val x11 = X11Prefs(launcher)
-    private val note = label(launcher, "Resolution, sprites, graphics, the FPS counter, detailed logs and fast start " +
-                             "change when Factorio next starts.", 13f, Factorio.MUTED)
+    private val note = label(launcher, "Resolution, sprites, graphics, detailed logs and fast start change when " +
+                             "Factorio next starts.", 13f, Factorio.MUTED)
     private val fastStart = label(launcher, FAST_START, 15f)
     private val driverDownloads = checkBox(launcher, settings.driverDownloads == Settings.ON) { on ->
         if (on == (settings.driverDownloads == Settings.ON)) return@checkBox

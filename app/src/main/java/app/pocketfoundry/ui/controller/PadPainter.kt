@@ -186,6 +186,15 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         }
     }
 
+    /** The selection's outline around [box]: the FPS counter's, in the editor. */
+    fun drawSelection(canvas: Canvas, box: RectF) {
+        stroke.color = Tone.ORANGE.face
+        stroke.strokeWidth = layout.frame * 0.004f
+        rect.set(box)
+        rect.inset(-2 * stroke.strokeWidth, -2 * stroke.strokeWidth)
+        canvas.drawRect(rect, stroke)
+    }
+
     private fun drawSelection(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float) {
         stroke.color = Tone.ORANGE.face
         stroke.strokeWidth = layout.frame * 0.004f

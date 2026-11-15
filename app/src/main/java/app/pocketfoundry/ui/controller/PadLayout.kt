@@ -1,6 +1,7 @@
 package app.pocketfoundry.ui.controller
 
 import android.content.Context
+import android.graphics.PointF
 import android.util.Log
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.floats
@@ -21,6 +22,9 @@ class PadLayout(private val context: Context) {
     var opacity = DEFAULT_OPACITY
         private set
     var hidden = false
+    /** Where the player put the FPS counter's top-left corner, as fractions of the screen; null for its own corner. */
+    var counter: PointF? = null
+    var counterScale = 1f
 
     var width = 0
         private set
@@ -72,6 +76,8 @@ class PadLayout(private val context: Context) {
         allControls.forEach { it.resetPlacement() }
         refreshShown()
         opacity = DEFAULT_OPACITY
+        counter = null
+        counterScale = 1f
     }
 
     fun nextOpacity() {
@@ -92,6 +98,8 @@ class PadLayout(private val context: Context) {
             }
             opacity = json.optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat()
             hidden = json.optBoolean("hidden", false)
+            counter = json.optJSONArray("counter")?.floats()?.takeIf { it.size == 2 }?.let { PointF(it[0], it[1]) }
+            counterScale = json.optDouble("counterScale", 1.0).toFloat()
             for ((c, placement) in placements) {
                 c.shown = c.id !in removed
                 placement?.let { (x, y, scale) ->
@@ -127,6 +135,8 @@ class PadLayout(private val context: Context) {
             .forEach { placed.put(it.id, JSONArray(listOf(it.x.toDouble(), it.y.toDouble(), it.scale.toDouble()))) }
         val json = JSONObject().put("opacity", opacity.toDouble()).put("hidden", hidden).put("controls", placed)
             .put("removed", JSONArray(allControls.filter { !it.shown }.map { it.id }))
+        counter?.let { json.put("counter", JSONArray(listOf(it.x.toDouble(), it.y.toDouble()))) }
+        if (counterScale != 1f) json.put("counterScale", counterScale.toDouble())
         prefs.edit().putString(LAYOUT_KEY, json.toString()).apply()
     }
 
