@@ -60,6 +60,17 @@ class DriversTest {
         assertEquals("cpu", Drivers.recommend(listOf("turnip"), vulkan = true, gles) { true })
     }
 
+    @Test fun `a driver that failed in a game sends the app's choice to MobileGlues`() {
+        // #76: PanVK lost the GPU; the phone's driver, next in line, drew black textures there.
+        assertEquals("mobileglues",
+                     Drivers.recommend(listOf("panvk"), vulkan = true, gles, failedInGame = { it == "panvk" }) { false })
+        assertEquals("cpu", Drivers.recommend(listOf("panvk"), vulkan = true, gles,
+                                              failedInGame = { it == "panvk" || it == "mobileglues" }) { false })
+        // MobileGlues failing alone leaves the others as they were.
+        assertEquals("panvk",
+                     Drivers.recommend(listOf("panvk"), vulkan = true, gles, failedInGame = { it == "mobileglues" }) { false })
+    }
+
     private val paths = Paths(File("/files"), File("/lib"))
 
     private fun entry(id: String, kind: String, env: String = "{}") = Catalog.Entry(JSONObject("""

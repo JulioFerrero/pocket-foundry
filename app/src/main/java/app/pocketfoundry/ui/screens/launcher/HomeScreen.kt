@@ -10,7 +10,9 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
 import app.pocketfoundry.LauncherActivity
+import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
+import app.pocketfoundry.core.game.GameEnding
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.Saves
 import app.pocketfoundry.core.system.Paths
@@ -55,6 +57,10 @@ class HomeScreen(private val launcher: LauncherActivity) {
     private val groove = groove(launcher)
     private val footerLeft = label(launcher, "", 15f, weight = 700).capped(2)
     private val footerRight = label(launcher, "", 15f, weight = 700)
+    /** After a game the driver failed: the Logs, copied into a report (LogActivity). */
+    private val report = button(launcher, "Report it") {
+        launcher.startActivity(Intent(launcher, LogActivity::class.java).putExtra(LogActivity.REPORT, true))
+    }
     private val card = SaveCard(launcher)
 
     val view: View = FrameLayout(launcher).apply {
@@ -62,7 +68,7 @@ class HomeScreen(private val launcher: LauncherActivity) {
             add(stack(launcher, Frame.DEEP, padding = 8, gap = 6) {
                 for (button in listOf(continueSave, resume)) add(button, height = BUTTON_HEIGHT)
                 add(groove, height = 3)
-                for (button in listOf(mainMenu, settings, logs)) add(button, height = 40)
+                for (button in listOf(mainMenu, settings, logs, report)) add(button, height = 40)
                 spacer()
                 add(quit, WRAP, 40)
             }, height = 0, weight = 1f)
@@ -97,14 +103,16 @@ class HomeScreen(private val launcher: LauncherActivity) {
         for (b in listOf(resume, quit)) b.isEnabled = idle && Session.live
         card.update(save, inGame)
 
-        val failure = error ?: Session.lastGame?.let { ending ->
-            val exit = ending.exit ?: return@let null
+        val ending = Session.lastGame?.takeIf { error == null && !inGame }
+        val failure = error ?: ending?.let {
+            val exit = it.exit ?: return@let null
             when {
-                ending.noWindow -> driverDidntStart(ending.driver)
-                ending.deviceLost -> "The graphics driver lost the GPU, so the game was stopped. See Logs."
+                it.noWindow -> driverDidntStart(it.driver)
+                it.failure != null -> driverFailed(it)
                 else -> "Factorio stopped unexpectedly (${exit.status}). See Logs."
             }
         }
+        report.shown = ending?.failure != null
         footerLeft.setTextColor(if (failure != null) Factorio.ERROR else Factorio.TEXT)
         footerLeft.textSize = if (failure != null) 13f else 15f
         val (left, right) = when {
@@ -114,6 +122,20 @@ class HomeScreen(private val launcher: LauncherActivity) {
         }
         footerLeft.text = left
         footerRight.text = right
+    }
+
+    /**
+     * What the driver did and when, and what's next: the app's own choice has moved on (Drivers.recommended), a
+     * player's own stays theirs to change.
+     */
+    private fun driverFailed(ending: Session.Ending): String {
+        val failure = ending.failure ?: return "The graphics driver failed. See Logs."
+        val what = GameEnding.sentence(Drivers.find(launcher, ending.driver)?.name ?: "The graphics driver",
+                                       failure, ending.stage)
+        val next = Drivers.chosen(launcher)
+        if (next != ending.driver) return "$what Next game: ${Drivers.find(launcher, next)?.name ?: next}."
+        val gles = Drivers.all(launcher).firstOrNull { it.entry?.kind == Catalog.Kind.GLES && it.id != next }
+        return if (gles != null) "$what Try ${gles.name}: Settings -> Driver." else "$what See Logs."
     }
 
     /** Which driver didn't start, and the one the next game moves on to when the choice is the app's. */
