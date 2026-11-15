@@ -244,4 +244,12 @@ class DriversTest {
         assertEquals("build 1.15@6133109", Drivers.makersVersion("OpenGL ES 3.2 build 1.15@6133109"))
         assertEquals("(4.1 Metal - 91.7)", Drivers.makersVersion("OpenGL ES 3.0 (4.1 Metal - 91.7)"))
     }
+
+    @Test fun `a driver named after the phone's own says what draws through it, before its version`() {
+        assertEquals("Zink · Arm r38p1", Drivers.withEngine("Zink", "Arm r38p1"))
+        assertEquals("MobileGlues 2.3.0 · 10 Nov", Drivers.withEngine("MobileGlues", "2.3.0 · 10 Nov"))
+        assertEquals("llvmpipe · Mesa 26 · 10 Nov", Drivers.withEngine("llvmpipe", "Mesa 26 · 10 Nov"))
+        assertEquals("llvmpipe", Drivers.withEngine("llvmpipe", ""))
+        assertEquals("Mesa 27 · 10 Nov", Drivers.withEngine(null, "Mesa 27 · 10 Nov"))
+    }
 }

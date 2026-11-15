@@ -46,7 +46,7 @@ object Drivers {
     }
 
     private fun app() = listOf(
-        Driver(PHONE, "Phone's driver", Origin.APP, "Android's own, through libhybris",
+        Driver(PHONE, "Phone's Vulkan", Origin.APP, "Android's own, through libhybris",
                "Zink on the Vulkan driver your phone already has, loaded through libhybris. The way in for Mali, " +
                "PowerVR and Xclipse.", "Any GPU"),
     )
@@ -59,13 +59,34 @@ object Drivers {
     /**
      * One way to say which build a driver is, wherever the app names it: "1.2.9 · 10 Nov" for one with its own
      * version, "Mesa 27 · 10 Nov" for one built from Mesa's development code (where the date is what tells builds
-     * apart), the maker's version for the phone's. A downloaded driver's is the build it has, not the catalog's.
+     * apart), the maker's version for the phone's. A downloaded driver's is the build it has, not the catalog's. The
+     * drivers named after the GPU's own driver, or the CPU, say first what draws through it: "Zink · Arm r38p1",
+     * "MobileGlues 2.3.0 · 10 Nov", "llvmpipe · Mesa 26 · 10 Nov".
      */
-    fun version(context: Context, driver: Driver): String = when (driver.origin) {
-        Origin.APP -> Gpu.driverVersion?.let(::makersVersion) ?: "Android's own"
-        Origin.IMPORTED -> driver.note
-        Origin.CATALOG -> (DriverImport.downloaded(Paths(context), driver.id) ?: driver.entry)
-            ?.let { buildVersion(it.version, it.mesa, it.updated, LocalDate.now()) }.orEmpty()
+    fun version(context: Context, driver: Driver): String {
+        val build = when (driver.origin) {
+            Origin.APP -> Gpu.driverVersion?.let(::makersVersion) ?: "Android's own"
+            Origin.IMPORTED -> driver.note
+            Origin.CATALOG -> (DriverImport.downloaded(Paths(context), driver.id) ?: driver.entry)
+                ?.let { buildVersion(it.version, it.mesa, it.updated, LocalDate.now()) }.orEmpty()
+        }
+        return withEngine(engine(driver), build)
+    }
+
+    private fun engine(driver: Driver) = when {
+        driver.origin == Origin.APP -> "Zink"
+        driver.origin == Origin.IMPORTED -> null
+        driver.entry?.kind == Catalog.Kind.GLES -> "MobileGlues"
+        driver.entry?.kind == Catalog.Kind.CPU -> "llvmpipe"
+        else -> null
+    }
+
+    /** "MobileGlues 2.3.0", its own version after it, but "Zink · Arm r38p1". */
+    internal fun withEngine(engine: String?, build: String) = when {
+        engine == null -> build
+        build.isEmpty() -> engine
+        build.first().isDigit() -> "$engine $build"
+        else -> "$engine · $build"
     }
 
     internal fun buildVersion(version: String, mesa: String, built: String, today: LocalDate): String {
