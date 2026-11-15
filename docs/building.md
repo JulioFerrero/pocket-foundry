@@ -46,7 +46,7 @@ secrets: `POCKETFOUNDRY_KEYSTORE` (the keystore, base64) and `POCKETFOUNDRY_STOR
 
 Open fronts, beyond testing on your phone:
 
-- **Mali, PowerVR and Xclipse GPUs.** The Phone's driver (Zink on the phone's own Vulkan driver, through libhybris)
+- **Mali, PowerVR and Xclipse GPUs.** Phone's Vulkan (Zink on the phone's own Vulkan driver, through libhybris)
   is how all three start now. It needs testing on them.
 - **Other Adreno generations:** which Turnip works on each.
 - **Other screens:** foldables, 4:3, tablets, and the on-screen controls on them.

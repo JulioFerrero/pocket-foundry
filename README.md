@@ -45,7 +45,7 @@ Pocket Foundry picks the driver for the phone's GPU by itself. If it doesn't sta
 
 The phone's own driver is new: reports from Mali, Xclipse and PowerVR phones help.
 
-**Loads, but slow?** It may be on the CPU, where the game ends up when no GPU driver starts, not even MobileGlues.
+**Loads, but slow?** It may be on the CPU, where the game ends up when no GPU driver starts, not even Phone's OpenGL ES.
 **Settings -> Driver** shows which one is in use and how the last game with each went.
 [Phones and drivers](docs/phones.md) has the community drivers and the phones people report working.
 
@@ -61,7 +61,7 @@ what the Logs screen shows (its Copy button takes it all).
 ## Licence
 
 GPL-3.0-only, as Termux:X11 is. Also bundled: glibc (LGPL-2.1), Mesa (MIT), SDL (zlib), liblzma (0BSD),
-Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0). The Phone's driver loads through
+Titillium Web (OFL-1.1), Apache Commons Compress and AndroidX (Apache-2.0). The phone's own drivers load through
 [libhybris](https://github.com/taowen/libhybris) (Apache-2.0), whose Vulkan libraries (GPL-3.0) include
 [MaliBridge by ASEbrahim](https://github.com/ASEbrahim/MaliBridge), and older phones' drivers get Khronos's timeline
 semaphore layer from [Vulkan-ExtensionLayer](https://github.com/KhronosGroup/Vulkan-ExtensionLayer) (Apache-2.0).
