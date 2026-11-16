@@ -80,6 +80,7 @@ jobs:
       # What F-Droid does before shipping our APK: copy its signature onto F-Droid's own build of the tag (here, ours,
       # built the same way) and verify that.
       - name: Check F-Droid can ship it
+        shell: bash   # bsenv.sh, which says where fdroidserver is, is bash
         run: |
           source /etc/profile.d/bsenv.sh
           PYTHONPATH="$fdroidserver" python3 -c 'import sys; from fdroidserver import apksigcopier
