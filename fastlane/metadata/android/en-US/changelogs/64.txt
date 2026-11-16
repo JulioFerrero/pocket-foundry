@@ -1,0 +1,1 @@
+Pocket Foundry is now its own app, dev.pocketfoundry, with a new icon. It installs next to the old one and brings its saves, mods and settings over. It asks before downloading graphics drivers, and Settings keeps your answer.
