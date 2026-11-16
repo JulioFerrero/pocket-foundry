@@ -7,7 +7,7 @@
 # \`fdroid rewritemeta\` writes it, long lines wrapped its way: run that on it before it goes in a merge request.
 set -e
 cd "$(dirname "$0")/.."
-commit=$(git rev-parse "${1:-HEAD}")
+commit=$(git rev-parse "${1:-HEAD}^{commit}")
 repo=${2:-https://github.com/JulioFerrero/pocket-foundry.git}
 prop() { git show "$commit:gradle.properties" | sed -n "s/^$1=//p"; }
 version=$(prop versionName)
@@ -61,16 +61,7 @@ Builds:
       - ../tools/setup.sh
       - sed -i -e 's/-Xmx4g/-Xmx2g/' ../gradle.properties
     scandelete:
-      - runtime/glibc/src/elf/tst-ldconfig-cache.root/etc/ld.so.conf
-      - runtime/glibc/src/htl/libpthread.a
-      - runtime/glibc/src/htl/libpthread_pic.a
-      - runtime/glibc/src/htl/libpthread_syms.a
-      - runtime/glibc/src/manual/dir
-      - runtime/hybris/libhybris/utils/generate_nfc/symbols
-      - runtime/glibc/src/iconvdata/testdata
-      - runtime/glibc/src/timezone/testdata
-      - runtime/mesa/src/src/freedreno/tests/traces
-      - runtime/sdl/src/Xcode/SDL/pkg-support/resources/SDL_DS_Store
+      - runtime
     build: ../runtime/build.sh --here all
     ndk: $ndk
 
