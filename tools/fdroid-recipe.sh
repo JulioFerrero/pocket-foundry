@@ -3,7 +3,8 @@
 # tools/fdroid-build.sh builds our releases with. Both build the same way so the APKs match: F-Droid ships ours, signed
 # with Pocket Foundry's key, only when its own build of the commit comes out the same.
 #   tools/fdroid-recipe.sh [commit [repository]]     HEAD and GitHub by default
-# Needs Termux:X11 checked out (tools/setup.sh): the recipe names its NDK.
+# Needs Termux:X11 checked out (tools/setup.sh): the recipe names its NDK. fdroiddata's CI wants the file as
+# \`fdroid rewritemeta\` writes it, long lines wrapped its way: run that on it before it goes in a merge request.
 set -e
 cd "$(dirname "$0")/.."
 commit=$(git rev-parse "${1:-HEAD}")
@@ -27,8 +28,8 @@ AntiFeatures:
   NonFreeDep:
     en-US: Needs your own copy of Factorio, a paid game.
 Categories:
-  - Strategy Game
   - Emulator
+  - Strategy Game
 License: GPL-3.0-only
 AuthorName: JulioFerrero
 WebSite: https://pocketfoundry.dev
@@ -78,6 +79,7 @@ AllowedAPKSigningKeys: 0e301617d64bc294bcc2d1dbee71a8c83f8fcc7b7c3616edc26e9b2e8
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v[0-9.]+$
+UpdateCheckData: gradle.properties|versionCode=(\d+)|.|versionName=(.+)
 CurrentVersion: $version
 CurrentVersionCode: $code
 EOF
