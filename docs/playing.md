@@ -85,6 +85,9 @@ Obtainium, and it tells you when a new version is out and installs it. Each vers
 the game and saves. To get the betas too, turn on **Include prereleases** in Obtainium's settings for Pocket
 Foundry.
 
+Coming from 0.8: 0.9 is a new app (dev.pocketfoundry), so Obtainium's old entry can't update it. Remove it and add
+Pocket Foundry again; 0.9 brings the old app's saves over.
+
 ## Game files
 
 Factorio's own folder, with its mods, saves, config, scenarios and blueprints, shows up as **Pocket Foundry** in the

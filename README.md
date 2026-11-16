@@ -26,7 +26,8 @@ emulation, no streaming, no game files in the app.
 3. Open Pocket Foundry, tap **Import Factorio** and pick the file.
 4. **Continue** your newest save or open the **Main menu**.
 
-Needs Android 10 or later. Pocket Foundry doesn't check for updates itself: Obtainium does.
+Needs Android 10 or later. Pocket Foundry doesn't check for updates itself: Obtainium does. Coming from 0.8? 0.9 is a
+new app: remove the old Pocket Foundry in Obtainium and add it again.
 
 Releases are signed with the certificate whose SHA-256 is
 `0e301617d64bc294bcc2d1dbee71a8c83f8fcc7b7c3616edc26e9b2e89c7e35f`.
