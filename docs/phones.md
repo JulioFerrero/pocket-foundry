@@ -98,7 +98,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Galaxy S10 | Mali-G76 | PanVK 1.2.9 | 17–37 |
 | Pixel 8 | Mali-G715 | Phone's Vulkan | 60, Medium sprites ([#13](https://github.com/JulioFerrero/pocket-foundry/issues/13)) |
 | Xiaomi 15T Pro | Mali-G925 | Phone's Vulkan | 60, Medium sprites ([#2](https://github.com/JulioFerrero/pocket-foundry/issues/2)) |
-| OnePlus Nord 3 5G | Mali-G710 | Phone's Vulkan | About 40, High sprites ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)) |
+| OnePlus Nord 3 5G | Mali-G710 | Phone's OpenGL ES | 60, highest settings ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)) |
 | Redmi Note 13 Pro+ | Mali-G610 | Phone's Vulkan | 30–46, Medium sprites ([#27](https://github.com/JulioFerrero/pocket-foundry/issues/27)) |
 | Galaxy A54 | Mali-G68 | Phone's Vulkan | 60 ([#64](https://github.com/JulioFerrero/pocket-foundry/issues/64)) |
 | Galaxy A34 5G | Mali-G68 | Phone's OpenGL ES | 22–60, Medium sprites, Space Age ([#53](https://github.com/JulioFerrero/pocket-foundry/issues/53)) |
