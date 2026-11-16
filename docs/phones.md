@@ -72,43 +72,43 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Phone | GPU | Driver | FPS |
 |---|---|---|---|
 | vivo X200 Ultra | Adreno 830 | Turnip | 60 |
-| Galaxy S25 Ultra | Adreno 830 | Turnip | 60 ([#69](https://github.com/JulioFerrero/pocket-foundry/issues/69)) |
+| Galaxy S25 Ultra | Adreno 830 | Turnip | [60](https://github.com/JulioFerrero/pocket-foundry/issues/69) |
 | OnePlus 15 | Adreno 840 | Turnip | |
 | Galaxy S24 Ultra | Adreno 750 | Turnip | |
 | Galaxy S23 | Adreno 740 | Turnip | 60 |
 | Xiaomi 13 | Adreno 740 | Turnip | |
 | AYN Thor | Adreno 740 | Turnip | 60 on a big factory |
-| POCO F5 Pro | Adreno 730 | Turnip | 60 ([#20](https://github.com/JulioFerrero/pocket-foundry/issues/20)) |
+| POCO F5 Pro | Adreno 730 | Turnip | [60](https://github.com/JulioFerrero/pocket-foundry/issues/20) |
 | Galaxy Z Fold 8 Ultra | Adreno | Turnip | Folded and unfolded |
 | Retroid Pocket Flip 2 | Adreno 650 | Turnip | |
-| Galaxy S20 FE | Adreno 650 | Turnip | [#12](https://github.com/JulioFerrero/pocket-foundry/issues/12) |
-| Redmi Note 10 Pro | Adreno 618 | Turnip | [#17](https://github.com/JulioFerrero/pocket-foundry/issues/17) |
+| Galaxy S20 FE | Adreno 650 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/12) |
+| Redmi Note 10 Pro | Adreno 618 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/17) |
 | Nothing Phone (1) | Adreno 642L | Freedreno | |
-| POCO X5 Pro 5G | Adreno 642L | Freedreno | [#36](https://github.com/JulioFerrero/pocket-foundry/issues/36) |
-| Galaxy S25 FE | Xclipse 940 | RADV for Xclipse | 60 ([#18](https://github.com/JulioFerrero/pocket-foundry/issues/18)) |
-| Galaxy A56 | Xclipse 540 | RADV for Xclipse | 54–59 ([#62](https://github.com/JulioFerrero/pocket-foundry/issues/62)) |
-| realme 16 Pro | Mali-G615 | PanVK-kbase 26.3.1 | 60, High sprites ([#35](https://github.com/JulioFerrero/pocket-foundry/issues/35)) |
+| POCO X5 Pro 5G | Adreno 642L | Freedreno | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/36) |
+| Galaxy S25 FE | Xclipse 940 | RADV for Xclipse | [60](https://github.com/JulioFerrero/pocket-foundry/issues/18) |
+| Galaxy A56 | Xclipse 540 | RADV for Xclipse | [54–59](https://github.com/JulioFerrero/pocket-foundry/issues/62) |
+| realme 16 Pro | Mali-G615 | PanVK-kbase 26.3.1 | [60, High sprites](https://github.com/JulioFerrero/pocket-foundry/issues/35) |
 | Xiaomi 14T | Mali-G615 | PanVK-kbase 26.3.1 | 46–59, High sprites |
-| Poco X6 Pro | Mali-G615 | Phone's Vulkan | 60 ([#10](https://github.com/JulioFerrero/pocket-foundry/issues/10)) |
-| Tecno Camon 50 Ultra | Mali-G615 | Phone's OpenGL ES | 60 ([#76](https://github.com/JulioFerrero/pocket-foundry/issues/76)) |
-| Xiaomi 11T | Mali-G77 | PanVK-kbase RC3 | 60, High sprites ([#55](https://github.com/JulioFerrero/pocket-foundry/issues/55)) |
+| Poco X6 Pro | Mali-G615 | Phone's Vulkan | [60](https://github.com/JulioFerrero/pocket-foundry/issues/10) |
+| Tecno Camon 50 Ultra | Mali-G615 | Phone's OpenGL ES | [60](https://github.com/JulioFerrero/pocket-foundry/issues/76) |
+| Xiaomi 11T | Mali-G77 | PanVK-kbase RC3 | [60, High sprites](https://github.com/JulioFerrero/pocket-foundry/issues/55) |
 | Galaxy S20 | Mali-G77 | PanVK-kbase RC3 | 37–45 |
-| Pixel 6 | Mali-G78 | PanVK-kbase RC3 | Medium sprites ([#11](https://github.com/JulioFerrero/pocket-foundry/issues/11)) |
-| Huawei P30 | Mali-G76 | PanVK 1.2.9 | 60 ([#56](https://github.com/JulioFerrero/pocket-foundry/issues/56)) |
+| Pixel 6 | Mali-G78 | PanVK-kbase RC3 | [Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/11) |
+| Huawei P30 | Mali-G76 | PanVK 1.2.9 | [60](https://github.com/JulioFerrero/pocket-foundry/issues/56) |
 | Galaxy S10 | Mali-G76 | PanVK 1.2.9 | 17–37 |
-| Pixel 8 | Mali-G715 | Phone's Vulkan | 60, Medium sprites ([#13](https://github.com/JulioFerrero/pocket-foundry/issues/13)) |
-| Xiaomi 15T Pro | Mali-G925 | Phone's Vulkan | 60, Medium sprites ([#2](https://github.com/JulioFerrero/pocket-foundry/issues/2)) |
-| OnePlus Nord 3 5G | Mali-G710 | Phone's OpenGL ES | 60, highest settings ([#30](https://github.com/JulioFerrero/pocket-foundry/issues/30)) |
-| Redmi Note 13 Pro+ | Mali-G610 | Phone's Vulkan | 30–46, Medium sprites ([#27](https://github.com/JulioFerrero/pocket-foundry/issues/27)) |
-| Galaxy A54 | Mali-G68 | Phone's Vulkan | 60 ([#64](https://github.com/JulioFerrero/pocket-foundry/issues/64)) |
-| Galaxy A34 5G | Mali-G68 | Phone's OpenGL ES | 22–60, Medium sprites, Space Age ([#53](https://github.com/JulioFerrero/pocket-foundry/issues/53)) |
-| Poco M6 Pro 4G | Mali-G57 | Phone's Vulkan | 50–60 ([#51](https://github.com/JulioFerrero/pocket-foundry/issues/51)) |
+| Pixel 8 | Mali-G715 | Phone's Vulkan | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/13) |
+| Xiaomi 15T Pro | Mali-G925 | Phone's Vulkan | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/2) |
+| OnePlus Nord 3 5G | Mali-G710 | Phone's OpenGL ES | [60, highest settings](https://github.com/JulioFerrero/pocket-foundry/issues/30) |
+| Redmi Note 13 Pro+ | Mali-G610 | Phone's Vulkan | [30–46, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/27) |
+| Galaxy A54 | Mali-G68 | Phone's Vulkan | [60](https://github.com/JulioFerrero/pocket-foundry/issues/64) |
+| Galaxy A34 5G | Mali-G68 | Phone's OpenGL ES | [22–60, Medium sprites, Space Age](https://github.com/JulioFerrero/pocket-foundry/issues/53) |
+| Poco M6 Pro 4G | Mali-G57 | Phone's Vulkan | [50–60](https://github.com/JulioFerrero/pocket-foundry/issues/51) |
 | Galaxy XCover7 | Mali-G57 | Phone's OpenGL ES | 55–60 |
-| Galaxy Tab S6 Lite | Mali-G72 | Phone's Vulkan | 29–60, Medium sprites ([#59](https://github.com/JulioFerrero/pocket-foundry/issues/59)) |
-| Infinix Hot 60i | Mali-G52 | Phone's Vulkan | 35–52, Medium sprites ([#1](https://github.com/JulioFerrero/pocket-foundry/issues/1)) |
-| Redmi 12C | Mali-G52 | Phone's OpenGL ES | 50–60 ([#71](https://github.com/JulioFerrero/pocket-foundry/issues/71)) |
+| Galaxy Tab S6 Lite | Mali-G72 | Phone's Vulkan | [29–60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/59) |
+| Infinix Hot 60i | Mali-G52 | Phone's Vulkan | [35–52, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/1) |
+| Redmi 12C | Mali-G52 | Phone's OpenGL ES | [50–60](https://github.com/JulioFerrero/pocket-foundry/issues/71) |
 | Redmi 12 | Mali-G52 | Phone's OpenGL ES | 45–60 |
-| Redmi Note 9 | Mali-G52 | PanVK 1.2.9 | 25–32 ([#21](https://github.com/JulioFerrero/pocket-foundry/issues/21)) |
+| Redmi Note 9 | Mali-G52 | PanVK 1.2.9 | [25–32](https://github.com/JulioFerrero/pocket-foundry/issues/21) |
 | Pixel 10 Pro | PowerVR | Phone's Vulkan | 58–60, High sprites |
 
 Yours works, or doesn't? [Open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with the Logs
