@@ -357,7 +357,7 @@ class LauncherActivity : Activity() {
             it.onSuccess { files ->
                 settings.oldSavesBrought = true
                 host.show("Your saves are here", 420, "OK") {
-                    add(label(this@LauncherActivity, "$files files from the old Pocket Foundry.", 16f, weight = 600))
+                    add(label(this@LauncherActivity, "${if (files == 1) "1 file" else "$files files"} from the old Pocket Foundry.", 16f, weight = 600))
                 }
             }.onFailure { e -> error = "Couldn't bring the saves: ${e.message}" }
             refresh()
