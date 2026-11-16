@@ -66,7 +66,8 @@ object Saves {
 
     /** Where [incoming] goes in [dir] as [name]: beside a save of that name, or nowhere if it's that save. */
     internal fun freeName(dir: File, name: String, incoming: File): File? {
-        val base = name.removeSuffix(".zip")
+        // A name ending in .tmp.zip would be hidden by all() and deleted by deleteInterrupted().
+        val base = name.removeSuffix(".zip").removeSuffix(".tmp")
         var target = File(dir, "$base.zip")
         var n = 2
         while (target.exists()) {

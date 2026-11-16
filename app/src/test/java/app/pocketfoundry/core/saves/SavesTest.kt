@@ -60,4 +60,9 @@ class SavesTest {
         file(dir, "base (2).zip", "same")
         assertNull(Saves.freeName(dir, "base.zip", file(temp.root, "in", "same")))
     }
+
+    @Test fun `a save named like an interrupted autosave isn't hidden`() {
+        val dir = temp.newFolder()
+        assertEquals("_autosave1.zip", Saves.freeName(dir, "_autosave1.tmp.zip", file(temp.root, "in", "new"))?.name)
+    }
 }
