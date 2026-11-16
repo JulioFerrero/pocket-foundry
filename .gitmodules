@@ -3,7 +3,7 @@
 	url = https://github.com/termux/termux-x11
 [submodule "runtime/glibc/src"]
 	path = runtime/glibc/src
-	url = https://sourceware.org/git/glibc.git
+	url = https://github.com/bminor/glibc.git
 	shallow = true
 [submodule "runtime/mesa/src"]
 	path = runtime/mesa/src
