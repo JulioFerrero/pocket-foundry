@@ -66,15 +66,26 @@ jobs:
               "$RUNNER_TEMP/release.jks" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" \
               > "$RUNNER_TEMP/keystore.properties"
           echo "POCKETFOUNDRY_SIGNING=$RUNNER_TEMP/keystore.properties" >> "$GITHUB_ENV"
+      # With the apksigner fdroid-build.sh installs, which keeps the build's zip as it is. A newer one (the build
+      # downloads them too) pads every stored entry its own way, and F-Droid can't copy that signature onto its build.
       - name: Sign
         run: |
           prop() { sed -n "s/^$1=//p" "$POCKETFOUNDRY_SIGNING"; }
-          apksigner=$(ls -d /opt/android-sdk/build-tools/*/apksigner | tail -1)
-          PF_STOREPASS=$(prop storePassword) PF_KEYPASS=$(prop keyPassword) "$apksigner" sign \
+          PF_STOREPASS=$(prop storePassword) PF_KEYPASS=$(prop keyPassword) \
+              /opt/android-sdk/build-tools/31.0.0/apksigner sign \
               --ks "$(prop storeFile)" --ks-key-alias "$(prop keyAlias)" \
               --ks-pass env:PF_STOREPASS --key-pass env:PF_KEYPASS \
               --out build/fdroid/signed.apk build/fdroid/dev.pocketfoundry_*.apk
           echo "APK=build/fdroid/signed.apk" >> "$GITHUB_ENV"
+      # What F-Droid does before shipping our APK: copy its signature onto F-Droid's own build of the tag (here, ours,
+      # built the same way) and verify that.
+      - name: Check F-Droid can ship it
+        run: |
+          source /etc/profile.d/bsenv.sh
+          PYTHONPATH="$fdroidserver" python3 -c 'import sys; from fdroidserver import apksigcopier
+          apksigcopier.do_copy(sys.argv[1], sys.argv[2], sys.argv[3], v1_only=None, exclude=apksigcopier.exclude_meta)' \
+              build/fdroid/signed.apk build/fdroid/dev.pocketfoundry_*.apk "$RUNNER_TEMP/copied.apk"
+          /opt/android-sdk/build-tools/31.0.0/apksigner verify "$RUNNER_TEMP/copied.apk"
       - name: Check the APK
         run: ANDROID_HOME=/opt/android-sdk tools/release.sh check "${GITHUB_REF_NAME#v}"
       - uses: actions/attest-build-provenance@v4
