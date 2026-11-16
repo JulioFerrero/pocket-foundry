@@ -10,9 +10,8 @@ cd "$(dirname "$0")/.."
 fail() { echo "$*" >&2; exit 1; }
 VERSION='^[0-9]+\.[0-9]+(\.[0-9]+)?(-beta\.[0-9]+)?$'
 beta() { case $1 in *-beta.*) return 0 ;; *) return 1 ;; esac; }
-# The commit that sets a version: the notes leave these out.
+# The commit that sets a version.
 bump() { echo "Pocket Foundry $1"; }
-BUMP='^- Pocket Foundry [0-9.]+(-beta\.[0-9]+)?$'
 
 case $1 in check|publish) mode=$1; version=$2 ;; *) mode=tag; version=$1 ;; esac
 echo "$version" | grep -Eq "$VERSION" ||
@@ -81,7 +80,8 @@ check)
     ;;
 publish)
     beta "$version" && prerelease=1 || prerelease=
-    # A beta's changes since the last tag, a release's since the last release.
+    # A beta's changes since the last tag, a release's since the last release: the commits that change the app, so
+    # the phones list, the website, F-Droid's recipe, tooling and version bumps stay out.
     if [ -n "$prerelease" ]; then previous=$(git describe --tags --abbrev=0 "$tag^")
     else previous=$(git describe --tags --abbrev=0 --exclude='*-*' "$tag^"); fi
     repo=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY
@@ -102,7 +102,7 @@ publish)
         echo "**Signing certificate (SHA-256):** \`$(certificate)\`"
         echo
         echo "**Since $previous:**"
-        git log --reverse --no-merges --format='- %s' "$previous..$tag" | grep -Ev "$BUMP" || true
+        git log --reverse --no-merges --format='- %s' "$previous..$tag" -- app runtime third_party
         echo
         echo "**Built on GitHub** from [$tag]($repo/tree/$tag), GPL-3.0, in [this run]($run): the APK and the runtime inside it (glibc, Mesa, libhybris, SDL, Termux:X11's X server), from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. To check a download came from that build: \`gh attestation verify $name -R $GITHUB_REPOSITORY\`. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/SHA256SUMS")\`"
     } > "$notes"
