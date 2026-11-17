@@ -34,21 +34,20 @@ Releases are signed with the certificate whose SHA-256 is
 
 ## Phones
 
-Pocket Foundry picks the driver for the phone's GPU by itself. If it doesn't start, the next game uses the next one.
+40 phones play so far, and more than half of them have a Mali GPU. Pocket Foundry picks the driver for the phone's
+GPU by itself. If it doesn't start, the next game uses the next one.
 
-| GPU | Found in | Runs with |
-|---|---|---|
-| Adreno 6xx and newer | Snapdragon | Turnip, downloaded by the app, tested |
-| Mali | MediaTek, Google Tensor, older Exynos | The phone's own driver (experimental), or a community driver |
-| Xclipse | Exynos (Galaxy S24, S25) | The phone's own driver (experimental), or a community driver |
-| PowerVR | Pixel 10, 11 | The phone's own driver, tested on a Pixel 10 Pro |
-| Adreno 5xx and older | Older Snapdragon | The CPU |
-
-The phone's own driver is new: reports from Mali, Xclipse and PowerVR phones help.
+| GPU | Found in | Plays on | Runs with |
+|---|---|---|---|
+| Mali | MediaTek, Google Tensor, older Exynos | 23 phones, G52 to G925 | The phone's own Vulkan or OpenGL ES, or a community PanVK |
+| Adreno 6xx and newer | Snapdragon | 14 phones, 618 to 840 | Turnip, or Freedreno |
+| Xclipse | Exynos (Galaxy S24, S25, A56) | 2 phones | RADV for Xclipse |
+| PowerVR | Pixel 10, 11 | Pixel 10 Pro | The phone's own Vulkan |
+| Adreno 5xx and older | Older Snapdragon | Not tested yet | The phone's own driver, then the CPU |
 
 **Loads, but slow?** It may be on the CPU, where the game ends up when no GPU driver starts, not even Phone's OpenGL ES.
 **Settings -> Driver** shows which one is in use and how the last game with each went.
-[Phones and drivers](docs/phones.md) has the community drivers and the phones people report working.
+[Phones and drivers](docs/phones.md) has every phone, its driver and FPS.
 
 ## More
 

@@ -42,11 +42,12 @@ with it. From what it sees, not from which GPU it is, it:
 - **RADV for Xclipse:** [JimVulkan](https://github.com/JimVulkan/radv-xclipse)'s driver for Samsung's GPUs.
 - **Phone's Vulkan:** the Vulkan driver your phone already has, under Zink, loaded through
   [libhybris](https://github.com/taowen/libhybris), with [MaliBridge](https://github.com/ASEbrahim/MaliBridge)'s
-  fixes for Mali. Experimental.
+  fixes for Mali. Malis from the G52 to the G925 and the Pixel 10's PowerVR play on it.
 - **Phone's OpenGL ES:** the OpenGL ES driver your phone already has.
-  [MobileGlues](https://github.com/MobileGL-Dev/MobileGlues) turns the game's OpenGL into it, without Zink or Vulkan,
-  so it plays where the Vulkan drivers don't. **Wait for each frame** in its settings can look smoother on a phone
-  that already reaches 60 FPS.
+  [MobileGlues](https://github.com/MobileGL-Dev/MobileGlues) turns the game's OpenGL into it, without Zink or Vulkan.
+  It needs nothing more than that, so every phone falls back on it before the CPU. It plays on Malis from the G52 to
+  the G710, many at 60 FPS, and on Adreno. **Wait for each frame** in its settings can look smoother on a phone that
+  already reaches 60 FPS.
 - **CPU:** draws on the processor, no GPU needed. Slow and hard on the battery; it sets Medium sprites, Light
   graphics and the lowest resolution.
 

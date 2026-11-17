@@ -3,8 +3,11 @@
 ## How it works
 
 - **Your copy, imported:** the archive is unpacked into Pocket Foundry's private storage. The APK carries none of Factorio.
-- **A small Linux runtime:** glibc built for Android's paths, Mesa's Zink on Turnip (OpenGL over Adreno's Vulkan),
-  Termux:X11's X server as the screen and a tiny window manager. The game binary itself is never modified.
+- **A small Linux runtime:** glibc built for Android's paths, Termux:X11's X server as the screen and a tiny window
+  manager. The game binary itself is never modified.
+- **Graphics drivers:** the game's OpenGL reaches the GPU through Mesa's Zink on a Vulkan driver (Turnip, PanVK, RADV,
+  or the phone's own through libhybris), Mesa's Freedreno, or MobileGlues on the phone's own OpenGL ES.
+  [Phones and drivers](phones.md) has each one.
 - **Sound and controls through SDL:** the game's static SDL3 hands over to Pocket Foundry's SDL 3.4 through SDL's
   dynamic API. That SDL plays audio through the app, adds a virtual gamepad driven by the on-screen controller or a
   real one, and paces frames for the 30 FPS cap. It also tells the game how many pixels make a display point, so the
@@ -53,8 +56,7 @@ secrets: `POCKETFOUNDRY_KEYSTORE` (the keystore, base64) and `POCKETFOUNDRY_STOR
 
 Open fronts, beyond testing on your phone:
 
-- **Mali, PowerVR and Xclipse GPUs.** Phone's Vulkan (Zink on the phone's own Vulkan driver, through libhybris)
-  is how all three start now. It needs testing on them.
-- **Other Adreno generations:** which Turnip works on each.
+- **GPUs nobody has reported yet:** Adreno 5xx, PowerVR other than the Pixel 10's, and the newest Malis (G1).
+- **Slower Malis:** a few play at 17-46 FPS, like the Galaxy S10 and the Redmi Note 9; their Logs help find why.
 - **Other screens:** foldables, 4:3, tablets, and the on-screen controls on them.
 - **Other Android skins:** how each treats a game running in the background.
