@@ -51,9 +51,11 @@
             android:screenOrientation="sensorLandscape"
             android:exported="false" />
 
-        <!-- Termux:X11's display: the game screen, not a second launcher entry. -->
+        <!-- Termux:X11's display: the game screen, not a second launcher entry. Landscape from its first frame:
+             Termux:X11 asks for it only in onCreate, after the window opened upright. -->
         <activity
             android:name="com.termux.x11.MainActivity"
+            android:screenOrientation="sensorLandscape"
             android:label="@string/app_name"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
