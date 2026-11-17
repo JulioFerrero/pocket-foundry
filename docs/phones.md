@@ -91,7 +91,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Xiaomi 14T | Mali-G615 | PanVK-kbase 26.3.1 | 46–59, High sprites |
 | Poco X6 Pro | Mali-G615 | Phone's Vulkan | [60](https://github.com/JulioFerrero/pocket-foundry/issues/10) |
 | Tecno Camon 50 Ultra | Mali-G615 | Phone's OpenGL ES | [60](https://github.com/JulioFerrero/pocket-foundry/issues/76) |
-| Tecno Pova 7 Ultra 5G | Mali-G615 | Phone's OpenGL ES | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/77) |
+| Tecno Pova 7 Ultra 5G | Mali-G615 | Phone's OpenGL ES | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/77) |
 | Xiaomi 11T | Mali-G77 | PanVK-kbase RC3 | [60, High sprites](https://github.com/JulioFerrero/pocket-foundry/issues/55) |
 | Galaxy S20 | Mali-G77 | PanVK-kbase RC3 | 37–45 |
 | Pixel 6 | Mali-G78 | PanVK-kbase RC3 | [Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/11) |
