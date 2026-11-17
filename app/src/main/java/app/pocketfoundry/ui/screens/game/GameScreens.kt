@@ -267,4 +267,6 @@ private class GameBorder(private val activity: MainActivity) {
     }
 }
 
-private fun toLauncher(activity: Activity) = activity.startActivity(Intent(activity, LauncherActivity::class.java))
+/** The launcher that's already open, not one more on top of it each time the game hands back. */
+private fun toLauncher(activity: Activity) = activity.startActivity(Intent(activity, LauncherActivity::class.java)
+    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
