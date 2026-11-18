@@ -2,6 +2,7 @@ package app.pocketfoundry.ui.screens.launcher
 
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup.MarginLayoutParams
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -24,8 +25,7 @@ import app.pocketfoundry.ui.kit.Dropdown
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.MATCH
-import app.pocketfoundry.ui.kit.MaxWidth
-import app.pocketfoundry.ui.kit.Tabs
+import app.pocketfoundry.ui.kit.SideTabs
 import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
@@ -99,16 +99,18 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     // As in the game's own settings: a tab for each kind, none long enough to scroll on a phone.
     private val pages = listOf(graphicsPage(), interfacePage(), controlsPage(), otherPage())
     private val pageFrame = FrameLayout(launcher).apply { pages.forEach { add(it) } }
-    private val tabs = Tabs(launcher, listOf("Graphics", "Interface", "Controls", "Other"), ::open)
+    private val tabs = SideTabs(launcher, listOf("Graphics", "Interface", "Controls", "Other"), ::open)
 
     init {
         open(0)
     }
 
     val view: View = panel(launcher, header()) {
-        add(tabs)
-        add(stack(launcher, Frame.SHALLOW, padding = 10) { add(pageFrame, height = MATCH) }, height = 0, weight = 1f,
-            top = -6)
+        add(row(launcher, Gravity.TOP) {
+            add(tabs)
+            add(stack(launcher, Frame.SHALLOW, padding = 10) { add(pageFrame, height = MATCH) }, 0, MATCH, weight = 1f)
+                .apply { (layoutParams as MarginLayoutParams).marginStart = -launcher.dpi(SideTabs.OVERLAP) }
+        }, height = 0, weight = 1f)
         add(buttonBar(launcher, "Back", { launcher.showSettings(false) }).apply {
             add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)
             add(button(launcher, "Files", size = 15f) { GameFilesProvider.open(launcher) }, height = BUTTON_HEIGHT, start = 4)
@@ -159,12 +161,12 @@ class SettingsScreen(private val launcher: LauncherActivity) {
             text = withNote("Driver downloads", "from GitHub, outside F-Droid's checks", Factorio.FAINT)
         }, driverDownloads, controlHeight = CONTROL_HEIGHT))
 
-    /** One tab's rows, as wide as a phone's half of the screen at most. Scrolls only on the smallest. */
+    /** One tab's rows. Scrolls only on the smallest phones. */
     private fun page(vararg rows: View) = ScrollView(launcher).apply {
         isVerticalFadingEdgeEnabled = true
         setFadingEdgeLength(launcher.dpi(24))
         keepScrollBar()
-        addView(MaxWidth(launcher, PAGE_WIDTH).apply { add(column(launcher, gap = 6) { rows.forEach { add(it) } }) })
+        addView(column(launcher, gap = 6) { rows.forEach { add(it) } })
     }
 
     private fun setting(text: String, control: View, controlWidth: Int = WRAP, controlHeight: Int = 40) =
@@ -223,7 +225,6 @@ class SettingsScreen(private val launcher: LauncherActivity) {
 
     private companion object {
         const val CONTROL_WIDTH = 170
-        const val PAGE_WIDTH = 560
         const val CONTROL_HEIGHT = 34
         const val FULL = 0
         const val LIGHT = 1

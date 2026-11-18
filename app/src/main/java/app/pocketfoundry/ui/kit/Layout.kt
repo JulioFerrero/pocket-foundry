@@ -116,17 +116,6 @@ fun <V : View> FrameLayout.add(view: V, width: Int = MATCH, height: Int = MATCH,
 
 fun LinearLayout.spacer() = add(View(context), 0, 0, weight = 1f)
 
-/** Takes the width it's given, up to [max] dp: rows that don't spread across a wide screen. */
-class MaxWidth(context: Context, max: Int) : FrameLayout(context) {
-    private val maxPx = context.dpi(max)
-
-    override fun onMeasure(widthSpec: Int, heightSpec: Int) {
-        val mode = MeasureSpec.getMode(widthSpec)
-        val capped = mode != MeasureSpec.UNSPECIFIED && MeasureSpec.getSize(widthSpec) > maxPx
-        super.onMeasure(if (capped) MeasureSpec.makeMeasureSpec(maxPx, mode) else widthSpec, heightSpec)
-    }
-}
-
 fun row(context: Context, gravity: Int = Gravity.CENTER_VERTICAL, build: LinearLayout.() -> Unit) = LinearLayout(context).apply {
     this.gravity = gravity
     build()

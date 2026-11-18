@@ -183,24 +183,6 @@ class Choice(context: Context, labels: List<String>, width: Int = 84, onSelect: 
         }
 }
 
-/** The game's tabs: the open one a grey button, the others their names alone. */
-@SuppressLint("ViewConstructor")
-class Tabs(context: Context, labels: List<String>, onSelect: (Int) -> Unit) : LinearLayout(context) {
-    private val tabs = labels.mapIndexed { i, label ->
-        add(FButton(context, label, size = 16f).apply { setOnClickListener { selected = i; onSelect(i) } },
-            height = BUTTON_HEIGHT, start = if (i > 0) 2 else 0)
-    }
-    private val faces = tabs.map { it.background }
-    var selected = -1
-        set(value) {
-            field = value
-            tabs.forEachIndexed { i, tab ->
-                tab.background = if (i == value) faces[i] else null
-                tab.setTextColor(if (i == value) Color.BLACK else Factorio.MUTED)
-            }
-        }
-}
-
 fun checkBox(context: Context, checked: Boolean, onChange: (Boolean) -> Unit) = CheckBox(context).apply {
     buttonDrawable = CheckDrawable(context)
     background = null
