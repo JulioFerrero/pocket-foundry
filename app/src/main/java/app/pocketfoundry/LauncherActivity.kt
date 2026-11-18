@@ -163,7 +163,7 @@ class LauncherActivity : Activity() {
         showScreen(version, Session.inGame)
         welcome.update(error)
         if (version != null) {
-            home.update(version, busy, error)
+            home.update(busy, error)
             settingsScreen.update(busy == null)
         }
     }

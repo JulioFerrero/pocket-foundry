@@ -64,18 +64,28 @@ class HomeScreen(private val launcher: LauncherActivity) {
     private val report = button(launcher, "Report it") {
         launcher.startActivity(Intent(launcher, LogActivity::class.java).putExtra(LogActivity.REPORT, true))
     }
+    /** Only when it has something to say: why the last game failed, or when this one last saved. */
+    private val footer = stack(launcher, Frame.SHALLOW) {
+        add(row(launcher) {
+            pad(horizontal = 8, vertical = 6)
+            add(footerLeft, width = 0, weight = 1f)
+            add(footerRight)
+        })
+    }
     private val card = SaveCard(launcher)
     /** The saves after Continue's, as many as the menu has room for, and the way to all of them. */
-    private val recentSaves = Fitting(launcher, gap = 2)
+    private val recentSaves = Fitting(launcher)
     private val recentTitle = label(launcher, "Recent", 13f, Factorio.MUTED, 600)
     private val recent = column(launcher, gap = 2) {
+        // The whole row opens them: a word alone was too small to hit.
         add(row(launcher) {
             add(recentTitle, width = 0, weight = 1f)
-            add(label(launcher, "All saves", 13f, Factorio.LINK, 600).apply {
-                pad(4, 0)
-                setOnClickListener { SavesDialog(launcher).show() }
-            })
-        }, top = 4)
+            add(label(launcher, "All saves ›", 13f, Factorio.LINK, 600))
+        }.apply {
+            pad(6, 3)
+            background = pressable()
+            setOnClickListener { SavesDialog(launcher).show() }
+        }, top = 2)
         add(recentSaves, height = 0, weight = 1f)
     }
     private var recentOf: List<String>? = null
@@ -91,19 +101,13 @@ class HomeScreen(private val launcher: LauncherActivity) {
                 inGameGap = spacer()
                 add(quit, WRAP, 40)
             }, height = 0, weight = 1f)
-            add(stack(launcher, Frame.SHALLOW) {
-                add(row(launcher) {
-                    pad(horizontal = 8, vertical = 6)
-                    add(footerLeft, width = 0, weight = 1f)
-                    add(footerRight)
-                })
-            })
+            add(footer)
         }, 288, MATCH, start = 24, top = 16, bottom = 16)
         add(card.view, 256, WRAP, Gravity.END or Gravity.BOTTOM, end = 24, bottom = 16)
     }
 
     /** [busy] stands in for the title while a game starts. [error] is why the last start or import failed. */
-    fun update(version: String, busy: String?, error: String?) {
+    fun update(busy: String?, error: String?) {
         val inGame = Session.inGame
         val save = Saves.newest(paths)
         title.text = busy ?: when (Session.state) {
@@ -137,10 +141,11 @@ class HomeScreen(private val launcher: LauncherActivity) {
         report.shown = ending?.failure != null
         footerLeft.setTextColor(if (failure != null) Factorio.ERROR else Factorio.TEXT)
         footerLeft.textSize = if (failure != null) 13f else 15f
+        footer.shown = failure != null || inGame
         val (left, right) = when {
             failure != null -> failure to ""
             inGame -> "Last saved" to (save?.let { savedAgo(it, short = true) } ?: "Never")
-            else -> "Factorio" to version
+            else -> "" to ""
         }
         footerLeft.text = left
         footerRight.text = right
@@ -184,11 +189,14 @@ class HomeScreen(private val launcher: LauncherActivity) {
         add(label(launcher, whenSavedShort(launcher, save), 13f, Factorio.FAINT), start = 8)
     }.apply {
         pad(6, 3)
-        background = RippleDrawable(ColorStateList.valueOf(Factorio.INSET_LIGHT), null, ColorDrawable(Color.WHITE))
+        background = pressable()
         isEnabled = idle
         alpha = if (idle) 1f else 0.5f
         setOnClickListener { launcher.play(save) }
     }
+
+    /** Lights up while pressed, as Home's buttons do. */
+    private fun pressable() = RippleDrawable(ColorStateList.valueOf(Factorio.INSET_LIGHT), null, ColorDrawable(Color.WHITE))
 
     private fun confirmQuit() {
         val save = Saves.newest(paths)
