@@ -31,11 +31,12 @@ object Saves {
         paths.saves.listFiles { f -> f.name.endsWith(".tmp.zip") }?.forEach { it.delete() }
     }
 
-    fun export(context: Context): String {
+    /** [saves] into a new folder in Downloads, named for now; that folder. */
+    fun export(context: Context, saves: List<File> = all(Paths(context))): String {
         val folder = "${Environment.DIRECTORY_DOWNLOADS}/Pocket Foundry/Saves " +
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss").format(LocalDateTime.now())
         val resolver = context.contentResolver
-        for (save in all(Paths(context))) {
+        for (save in saves) {
             val item = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, save.name)
                 put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")

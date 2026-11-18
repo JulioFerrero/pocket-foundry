@@ -116,6 +116,31 @@ fun <V : View> FrameLayout.add(view: V, width: Int = MATCH, height: Int = MATCH,
 
 fun LinearLayout.spacer() = add(View(context), 0, 0, weight = 1f)
 
+/** Its children top to bottom, [gap] dp apart, as many as fit whole in the height it's given: the rest wait for room. */
+class Fitting(context: Context, gap: Int = 0) : ViewGroup(context) {
+    private val gapPx = context.dpi(gap)
+
+    override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+        val width = MeasureSpec.getSize(widthSpec)
+        for (i in 0 until childCount) {
+            getChildAt(i).measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                                  MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+        }
+        val wanted = (0 until childCount).sumOf { getChildAt(it).measuredHeight } + gapPx * maxOf(0, childCount - 1)
+        setMeasuredDimension(width, resolveSize(wanted, heightSpec))
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        var y = 0
+        for (i in 0 until childCount) {
+            val child = getChildAt(i)
+            val fits = y + child.measuredHeight <= height
+            if (fits) child.layout(0, y, width, y + child.measuredHeight) else child.layout(0, 0, 0, 0)
+            y += child.measuredHeight + gapPx
+        }
+    }
+}
+
 /** Takes the width it's given up to [max] dp, centred: a window over the screen rather than the whole of it. */
 class Window(context: Context, max: Int) : FrameLayout(context) {
     private val maxPx = context.dpi(max)

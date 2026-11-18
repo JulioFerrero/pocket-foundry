@@ -43,7 +43,6 @@ import app.pocketfoundry.ui.kit.shown
 import app.pocketfoundry.ui.kit.stack
 import app.pocketfoundry.ui.kit.withNote
 import app.pocketfoundry.ui.screens.drivers.DriverDialog
-import app.pocketfoundry.ui.screens.saves.SavesDialog
 
 class SettingsScreen(private val launcher: LauncherActivity) {
     private val settings = Settings(launcher)
@@ -115,8 +114,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
                 .apply { (layoutParams as MarginLayoutParams).marginStart = -launcher.dpi(FrameTabs.OVERLAP) }
         }, height = 0, weight = 1f)
         add(buttonBar(launcher, "Back", { launcher.showSettings(false) }).apply {
-            add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)
-            add(button(launcher, "Files", size = 15f) { GameFilesProvider.open(launcher) }, height = BUTTON_HEIGHT, start = 4)
+            add(button(launcher, "Files", size = 15f) { GameFilesProvider.open(launcher) }, height = BUTTON_HEIGHT, start = 12)
             add(importAgain, height = BUTTON_HEIGHT, start = 4)
         })
     }

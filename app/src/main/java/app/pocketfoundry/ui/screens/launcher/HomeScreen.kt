@@ -2,8 +2,11 @@ package app.pocketfoundry.ui.screens.launcher
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.RippleDrawable
 import android.text.TextUtils
-import android.text.format.DateFormat
 import android.text.format.DateUtils
 import android.view.Gravity
 import android.view.View
@@ -16,17 +19,19 @@ import app.pocketfoundry.core.game.GameEnding
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.Saves
 import app.pocketfoundry.core.system.Paths
+import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.Arrow
 import app.pocketfoundry.ui.kit.BUTTON_HEIGHT
 import app.pocketfoundry.ui.kit.Factorio
+import app.pocketfoundry.ui.kit.Fitting
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.MATCH
 import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
-import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.capped
+import app.pocketfoundry.ui.kit.column
 import app.pocketfoundry.ui.kit.groove
 import app.pocketfoundry.ui.kit.heading
 import app.pocketfoundry.ui.kit.label
@@ -37,12 +42,10 @@ import app.pocketfoundry.ui.kit.shown
 import app.pocketfoundry.ui.kit.spacer
 import app.pocketfoundry.ui.kit.stack
 import app.pocketfoundry.ui.kit.withNote
+import app.pocketfoundry.ui.screens.saves.SavesDialog
+import app.pocketfoundry.ui.screens.saves.whenSaved
+import app.pocketfoundry.ui.screens.saves.whenSavedShort
 import java.io.File
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /** The main menu, and the newest save's card. While a game runs, it's the pause menu. */
 class HomeScreen(private val launcher: LauncherActivity) {
@@ -62,14 +65,30 @@ class HomeScreen(private val launcher: LauncherActivity) {
         launcher.startActivity(Intent(launcher, LogActivity::class.java).putExtra(LogActivity.REPORT, true))
     }
     private val card = SaveCard(launcher)
+    /** The saves after Continue's, as many as the menu has room for, and the way to all of them. */
+    private val recentSaves = Fitting(launcher, gap = 2)
+    private val recentTitle = label(launcher, "Recent", 13f, Factorio.MUTED, 600)
+    private val recent = column(launcher, gap = 2) {
+        add(row(launcher) {
+            add(recentTitle, width = 0, weight = 1f)
+            add(label(launcher, "All saves", 13f, Factorio.LINK, 600).apply {
+                pad(4, 0)
+                setOnClickListener { SavesDialog(launcher).show() }
+            })
+        }, top = 4)
+        add(recentSaves, height = 0, weight = 1f)
+    }
+    private var recentOf: List<String>? = null
+    private lateinit var inGameGap: View
 
     val view: View = FrameLayout(launcher).apply {
         add(panel(launcher, title) {
-            add(stack(launcher, Frame.DEEP, padding = 8, gap = 6) {
+            add(stack(launcher, Frame.DEEP, padding = 8, gap = 4) {
                 for (button in listOf(continueSave, resume)) add(button, height = BUTTON_HEIGHT)
                 add(groove, height = 3)
                 for (button in listOf(mainMenu, settings, logs, report)) add(button, height = 40)
-                spacer()
+                add(recent, height = 0, weight = 1f)
+                inGameGap = spacer()
                 add(quit, WRAP, 40)
             }, height = 0, weight = 1f)
             add(stack(launcher, Frame.SHALLOW) {
@@ -102,6 +121,9 @@ class HomeScreen(private val launcher: LauncherActivity) {
         for (b in listOf(continueSave, mainMenu, settings)) b.isEnabled = idle
         for (b in listOf(resume, quit)) b.isEnabled = idle && Session.live
         card.update(save, inGame)
+        recent.shown = !inGame
+        inGameGap.shown = inGame
+        if (!inGame) showRecent(Saves.all(paths).drop(1), idle)
 
         val ending = Session.lastGame?.takeIf { error == null && !inGame }
         val failure = error ?: ending?.let {
@@ -144,6 +166,30 @@ class HomeScreen(private val launcher: LauncherActivity) {
         return "${Drivers.find(launcher, driver)?.name} didn't start. Next game: ${Drivers.find(launcher, next)?.name}."
     }
 
+    private fun showRecent(saves: List<File>, idle: Boolean) {
+        recentTitle.text = if (saves.isEmpty()) "Saves" else "Recent"
+        val key = saves.map(Saves::previewKey) + idle.toString()
+        if (key == recentOf) return
+        recentOf = key
+        recentSaves.removeAllViews()
+        for (save in saves.take(RECENT_MOST)) recentSaves.addView(recentRow(save, idle))
+    }
+
+    /** A save to load with one tap: its name, and when. */
+    private fun recentRow(save: File, idle: Boolean) = row(launcher) {
+        add(label(launcher, save.nameWithoutExtension, 14f).apply {
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }, width = 0, weight = 1f)
+        add(label(launcher, whenSavedShort(launcher, save), 13f, Factorio.FAINT), start = 8)
+    }.apply {
+        pad(6, 3)
+        background = RippleDrawable(ColorStateList.valueOf(Factorio.INSET_LIGHT), null, ColorDrawable(Color.WHITE))
+        isEnabled = idle
+        alpha = if (idle) 1f else 0.5f
+        setOnClickListener { launcher.play(save) }
+    }
+
     private fun confirmQuit() {
         val save = Saves.newest(paths)
         val host = launcher.host
@@ -159,6 +205,8 @@ class HomeScreen(private val launcher: LauncherActivity) {
         }
     }
 }
+
+private const val RECENT_MOST = 6
 
 /** Home's card for the newest save, with the picture the game took. */
 private class SaveCard(private val context: Context) {
@@ -182,7 +230,7 @@ private class SaveCard(private val context: Context) {
         view.shown = save != null
         if (save == null) return
         name.text = save.nameWithoutExtension
-        time.text = if (inGame) "Paused" else whenSaved(save.lastModified())
+        time.text = if (inGame) "Paused" else whenSaved(context, save)
         val key = Saves.previewKey(save)
         if (key == previewOf) return
         previewOf = key
@@ -193,16 +241,6 @@ private class SaveCard(private val context: Context) {
             image.setImageBitmap(bitmap)
             // Saves from servers often carry no picture.
             frame.shown = bitmap != null
-        }
-    }
-
-    private fun whenSaved(millis: Long): String {
-        val time = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
-        val clock = DateFormat.getTimeFormat(context).format(millis)
-        return when (time.toLocalDate()) {
-            LocalDate.now() -> "Today $clock"
-            LocalDate.now().minusDays(1) -> "Yesterday $clock"
-            else -> time.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
         }
     }
 }
