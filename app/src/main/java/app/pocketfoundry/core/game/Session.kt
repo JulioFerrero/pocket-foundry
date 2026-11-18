@@ -12,6 +12,7 @@ import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Route
 import app.pocketfoundry.core.logs.DetailedLogs
+import app.pocketfoundry.core.logs.MemoryWatch
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.DebugEnv
 import app.pocketfoundry.core.runtime.Program
@@ -37,10 +38,12 @@ object Session {
 
     /**
      * [exit] is Factorio's when it failed, null after a normal quit. [noWindow] says it never opened its window: the
-     * graphics driver didn't start. [failure]: the driver failed it later, at [stage].
+     * graphics driver didn't start. [failure]: the driver failed it later, at [stage]. [closedBy]: the app went with
+     * it, said in a sentence (LastRun).
      */
     class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean,
-                 val failure: GameEnding.Failure? = null, val stage: GameEnding.Stage? = null)
+                 val failure: GameEnding.Failure? = null, val stage: GameEnding.Stage? = null,
+                 val closedBy: String? = null)
 
     /** A files/usr/bin program that DebugPad or debug.env's test.program may run: no paths. */
     private val TOOL_NAME = Regex("[a-z0-9-]+")
@@ -84,11 +87,26 @@ object Session {
         private set
 
     /**
+     * At the app's start: a game the app went down with, in screen.log and as [lastGame] (LastRun), unless a new game
+     * has started by the time Android has said why.
+     */
+    fun checkLastRun(context: Context) {
+        val app = context.applicationContext
+        thread(name = "pocketfoundry-last-run", isDaemon = true) {
+            val ending = LastRun.check(app) ?: return@thread
+            synchronized(this) {
+                if (inGame) return@thread
+                lastGame = ending
+            }
+            mainHandler.post { listeners.forEach { it() } }
+        }
+    }
+
+    /**
      * A running game, with what its watchers find out. [testing]: debug.env's test.program runs in the game's place,
      * so its ending says nothing about the driver.
      */
-    private class Game(val program: Program, val driver: String, val testing: Boolean,
-                       val memory: DetailedLogs.MemoryWatch?) {
+    private class Game(val program: Program, val driver: String, val testing: Boolean, val memory: MemoryWatch) {
         @Volatile var windowOpened = false
         @Volatile var noWindow = false
         @Volatile var deviceLost = false
@@ -113,6 +131,7 @@ object Session {
         val paths = Paths(context)
         Runtime.prepare(context)
         ScreenLog.begin(context, Drivers.chosen(context))
+        LastRun.opened(context, paths, Drivers.chosen(context))
         startBridges(context, paths)
         try {
             startXServer(context, paths)
@@ -128,6 +147,7 @@ object Session {
                 setState(State.STOPPED)
             }
             stopServers()
+            LastRun.closed(context)
             throw e
         }
     }
@@ -263,8 +283,8 @@ object Session {
                                     Sdl.environment(paths) + applied.environment +
                                         ("SDL_VIDEO_X11_SCALING_FACTOR" to uiScale),
                                     Route.of(paths, driver).libraryPath(paths, driver))
-        val memory = if (DetailedLogs.on(context)) DetailedLogs.watchMemory(started) else null
-        val game = Game(started, driver, testing, memory)
+        LastRun.launched(context, driver)
+        val game = Game(started, driver, testing, MemoryWatch.start(paths, started))
         this.game = game
         lastGame = null
         ScreenLog.add("game started")
@@ -343,8 +363,9 @@ object Session {
     @Synchronized
     private fun onGameExit(context: Context, game: Game, exit: Program.Exit) {
         if (game !== this.game) return
+        LastRun.closed(context)
         val unstarted = if (game.noWindow && exit.signal != null) " as it opened no window" else ""
-        val memory = game.memory?.last?.takeIf { exit.status != 0 }?.let { "; last memory: $it" } ?: ""
+        val memory = game.memory.last?.takeIf { exit.status != 0 }?.let { "; last memory: $it" } ?: ""
         ScreenLog.add("game exited ($exit$unstarted)$memory")
         val failed = state != State.QUITTING && exit.status != 0
         stopServers()

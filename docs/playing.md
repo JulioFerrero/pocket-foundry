@@ -68,8 +68,8 @@ still works as the mouse too.
   with Medium sprites, shown next to it), so every start after the first loads in seconds and with a third less
   memory. It builds them again when the sprites, the mods or the driver's texture compression change. Off, it frees
   the room.
-- **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen, the game's
-  memory and every graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
+- **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen and every
+  graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.
 - **Driver downloads:** the driver list and its drivers, from
   [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers) on GitHub, outside F-Droid's

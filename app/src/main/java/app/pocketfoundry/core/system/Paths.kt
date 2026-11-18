@@ -75,6 +75,8 @@ class Paths(val files: File, nativeLibs: File) {
     val gameLog = File(logs, "game.log")
     val wmLog = File(logs, "wm.log")
     val screenLog = File(logs, "screen.log")
+    /** The game's memory and the phone's as last read (MemoryWatch): what a kill that takes the app too leaves. */
+    val lastMemory = File(logs, "last-memory.txt")
     val x11Log = File(logs, "x11.log")
     val driverCheckLog = File(logs, "drivercheck.log")
     fun toolLog(name: String) = File(logs, "$name.log")

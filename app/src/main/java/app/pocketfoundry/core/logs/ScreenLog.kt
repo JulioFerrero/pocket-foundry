@@ -24,6 +24,8 @@ object ScreenLog {
      * the X server's output).
      */
     internal val SCREEN_LINES = listOf("buffer ", "screen: ", "frames: ")
+    /** Enough of a trace to see where, without a long chain of causes filling the Logs. */
+    private const val CRASH_LINES = 30
 
     private var file: File? = null
     private var start = 0L
@@ -59,8 +61,32 @@ object ScreenLog {
     @Synchronized
     fun add(line: String) {
         val file = file ?: return
+        write(file, sinceStart(), line)
+    }
+
+    /**
+     * At the app's next start, to the last game's log (LastRun): [seconds] after the game began, where known. Not once
+     * a new game has its own.
+     */
+    @Synchronized
+    fun addAfterDeath(paths: Paths, seconds: Double?, line: String) {
+        if (file == null) write(paths.screenLog, seconds, line)
+    }
+
+    /** The app's own crash, as it goes: to this game's log, or the last game's outside one. */
+    @Synchronized
+    fun crash(paths: Paths, thread: Thread, error: Throwable) {
+        val trace = error.stackTraceToString().lines().map { it.trim() }.filter { it.isNotEmpty() }.take(CRASH_LINES)
+        write(file ?: paths.screenLog, file?.let { sinceStart() },
+              "the app crashed (thread ${thread.name}):\n" + trace.joinToString("\n") { "          $it" })
+    }
+
+    private fun sinceStart() = (SystemClock.uptimeMillis() - start) / 1000.0
+
+    private fun write(file: File, seconds: Double?, line: String) {
+        val time = seconds?.let { "%6.1f s".format(Locale.ROOT, it) } ?: "     ? s"
         try {
-            file.appendText("%6.1f s  %s\n".format(Locale.ROOT, (SystemClock.uptimeMillis() - start) / 1000.0, line))
+            file.appendText("$time  $line\n")
         } catch (e: Exception) {
             Log.w(TAG, "Couldn't write screen.log: $line", e)
         }

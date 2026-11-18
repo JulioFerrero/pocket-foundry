@@ -131,14 +131,14 @@ class HomeScreen(private val launcher: LauncherActivity) {
 
         val ending = Session.lastGame?.takeIf { error == null && !inGame }
         val failure = error ?: ending?.let {
-            val exit = it.exit ?: return@let null
+            val exit = it.exit ?: return@let it.closedBy
             when {
                 it.noWindow -> driverDidntStart(it.driver)
                 it.failure != null -> driverFailed(it)
                 else -> "Factorio stopped unexpectedly (${exit.status}). See Logs."
             }
         }
-        report.shown = ending?.failure != null
+        report.shown = ending?.failure != null || ending?.closedBy != null
         footerLeft.setTextColor(if (failure != null) Factorio.ERROR else Factorio.TEXT)
         footerLeft.textSize = if (failure != null) 13f else 15f
         footer.shown = failure != null || inGame

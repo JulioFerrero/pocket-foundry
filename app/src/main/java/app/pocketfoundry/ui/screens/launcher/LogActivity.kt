@@ -121,7 +121,9 @@ class LogActivity : Activity() {
     /** What happened in words, for the report's title and its "What happened". */
     private val lastGame: String?
         get() = Session.lastGame?.let { ending ->
-            ending.failure?.let { GameEnding.sentence(Drivers.find(this, ending.driver)?.name ?: ending.driver, it, ending.stage) }
+            ending.closedBy ?: ending.failure?.let {
+                GameEnding.sentence(Drivers.find(this, ending.driver)?.name ?: ending.driver, it, ending.stage)
+            }
         }
 
     /**
