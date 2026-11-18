@@ -163,6 +163,11 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) = layout.resize(w, h)
 
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        ControlSprites.release()
+    }
+
     // Termux:X11's activity lives through a display size change, which changes the density but maybe not the size.
     override fun onConfigurationChanged(newConfig: Configuration) = layout.resize(width, height)
 
