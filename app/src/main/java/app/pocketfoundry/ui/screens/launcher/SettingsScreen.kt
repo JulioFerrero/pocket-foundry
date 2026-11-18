@@ -25,7 +25,7 @@ import app.pocketfoundry.ui.kit.Dropdown
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.MATCH
-import app.pocketfoundry.ui.kit.SideTabs
+import app.pocketfoundry.ui.kit.FrameTabs
 import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
@@ -102,7 +102,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     // As in the game's own settings: a tab for each kind, none long enough to scroll on a phone.
     private val pages = listOf(graphicsPage(), interfacePage(), controlsPage(), otherPage())
     private val pageFrame = FrameLayout(launcher).apply { pages.forEach { add(it) } }
-    private val tabs = SideTabs(launcher, listOf("Graphics", "Interface", "Controls", "Other"), ::open)
+    private val tabs = FrameTabs(launcher, listOf("Graphics", "Interface", "Controls", "Other"), Frame.SHALLOW, vertical = true, ::open)
 
     init {
         open(0)
@@ -112,7 +112,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         add(row(launcher, Gravity.TOP) {
             add(tabs)
             add(stack(launcher, Frame.SHALLOW, padding = 10) { add(pageFrame, height = MATCH) }, 0, MATCH, weight = 1f)
-                .apply { (layoutParams as MarginLayoutParams).marginStart = -launcher.dpi(SideTabs.OVERLAP) }
+                .apply { (layoutParams as MarginLayoutParams).marginStart = -launcher.dpi(FrameTabs.OVERLAP) }
         }, height = 0, weight = 1f)
         add(buttonBar(launcher, "Back", { launcher.showSettings(false) }).apply {
             add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)

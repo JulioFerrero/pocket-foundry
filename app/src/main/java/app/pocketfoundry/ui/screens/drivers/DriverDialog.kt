@@ -7,10 +7,11 @@ import android.text.Editable
 import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.text.style.TypefaceSpan
 import android.text.TextWatcher
+import android.text.style.TypefaceSpan
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup.MarginLayoutParams
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
@@ -32,9 +33,9 @@ import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.Arrow
 import app.pocketfoundry.ui.kit.ButtonDrawable
-import app.pocketfoundry.ui.kit.Choice
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
+import app.pocketfoundry.ui.kit.FrameTabs
 import app.pocketfoundry.ui.kit.MATCH
 import app.pocketfoundry.ui.kit.Progress
 import app.pocketfoundry.ui.kit.Tone
@@ -44,9 +45,11 @@ import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.capped
 import app.pocketfoundry.ui.kit.checkBox
 import app.pocketfoundry.ui.kit.column
+import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.groove
 import app.pocketfoundry.ui.kit.heading
 import app.pocketfoundry.ui.kit.immersive
+import app.pocketfoundry.ui.kit.keepScrollBar
 import app.pocketfoundry.ui.kit.label
 import app.pocketfoundry.ui.kit.link
 import app.pocketfoundry.ui.kit.pad
@@ -71,7 +74,9 @@ class DriverDialog(private val launcher: LauncherActivity) {
     private var rows = emptyMap<String, View>()
     private var viewing = ""
 
-    private val tabs = Choice(launcher, listOf("Running", "About", "Settings"), width = 100) { showTab(it) }
+    private val tabs = FrameTabs(launcher, listOf("Running", "About", "Settings"), Frame.DEEP, vertical = false) {
+        showTab(it)
+    }
     private val running = column(launcher)
     private val about = column(launcher)
     private val settings = column(launcher)
@@ -129,16 +134,10 @@ class DriverDialog(private val launcher: LauncherActivity) {
                   checkButton, useButton, titleLongPress = ::toggleTestDrivers) {
             add(row(launcher, Gravity.TOP) {
                 add(pane(list), LIST_WIDTH, MATCH)
-                add(stack(launcher, Frame.DEEP, padding = 10) {
-                    add(tabs)
-                    add(row(launcher, Gravity.CENTER_VERTICAL) {
-                        add(name)
-                        add(chip, start = 10)
-                    }, top = 10)
-                    add(version, top = 1)
-                    add(pane(running), height = 0, weight = 1f)
-                    add(pane(about), height = 0, weight = 1f)
-                    add(pane(settings), height = 0, weight = 1f)
+                add(column(launcher) {
+                    add(tabs, WRAP, WRAP)
+                    add(details(), height = 0, weight = 1f)
+                        .apply { (layoutParams as MarginLayoutParams).topMargin = -launcher.dpi(FrameTabs.OVERLAP) }
                 }, 0, MATCH, weight = 1f, start = 8)
             }, height = PANES_HEIGHT, weight = 1f)
             add(status)
@@ -151,14 +150,28 @@ class DriverDialog(private val launcher: LauncherActivity) {
         options.clearFocus()   // the dialog would otherwise open typing in it
     }
 
+    /** The driver looked at, under the tabs: its name and version, then the open tab. */
+    private fun details() = stack(launcher, Frame.DEEP, padding = 10) {
+        add(row(launcher, Gravity.CENTER_VERTICAL) {
+            add(name)
+            add(chip, start = 10)
+        }, top = 4)
+        add(version, top = 1)
+        add(pane(running), height = 0, weight = 1f)
+        add(pane(about), height = 0, weight = 1f)
+        add(pane(settings), height = 0, weight = 1f)
+    }
+
     private fun showTab(tab: Int) {
         (running.parent as View).shown = tab == 0
         (about.parent as View).shown = tab == 1
         (settings.parent as View).shown = tab == 2
     }
 
+    // The scroll bar beside what scrolls, as in Settings, not over the checkboxes at its right.
     private fun pane(content: View) = ScrollView(launcher).apply {
         isFillViewport = true
+        keepScrollBar()
         addView(content)
     }
 
