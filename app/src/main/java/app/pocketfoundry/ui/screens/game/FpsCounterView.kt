@@ -13,7 +13,7 @@ import android.view.View
 import android.widget.FrameLayout
 import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.FrameRate
-import app.pocketfoundry.ui.controller.ControlSprites
+import app.pocketfoundry.ui.controller.SpriteSet
 import app.pocketfoundry.ui.controller.Movable
 import app.pocketfoundry.ui.controller.Sprite
 import app.pocketfoundry.ui.kit.Factorio
@@ -68,6 +68,12 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     private var column = 0f
     private val box = RectF()
     private val path = Path()
+    /** The controls' rendered sprites, while they're loaded: the panel's look, else a plain one. */
+    var sprites: SpriteSet? = null
+        set(value) {
+            field = value
+            invalidate()
+        }
     private val tick = object : Runnable {
         override fun run() {
             rate.add(counter.frames())
@@ -166,9 +172,8 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     override fun onDraw(canvas: Canvas) {
         canvas.save()
         canvas.translate(padLeft.toFloat(), padTop.toFloat())
-        val sprites = ControlSprites.current()
         val rendered = sprites?.get("fps-panel")
-        if (rendered != null) drawRendered(canvas, rendered, sprites["fps-glass"]) else drawPlain(canvas)
+        if (rendered != null) drawRendered(canvas, rendered, sprites?.get("fps-glass")) else drawPlain(canvas)
         canvas.restore()
     }
 

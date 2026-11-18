@@ -21,7 +21,9 @@ import kotlin.math.abs
  * Factorio is in its keyboard-and-mouse mode, which ignores the pad: the controls show only in the layout editor.
  */
 @SuppressLint("ViewConstructor")
-class ControllerView(context: Context, private val keyboard: Boolean, private val counter: Movable) : View(context) {
+/** [onSprites]: the controls' rendered sprites as they load and go, for views drawn in the same look (the FPS counter). */
+class ControllerView(context: Context, private val keyboard: Boolean, private val counter: Movable,
+                     private val onSprites: (SpriteSet?) -> Unit = {}) : View(context) {
     private val layout = PadLayout(context)
     private val painter = PadPainter(context, layout)
     private val toolbar = Toolbar(layout, painter)
@@ -145,7 +147,11 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
         painter.box = settings.touch == Settings.BOX
         if (editor.active) canvas.drawColor(EDITOR_SHADE)
         val controls = layout.shownControls
-        painter.sprites.sprites = ControlSprites.get(context, layout.frame, ::invalidate)
+        val sprites = ControlSprites.get(context, layout.frame, ::invalidate)
+        if (sprites !== painter.sprites.sprites) {
+            painter.sprites.sprites = sprites
+            onSprites(sprites)
+        }
         val now = SystemClock.uptimeMillis()
         var moving = false
         // Indexed: an iterator would be made every frame.
@@ -165,6 +171,8 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        painter.sprites.sprites = null
+        onSprites(null)
         ControlSprites.release()
     }
 

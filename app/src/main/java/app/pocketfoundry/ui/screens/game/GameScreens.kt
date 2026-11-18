@@ -142,7 +142,7 @@ private class GameScreen(activity: MainActivity) {
     private val keyboard = Session.keyboard
     private val settings = Settings(activity)
     private val fps = FpsCounterView(activity, FrameCounter(Paths(activity).frames))
-    val view = ControllerView(activity, keyboard, fps)
+    val view = ControllerView(activity, keyboard, fps) { fps.sprites = it }
     private val gestures = PointerGestures(activity, padMode = !keyboard) {
         if (settings.vibration) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
