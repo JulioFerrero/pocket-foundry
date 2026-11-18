@@ -1,0 +1,1158 @@
+{
+ "pixelsPerMetre": 3150,
+ "screen": [
+  3168,
+  1440
+ ],
+ "sprites": {
+  "stick-base": {
+   "file": "stick-base.webp",
+   "w": 448,
+   "h": 458,
+   "cx": 226.8,
+   "cy": 226.8,
+   "controlW": 403,
+   "controlH": 403
+  },
+  "stick-knob": {
+   "file": "stick-knob.webp",
+   "frameW": 209,
+   "frameH": 247,
+   "frames": 11,
+   "fps": 60,
+   "cx": 102.8,
+   "cy": 102.8,
+   "controlW": 403,
+   "controlH": 403,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "stick-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "stick-knob-r": {
+   "file": "stick-knob-r.webp",
+   "frameW": 209,
+   "frameH": 247,
+   "frames": 11,
+   "fps": 60,
+   "cx": 102.8,
+   "cy": 102.8,
+   "controlW": 403,
+   "controlH": 403,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "stick-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "trackpad": {
+   "file": "trackpad.webp",
+   "w": 648,
+   "h": 399,
+   "cx": 327.6,
+   "cy": 198.4,
+   "controlW": 605,
+   "controlH": 346
+  },
+  "face-base": {
+   "file": "face-base.webp",
+   "w": 220,
+   "h": 231,
+   "cx": 113.4,
+   "cy": 113.4,
+   "controlW": 176,
+   "controlH": 176
+  },
+  "a": {
+   "file": "a.webp",
+   "frameW": 205,
+   "frameH": 240,
+   "frames": 11,
+   "fps": 60,
+   "cx": 113.4,
+   "cy": 113.4,
+   "controlW": 176,
+   "controlH": 176,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "face-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "b": {
+   "file": "b.webp",
+   "frameW": 205,
+   "frameH": 240,
+   "frames": 11,
+   "fps": 60,
+   "cx": 113.4,
+   "cy": 113.4,
+   "controlW": 176,
+   "controlH": 176,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "face-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "x": {
+   "file": "x.webp",
+   "frameW": 205,
+   "frameH": 240,
+   "frames": 11,
+   "fps": 60,
+   "cx": 113.4,
+   "cy": 113.4,
+   "controlW": 176,
+   "controlH": 176,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "face-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "y": {
+   "file": "y.webp",
+   "frameW": 205,
+   "frameH": 240,
+   "frames": 11,
+   "fps": 60,
+   "cx": 113.4,
+   "cy": 113.4,
+   "controlW": 176,
+   "controlH": 176,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "face-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-base": {
+   "file": "dpad-base.webp",
+   "w": 333,
+   "h": 343,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288
+  },
+  "dpad-right": {
+   "file": "dpad-right.webp",
+   "frameW": 309,
+   "frameH": 309,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-up-right": {
+   "file": "dpad-up-right.webp",
+   "frameW": 309,
+   "frameH": 350,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-up": {
+   "file": "dpad-up.webp",
+   "frameW": 299,
+   "frameH": 354,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-up-left": {
+   "file": "dpad-up-left.webp",
+   "frameW": 299,
+   "frameH": 350,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-left": {
+   "file": "dpad-left.webp",
+   "frameW": 309,
+   "frameH": 309,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-down-left": {
+   "file": "dpad-down-left.webp",
+   "frameW": 299,
+   "frameH": 339,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-down": {
+   "file": "dpad-down.webp",
+   "frameW": 299,
+   "frameH": 342,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "dpad-down-right": {
+   "file": "dpad-down-right.webp",
+   "frameW": 309,
+   "frameH": 341,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 169.2,
+   "controlW": 288,
+   "controlH": 288,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "dpad-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "wide-large-base": {
+   "file": "wide-large-base.webp",
+   "w": 332,
+   "h": 196,
+   "cx": 169.2,
+   "cy": 97.2,
+   "controlW": 288,
+   "controlH": 144
+  },
+  "lb": {
+   "file": "lb.webp",
+   "frameW": 316,
+   "frameH": 206,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 97.2,
+   "controlW": 288,
+   "controlH": 144,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "wide-large-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "rt": {
+   "file": "rt.webp",
+   "frameW": 316,
+   "frameH": 206,
+   "frames": 11,
+   "fps": 60,
+   "cx": 169.2,
+   "cy": 97.2,
+   "controlW": 288,
+   "controlH": 144,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "wide-large-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "wide-small-base": {
+   "file": "wide-small-base.webp",
+   "w": 288,
+   "h": 175,
+   "cx": 147.6,
+   "cy": 86.5,
+   "controlW": 245,
+   "controlH": 123
+  },
+  "lt": {
+   "file": "lt.webp",
+   "frameW": 272,
+   "frameH": 184,
+   "frames": 11,
+   "fps": 60,
+   "cx": 147.6,
+   "cy": 86.5,
+   "controlW": 245,
+   "controlH": 123,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "wide-small-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "rb": {
+   "file": "rb.webp",
+   "frameW": 272,
+   "frameH": 184,
+   "frames": 11,
+   "fps": 60,
+   "cx": 147.6,
+   "cy": 86.5,
+   "controlW": 245,
+   "controlH": 123,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "wide-small-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "small-base": {
+   "file": "small-base.webp",
+   "w": 166,
+   "h": 177,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122
+  },
+  "view": {
+   "file": "view.webp",
+   "frameW": 153,
+   "frameH": 186,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "small-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "menu": {
+   "file": "menu.webp",
+   "frameW": 153,
+   "frameH": 186,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "small-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "l3": {
+   "file": "l3.webp",
+   "frameW": 153,
+   "frameH": 186,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "small-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "r3": {
+   "file": "r3.webp",
+   "frameW": 153,
+   "frameH": 186,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "small-base",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-adjust": {
+   "file": "tool-adjust.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-keyboard": {
+   "file": "tool-keyboard.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-hide": {
+   "file": "tool-hide.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-show": {
+   "file": "tool-show.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-add": {
+   "file": "tool-add.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-remove": {
+   "file": "tool-remove.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-smaller": {
+   "file": "tool-smaller.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-bigger": {
+   "file": "tool-bigger.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-opacity": {
+   "file": "tool-opacity.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-reset": {
+   "file": "tool-reset.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "tool-done": {
+   "file": "tool-done.webp",
+   "frameW": 153,
+   "frameH": 187,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
+  "toolbar-left": {
+   "file": "toolbar-left.webp",
+   "w": 32,
+   "h": 155
+  },
+  "toolbar-middle": {
+   "file": "toolbar-middle.webp",
+   "w": 122,
+   "h": 155
+  },
+  "toolbar-right": {
+   "file": "toolbar-right.webp",
+   "w": 187,
+   "h": 155
+  },
+  "fps-panel": {
+   "file": "fps-panel.webp",
+   "w": 1030,
+   "h": 326,
+   "cx": 499.4,
+   "cy": 139.4,
+   "controlW": 990,
+   "controlH": 270,
+   "scale": 2,
+   "display": {
+    "x": 35,
+    "y": 35,
+    "w": 928,
+    "h": 208
+   },
+   "text": {
+    "numberRight": 309,
+    "numberBaseline": 160,
+    "unitBaseline": 220,
+    "numberSize": 104,
+    "unitSize": 58
+   },
+   "graph": {
+    "x": 332,
+    "y": 58,
+    "w": 608,
+    "h": 162
+   }
+  },
+  "fps-glass": {
+   "file": "fps-glass.webp",
+   "w": 1030,
+   "h": 326,
+   "over": "fps-panel"
+  }
+ },
+ "toolbar": {
+  "left": "toolbar-left",
+  "middle": "toolbar-middle",
+  "right": "toolbar-right",
+  "join": "left, then (keys - 1) middles, then right, side by side with their tops level",
+  "keySize": 122,
+  "keyPitch": 122,
+  "firstKeyX": 69.0,
+  "keyY": 64.0,
+  "panelLeft": 3,
+  "panelTop": 3,
+  "panelEnd": 5
+ }
+}

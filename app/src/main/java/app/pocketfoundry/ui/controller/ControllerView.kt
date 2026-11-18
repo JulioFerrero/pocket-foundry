@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.RectF
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.View
@@ -13,6 +14,7 @@ import app.pocketfoundry.core.controller.VirtualPad
 import app.pocketfoundry.core.controller.VirtualPad.Source.SCREEN
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.ui.kit.GuiSprites
+import kotlin.math.abs
 
 /**
  * Touches reach it from [InputRouter], in this view's coordinates, not through the view system. With [keyboard]
@@ -62,8 +64,12 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
     /** With Settings.touch BOX, whether ([x], [y]) is on the trackpad box, where the right stick was. */
     fun trackpadBoxAt(x: Float, y: Float): Boolean {
         if (!controlsShown || editor.active || settings.touch != Settings.BOX) return false
-        val control = layout.controlAt(x, y) ?: return false
-        return (control.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X
+        val pad = layout.shownControls.firstOrNull { (it.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X } ?: return false
+        // The pad is wider than the stick it stands for: all of it is the pad, but a control drawn over it wins.
+        val r = layout.radius(pad)
+        val onPad = abs(x - layout.cx(pad)) <= r * TRACKPAD_HALF_WIDTH && abs(y - layout.cy(pad)) <= r
+        val over = layout.controlAt(x, y)
+        return onPad && (over == null || over === pad)
     }
 
     /** Returns whether the finger is the controller's: on a tool, or anywhere in the editor, or on a control. */
@@ -139,13 +145,19 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
         painter.box = settings.touch == Settings.BOX
         if (editor.active) canvas.drawColor(EDITOR_SHADE)
         val controls = layout.shownControls
+        painter.sprites.sprites = ControlSprites.get(context, layout.frame, ::invalidate)
+        val now = SystemClock.uptimeMillis()
+        var moving = false
         // Indexed: an iterator would be made every frame.
-        if (controlsShown) for (i in controls.indices) painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected)
+        if (controlsShown) for (i in controls.indices) {
+            if (painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected, now)) moving = true
+        }
         if (editor.counterSelected) {
             counter.bounds(counterBox)
             if (!counterBox.isEmpty) painter.drawSelection(canvas, counterBox)
         }
-        toolbar.draw(canvas, sheet, tools, editor.adding)
+        if (toolbar.draw(canvas, sheet, tools, editor.adding, now)) moving = true
+        if (moving) postInvalidateOnAnimation()
         if (editor.adding) editor.drawAddList(canvas, sheet)
     }
 
@@ -165,5 +177,7 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
         val TICK: VibrationEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
         val CLICK: VibrationEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
         private const val EDITOR_SHADE = 0x55000000
+        /** The rendered trackpad's half width, in the right stick's radii (its picture: 605 x 346). */
+        private const val TRACKPAD_HALF_WIDTH = 1.75f
     }
 }

@@ -13,7 +13,9 @@ import android.view.View
 import android.widget.FrameLayout
 import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.FrameRate
+import app.pocketfoundry.ui.controller.ControlSprites
 import app.pocketfoundry.ui.controller.Movable
+import app.pocketfoundry.ui.controller.Sprite
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Tone
 import kotlin.math.ceil
@@ -55,6 +57,13 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     private var unitPx = 0f
     private var boxWidth = 0
     private var boxHeight = 0
+    // Room round the box for the rendered panel's shadow, which falls to the lower right.
+    private var padLeft = 0
+    private var padTop = 0
+    private var padRight = 0
+    private var padBottom = 0
+    private val bitmap = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val graph = RectF()
     /** The number's column: two digits or "FPS", whichever is wider; it grows only while the rate has three. */
     private var column = 0f
     private val box = RectF()
@@ -84,6 +93,10 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         column = maxOf(number.measureText("00"), unit.measureText("FPS"))
         boxWidth = (WIDTH_DP * unitPx).roundToInt()
         boxHeight = (HEIGHT_DP * unitPx).roundToInt()
+        padLeft = (EDGE_DP * unitPx).roundToInt()
+        padTop = padLeft
+        padRight = (SHADOW_RIGHT_DP * unitPx).roundToInt()
+        padBottom = (SHADOW_BOTTOM_DP * unitPx).roundToInt()
         requestLayout()
         invalidate()
     }
@@ -98,11 +111,16 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         super.onDetachedFromWindow()
     }
 
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) = setMeasuredDimension(boxWidth, boxHeight)
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) =
+        setMeasuredDimension(boxWidth + padLeft + padRight, boxHeight + padTop + padBottom)
 
+    /** The box itself, without the room for its shadow. */
     override fun bounds(out: RectF) {
-        if (isShown && width > 0) out.set(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat())
-        else out.setEmpty()
+        if (isShown && width > 0) {
+            out.set(left.toFloat() + padLeft, top.toFloat() + padTop, 0f, 0f)
+            out.right = out.left + boxWidth
+            out.bottom = out.top + boxHeight
+        } else out.setEmpty()
     }
 
     override fun moveTo(spot: PointF?, scale: Float) {
@@ -116,8 +134,13 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         val params = layoutParams as? FrameLayout.LayoutParams ?: return
         val screen = parent as? View ?: return
         val spot = spot
-        val left = if (spot == null) corner(start = true) else fit(spot.x * screen.width, screen.width - boxWidth)
-        val top = if (spot == null) corner(start = false) else fit(spot.y * screen.height, screen.height - boxHeight)
+        // The spot and the corner are the box's top-left: the view starts its shadow room before it.
+        val wide = boxWidth + padLeft + padRight
+        val tall = boxHeight + padTop + padBottom
+        val boxLeft = if (spot == null) corner(start = true).toFloat() else spot.x * screen.width
+        val boxTop = if (spot == null) corner(start = false).toFloat() else spot.y * screen.height
+        val left = fit(boxLeft - padLeft, screen.width - wide)
+        val top = fit(boxTop - padTop, screen.height - tall)
         if (params.leftMargin == left && params.topMargin == top) return
         params.leftMargin = left
         params.topMargin = top
@@ -141,9 +164,51 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     }
 
     override fun onDraw(canvas: Canvas) {
-        val w = width.toFloat()
-        val h = height.toFloat()
+        canvas.save()
+        canvas.translate(padLeft.toFloat(), padTop.toFloat())
+        val sprites = ControlSprites.current()
+        val rendered = sprites?.get("fps-panel")
+        if (rendered != null) drawRendered(canvas, rendered, sprites["fps-glass"]) else drawPlain(canvas)
+        canvas.restore()
+    }
+
+    /** The rendered panel, its display lit with the number and graph at the places its entry gives. */
+    private fun drawRendered(canvas: Canvas, panel: Sprite, glass: Sprite?) {
+        val w = boxWidth.toFloat()
+        val h = boxHeight.toFloat()
+        val k = h / panel.controlH
+        box.set(w / 2 - panel.cx * k, h / 2 - panel.cy * k, 0f, 0f)
+        box.right = box.left + panel.frameW * k
+        box.bottom = box.top + panel.frameH * k
+        canvas.drawBitmap(panel.bitmap, null, box, bitmap)
+        // Measures in the picture as rendered, to this view's pixels.
+        val q = panel.ratio * k
+        val text = panel.extra.getJSONObject("text")
+        val screen = panel.extra.getJSONObject("display")
+        val area = panel.extra.getJSONObject("graph")
+        number.textSize = text.getDouble("numberSize").toFloat() * q
+        unit.textSize = text.getDouble("unitSize").toFloat() * q
+        // As the plain counter: the number's column as wide as two digits or "FPS", from the display's left edge,
+        // right-aligned in it so it doesn't jump as digits change; the graph right after it.
+        val inset = (area.getDouble("y") - screen.getDouble("y")).toFloat() * q
+        val displayLeft = box.left + screen.getDouble("x").toFloat() * q
+        val displayRight = displayLeft + screen.getDouble("w").toFloat() * q
+        val digits = rate.current.roundToInt().toString()
+        val right = displayLeft + inset + maxOf(number.measureText("00"), unit.measureText("FPS"), number.measureText(digits))
+        canvas.drawText(digits, right, box.top + text.getDouble("numberBaseline").toFloat() * q, number)
+        canvas.drawText("FPS", right, box.top + text.getDouble("unitBaseline").toFloat() * q, unit)
+        graph.set(right + inset, box.top + area.getDouble("y").toFloat() * q, displayRight - inset, 0f)
+        graph.bottom = graph.top + area.getDouble("h").toFloat() * q
+        drawGraph(canvas, graph.left, graph.top, graph.right, graph.bottom)
+        if (glass != null) canvas.drawBitmap(glass.bitmap, null, box, bitmap)
+    }
+
+    private fun drawPlain(canvas: Canvas) {
+        val w = boxWidth.toFloat()
+        val h = boxHeight.toFloat()
         val pad = 6 * unitPx
+        number.textSize = 17 * unitPx
+        unit.textSize = 10 * unitPx
         box.set(0f, 0f, w, h)
         canvas.drawRoundRect(box, 4 * unitPx, 4 * unitPx, panel)
         // The number, right-aligned so it doesn't jump as digits change, "FPS" under it.
@@ -151,12 +216,12 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         val textRight = pad + maxOf(column, number.measureText(text))
         canvas.drawText(text, textRight, h / 2 + number.textSize * 0.2f, number)
         canvas.drawText("FPS", textRight, h - pad * 0.6f, unit)
-        // The graph: the last ten seconds, from 0 to the higher of 60 and the highest rate in it.
+        drawGraph(canvas, textRight + pad, pad, w - pad, h - pad)
+    }
+
+    /** The last ten seconds, from 0 to the higher of 60 and the highest rate in them, over a baseline. */
+    private fun drawGraph(canvas: Canvas, left: Float, top: Float, right: Float, bottom: Float) {
         val history = rate.history()
-        val left = textRight + pad
-        val right = w - pad
-        val top = pad
-        val bottom = h - pad
         canvas.drawLine(left, bottom, right, bottom, guide)
         if (history.size < 2) return
         val ceiling = maxOf(60f, history.max())
@@ -176,6 +241,10 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         const val WIDTH_DP = 132
         const val HEIGHT_DP = 36
         const val MARGIN_DP = 6
+        /** Round the box: a hair at the top left, the rendered panel's shadow at the right and bottom. */
+        const val EDGE_DP = 1
+        const val SHADOW_RIGHT_DP = 5
+        const val SHADOW_BOTTOM_DP = 7
         const val PANEL = 0xB0000000.toInt()
         const val GUIDE = 0x40FFFFFF
     }

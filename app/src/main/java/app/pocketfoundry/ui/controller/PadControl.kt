@@ -158,14 +158,14 @@ class Control(
 
 /** In draw order: a later control is drawn on top and wins a touch. */
 fun defaultControls() = listOf(
-    // Sized by use: A, then Y (inventory). X and B are smaller since gestures press them ([PointerGestures]).
-    // Shoulders, triggers, stick clicks and Map/Menu mirror: x as 1 - x, same height.
+    // A, B, X and Y one size, as on a controller. Shoulders, triggers, stick clicks and Map/Menu mirror: x as 1 - x,
+    // same height.
     Control("LS", Kind.Stick(PadAxis.LEFT_X, PadAxis.LEFT_Y), 0.10f, 0.70f, 0.28f, "joycon/*/L-stick", label = "L", name = "L stick"),
     Control("DPAD", Kind.Dpad, 0.245f, 0.88f, 0.20f, glyph = null, label = "", name = "D-pad"),
-    Control("Y", Kind.Button(PadButton.NORTH), 0.885f, 0.635f, 0.125f, "joycon/*/Y"),
-    Control("A", Kind.Button(PadButton.SOUTH), 0.885f, 0.895f, 0.13f, "joycon/*/A"),
-    Control("X", Kind.Button(PadButton.WEST), 0.827f, 0.765f, 0.115f, "joycon/*/X"),
-    Control("B", Kind.Button(PadButton.EAST), 0.943f, 0.765f, 0.115f, "joycon/*/B"),
+    Control("Y", Kind.Button(PadButton.NORTH), 0.885f, 0.635f, FACE, "joycon/*/Y"),
+    Control("A", Kind.Button(PadButton.SOUTH), 0.885f, 0.895f, FACE, "joycon/*/A"),
+    Control("X", Kind.Button(PadButton.WEST), 0.827f, 0.765f, FACE, "joycon/*/X"),
+    Control("B", Kind.Button(PadButton.EAST), 0.943f, 0.765f, FACE, "joycon/*/B"),
     Control("LB", Kind.Button(PadButton.LEFT_SHOULDER), 0.075f, 0.42f, 0.10f, "xbox/*/LB", pill = true),
     Control("LT", Kind.Trigger(PadAxis.LEFT_TRIGGER), 0.17f, 0.42f, 0.085f, "xbox/*/LT", pill = true),
     Control("RB", Kind.Button(PadButton.RIGHT_SHOULDER), 0.83f, 0.42f, 0.085f, "xbox/*/RB", pill = true),
@@ -180,5 +180,7 @@ fun defaultControls() = listOf(
 /** A size the layout editor allows, for a control or the FPS counter. */
 fun editorScale(value: Float) = value.coerceIn(MIN_SCALE, MAX_SCALE)
 
+/** A, B, X and Y's diameter. */
+private const val FACE = 0.122f
 private const val MIN_SCALE = 0.6f
 private const val MAX_SCALE = 1.8f

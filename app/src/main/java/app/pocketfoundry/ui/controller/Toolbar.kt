@@ -44,9 +44,11 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
         box.set(left, top, left + s, top + s)
     }
 
-    fun draw(canvas: Canvas, sheet: GuiSheet?, tools: List<Tool>, adding: Boolean) {
+    /** Returns whether a key is still moving, so another frame should follow. */
+    fun draw(canvas: Canvas, sheet: GuiSheet?, tools: List<Tool>, adding: Boolean, now: Long): Boolean {
         val s = size
         place(0, tools.size)
+        painter.sprites.drawToolbar(canvas, tools, held, adding, box.left, box.top, s, now)?.let { return it }
         box.right = box.left + s * tools.size
         painter.panel(canvas, sheet, box, s)
         for (i in tools.indices) {
@@ -58,6 +60,7 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
             icon.strokeWidth = s * 0.065f
             drawIcon(canvas, tool, box.centerX(), box.centerY(), s * 0.22f)
         }
+        return false
     }
 
     private fun drawIcon(canvas: Canvas, tool: Tool, x: Float, y: Float, s: Float) {

@@ -16,8 +16,8 @@ import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.dp
 
 /**
- * Draws the controls in the game's own GUI sprites, or in a drawn look when the game's files can't be read. Also the
- * panel and keys of the toolbar and the add list.
+ * Draws the controls in their rendered look ([SpritePainter]); while it loads, in the game's own GUI sprites, or in a
+ * drawn look when the game's files can't be read. Also the panel and keys of the toolbar and the add list.
  */
 class PadPainter(private val context: Context, private val layout: PadLayout) {
     // The toolbar draws its icons with these two too.
@@ -46,11 +46,20 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     /** The right stick is a trackpad box (Settings.touch BOX). */
     var box = false
 
-    fun draw(canvas: Canvas, sheet: GuiSheet?, c: Control, selected: Boolean) {
+    /** The rendered look; until its pictures load, the controls are drawn as before. */
+    val sprites = SpritePainter(layout)
+
+    /** Returns whether [c] is still moving, so another frame should follow. */
+    fun draw(canvas: Canvas, sheet: GuiSheet?, c: Control, selected: Boolean, now: Long): Boolean {
         val x = layout.cx(c)
         val y = layout.cy(c)
         val r = layout.radius(c)
         val pressed = c.pointers.isNotEmpty()
+        val moving = sprites.draw(canvas, c, x, y, r, box, now)
+        if (moving != null) {
+            if (selected) drawSelection(canvas, null, c, x, y, r)
+            return moving
+        }
         when {
             box && (c.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X -> drawTrackpadBox(canvas, x, y, r)
             c.kind is Kind.Stick -> drawStick(canvas, sheet, c, x, y, r, pressed)
@@ -60,6 +69,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             else -> drawPlainButton(canvas, c, x, y, r, pressed)
         }
         if (selected) drawSelection(canvas, sheet, c, x, y, r)
+        return false
     }
 
     /** The panel behind the toolbar and the add list, round [box] of keys [s] tall. */

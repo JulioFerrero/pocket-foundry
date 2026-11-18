@@ -18,3 +18,8 @@ local.properties
 /runtime/work/
 /runtime/out-*.log
 .cxx/
+
+# Rendered controls (art/controls): previews and full-size pictures; the app takes the WebP copies
+/art/controls/sprites/
+/art/controls/*.mp4
+/art/controls/*.png
