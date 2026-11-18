@@ -91,9 +91,12 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         add(link(launcher, "GitHub", GITHUB, 13f))
     }
     private val importAgain = button(launcher, "Import game", size = 15f, onClick = launcher::pickGame)
+    // Its name where the dropdowns beside it have theirs.
     private val driver = button(launcher, "", size = 15f) { DriverDialog(launcher).show() }.apply {
         maxLines = 1
         ellipsize = TextUtils.TruncateAt.END
+        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        setPadding(launcher.dpi(14), 0, launcher.dpi(14), 0)
     }
 
     // As in the game's own settings: a tab for each kind, none long enough to scroll on a phone.
