@@ -55,7 +55,7 @@ object SpeedTest {
         val command = listOf(paths.speedTest.path) + sizes.map { (width, height) -> "${width}x$height" }
         // No waiting for the display.
         val program = Program.start(paths, command, paths.driverCheckLog, environment + ("vblank_mode" to "0"),
-                                    Drivers.libraryPath(paths, driver), appendLog = true)
+                                    Route.of(paths, driver).libraryPath(paths, driver), appendLog = true)
         val exit = program.waitFor(TIMEOUT_S) ?: run {
             program.kill()
             program.waitFor()

@@ -24,6 +24,7 @@ import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Drivers.Driver
 import app.pocketfoundry.core.drivers.Gpu
+import app.pocketfoundry.core.drivers.Route
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
@@ -200,7 +201,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val sections = listOf(
             "For your GPU" to drivers.filter(Drivers::forThisGpu),
             "To try" to drivers.filter(Drivers::toTry),
-            "For any GPU" to drivers.filter(Drivers::forAnyGpu),
+            "For any GPU" to drivers.filter { Route.of(it).anyGpu },
             "Imported" to drivers.filter { it.origin == Drivers.Origin.IMPORTED },
         ).filter { it.second.isNotEmpty() }
         rows = buildMap {
@@ -307,7 +308,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         }
         useButton.isEnabled = !inUse && Drivers.fits(driver)
         removeButton.shown = driver.origin != Drivers.Origin.APP && downloaded
-        checkButton.shown = downloaded && Drivers.checked(paths, id)
+        checkButton.shown = downloaded && Route.of(paths, id).checked
         checkButton.isEnabled = !Session.inGame
     }
 
@@ -316,11 +317,11 @@ class DriverDialog(private val launcher: LauncherActivity) {
         facts.removeAllViews()
         val id = driver.id
         // Fixes are for a GPU: none comes with the CPU.
-        if (driver.origin == Drivers.Origin.CATALOG && !Drivers.forAnyGpu(driver)) {
+        if (driver.origin == Drivers.Origin.CATALOG && !Route.of(driver).anyGpu) {
             val fixes = Catalog.fixesFor(Catalog.get(launcher), id, Gpu.name, Catalog.android)
             fact("Fix", fixes.joinToString(", ") { it.name }.ifEmpty { "None needed" })
         }
-        if (Drivers.checked(paths, id, driver.entry)) {
+        if (Route.of(paths, id, driver.entry).checked) {
             fact("Driver check", DriverCheck.brief(launcher, id) ?: "Not checked yet")
         }
         if (inUse) fact("Resolution", resolution(id))
@@ -458,7 +459,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val show = { text: String, done: Float -> launcher.runOnUiThread { downloading.show(text, done) } }
         background("driver-use", {
             if (entry != null) Drivers.download(launcher, entry) { show("Downloading $name", it / 100f) }
-            if (Drivers.checked(paths, id) && DriverCheck.passed(launcher, id) == null) {
+            if (Route.of(paths, id).checked && DriverCheck.passed(launcher, id) == null) {
                 Session.checkDriver(launcher, id, show)
             }
             DriverCheck.passed(launcher, id) != false

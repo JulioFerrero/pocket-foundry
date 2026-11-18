@@ -17,7 +17,7 @@ import org.json.JSONObject
  *   newer features go off, newest first, until they come out right (Arm's r38p1 driver on a Mali-G610 drew only black
  *   with extended dynamic state). A driver without the OpenGL 3.3 the game needs is asked for it anyway, and one
  *   without the timeline semaphores Zink needs gets them from Khronos's layer.
- * - The game's atlases at their size, each way the driver can keep BC textures (Drivers.textureWays): read through a
+ * - The game's atlases at their size, each way the driver can keep BC textures (Route.textureWays): read through a
  *   shader, measured in GPU memory, read back as fast start saves them, and filled with blocks copied in as Factorio's
  *   GPU compressor makes them. The best way that keeps them compressed wins: fast start goes off where they come back
  *   wrong, and the CPU compresses where copied blocks read wrong. A driver that can't keep them compressed can't play:
@@ -88,7 +88,7 @@ object DriverCheck {
      * then known compressed over not known, then coming back right over not. Where the driver doesn't say its memory,
      * a way that converts what the driver lacks counts as compressed.
      */
-    internal fun rank(way: Drivers.TextureWay, atlases: Atlases): Int? {
+    internal fun rank(way: TextureWay, atlases: Atlases): Int? {
         val compressed = atlases.compressed ?: way.convertsWhatsMissing.takeIf { it }
         if (!atlases.draws || compressed == false) return null
         return (if (compressed == true) 2 else 0) + (if (atlases.comesBack) 1 else 0)
@@ -141,7 +141,7 @@ object DriverCheck {
      * Options with their own list of extensions to hide skip the check: the CPU compresses, to be safe.
      */
     fun apply(context: Context, paths: Paths, driver: String, environment: Map<String, String>): Applied {
-        if (!Drivers.checked(paths, driver)) return Applied(environment)
+        if (!Route.of(paths, driver).checked) return Applied(environment)
         if (HIDE in environment) return Applied(environment, gpuCompression = false)
         val found = current(context, driver) ?: check(context, paths, driver, environment)
         ScreenLog.add("driver check: ${summary(found)}")
@@ -153,7 +153,7 @@ object DriverCheck {
 
     /** [driver] goes through Zink, its Options don't hide extensions themselves, and this version is unchecked. */
     fun needed(context: Context, paths: Paths, driver: String, environment: Map<String, String>) =
-        Drivers.checked(paths, driver) && HIDE !in environment && current(context, driver) == null
+        Route.of(paths, driver).checked && HIDE !in environment && current(context, driver) == null
 
     /** Whether this version of [driver] can play here; null if it hasn't been checked. */
     fun passed(context: Context, driver: String) = current(context, driver)?.let(::passed)
@@ -230,9 +230,9 @@ object DriverCheck {
             offIn(saved).takeIf { it.isNotEmpty() }?.let { it.joinToString(", ") + " off" },
             "the game's textures don't stay compressed any way (${saved.optString("tried")})"
                 .takeIf { saved.optString("textures") == NO_WAY },
-            "textures through the compat layer".takeIf { saved.optString("textures") == Drivers.TextureWay.LAYER },
+            "textures through the compat layer".takeIf { saved.optString("textures") == TextureWay.LAYER },
             "textures through the compat layer, Vulkan 1.3 asked for"
-                .takeIf { saved.optString("textures") == Drivers.TextureWay.LAYER_VULKAN_13 },
+                .takeIf { saved.optString("textures") == TextureWay.LAYER_VULKAN_13 },
             "fast start off: the atlases come back wrong".takeIf { drew && !saved.optBoolean("cache", true) },
             saved.optString("swReadback").takeIf { it.isNotEmpty() }
                 ?.let { "frames read back through ${if (it == "1") "cached" else "uncached"} memory" },
@@ -269,7 +269,7 @@ object DriverCheck {
         paths.driverCheckLog.writeText("")
         var timelines = false
         var openGL33 = false
-        var base = environment + Drivers.withoutStandIns(paths, driver, environment)
+        var base = environment + Route.of(paths, driver).withoutStandIns(environment)
         var tries = 0
         var first = ""
         val found = search { step ->
@@ -339,8 +339,8 @@ object DriverCheck {
     /** Each way the driver can keep the game's textures, until the best: into [result]. */
     private fun textures(paths: Paths, driver: String, drawn: Map<String, String>, result: JSONObject,
                          onStep: (String, Float) -> Unit) {
-        val ways = Drivers.textureWays(paths, driver, drawn)
-        var best: Pair<Drivers.TextureWay, Atlases>? = null
+        val ways = Route.of(paths, driver).textureWays(paths, drawn)
+        var best: Pair<TextureWay, Atlases>? = null
         var bestRank = -1
         val tried = mutableListOf<String>()
         for ((index, way) in ways.withIndex()) {
@@ -384,7 +384,7 @@ object DriverCheck {
      * right, and the compat layer doesn't convert them. Converted, the layer keeps the original blocks on storage,
      * which the GPU's copies never reach, and Factorio's test of its compressor reads them back wrong.
      */
-    internal fun gpuCompresses(way: Drivers.TextureWay, atlases: Atlases, gpuHasBc: Boolean) =
+    internal fun gpuCompresses(way: TextureWay, atlases: Atlases, gpuHasBc: Boolean) =
         atlases.copies && !(way.convertsWhatsMissing && !gpuHasBc)
 
     /** What the first try found wrong, in its words: the first squares that came out wrong, or where it crashed. */
@@ -423,7 +423,7 @@ object DriverCheck {
                      timeoutS: Long = TIMEOUT_S): Result {
         val command = listOf(paths.driverCheck.path) + args
         val program = Program.start(paths, command, paths.driverCheckLog, environment,
-                                    Drivers.libraryPath(paths, driver), appendLog = true)
+                                    Route.of(paths, driver).libraryPath(paths, driver), appendLog = true)
         val exit = program.waitFor(timeoutS) ?: run {
             program.kill()
             program.waitFor()

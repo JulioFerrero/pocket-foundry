@@ -26,12 +26,11 @@ import java.util.Locale
  */
 object Catalog {
     /**
-     * A Vulkan driver the game reaches through the runtime's Zink; a whole Mesa of its own ([ownMesa]): an OpenGL
-     * driver, or the CPU, which is for any GPU; or GLES: MobileGlues, which turns the game's OpenGL into the phone's
-     * own OpenGL ES, loaded through libhybris, for any GPU too. Only VULKAN goes through Zink. Apps skip a kind they
-     * don't know: before 0.8.17-beta.10 the CPU's, before 0.8.18-beta.2 GLES.
+     * What a catalog driver is (Route says what follows): a Vulkan driver the game reaches through the runtime's Zink;
+     * a whole Mesa of its own, with an OpenGL driver or the CPU's; or GLES: MobileGlues on the phone's own OpenGL ES.
+     * Apps skip a kind they don't know: before 0.8.17-beta.10 the CPU's, before 0.8.18-beta.2 GLES.
      */
-    enum class Kind(val ownMesa: Boolean) { VULKAN(false), OPENGL(true), CPU(true), GLES(false) }
+    enum class Kind { VULKAN, OPENGL, CPU, GLES }
 
     class Setting(val id: String, val label: String, val about: String, val env: Map<String, String>)
 
@@ -39,7 +38,7 @@ object Catalog {
      * Checkboxes the app adds to a driver beside the catalog's: ones for the X server (TERMUX_X11_*, Session), which
      * an older app would pass to the game instead, so the catalog can't offer them.
      */
-    private val APP_SETTINGS = mapOf(
+    internal val APP_SETTINGS = mapOf(
         // Termux:X11 copies each frame of a driver whose buffers it imported ("it does not work fine with turnip",
         // upstream, from before our Mesa waited for a frame before presenting it): 48 FPS at 3168x1440 on the vivo,
         // 60 shown directly. Untested on other phones, so the player's to turn on.

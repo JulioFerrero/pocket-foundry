@@ -10,6 +10,7 @@ import app.pocketfoundry.core.controller.keyboardConnected
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Drivers
+import app.pocketfoundry.core.drivers.Route
 import app.pocketfoundry.core.logs.DetailedLogs
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.DebugEnv
@@ -256,12 +257,12 @@ object Session {
         AtlasCache.prepare(context, paths, DriverCheck.cacheMaker(context, driver), atlasCache)
         FactorioConfig.write(context, paths, keyboard,
                              Drivers.compression(paths, driver, applied.gpuCompression, applied.environment),
-                             atlasCache, Drivers.findsNoGpuMemory(paths, driver))
+                             atlasCache, Route.of(paths, driver) == Route.MOBILEGLUES)
         val uiScale = "%.4f".format(Locale.ROOT, X11Prefs(context).uiScale)
         val started = Program.start(paths, command, paths.gameLog,
                                     Sdl.environment(paths) + applied.environment +
                                         ("SDL_VIDEO_X11_SCALING_FACTOR" to uiScale),
-                                    Drivers.libraryPath(paths, driver))
+                                    Route.of(paths, driver).libraryPath(paths, driver))
         val memory = if (DetailedLogs.on(context)) DetailedLogs.watchMemory(started) else null
         val game = Game(started, driver, testing, memory)
         this.game = game

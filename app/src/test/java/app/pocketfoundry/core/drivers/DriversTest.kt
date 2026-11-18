@@ -135,24 +135,24 @@ class DriversTest {
 
     @Test fun `the CPU is for any GPU, like the phone's driver`() {
         val cpu = Drivers.Driver("cpu", "CPU", Drivers.Origin.CATALOG, "", entry = entry("cpu", "cpu"))
-        assertTrue(Drivers.forAnyGpu(cpu))
+        assertTrue(Route.of(cpu).anyGpu)
         assertTrue(Drivers.fits(cpu))
-        assertFalse(Drivers.forAnyGpu(Drivers.Driver("turnip", "Turnip", Drivers.Origin.CATALOG, "",
-                                                     entry = entry("turnip", "vulkan"))))
-        assertTrue(Drivers.forAnyGpu(Drivers.Driver("mobileglues", "MobileGlues", Drivers.Origin.CATALOG, "",
-                                                    entry = entry("mobileglues", "gles"))))
+        assertFalse(Route.of(Drivers.Driver("turnip", "Turnip", Drivers.Origin.CATALOG, "",
+                                            entry = entry("turnip", "vulkan"))).anyGpu)
+        assertTrue(Route.of(Drivers.Driver("mobileglues", "MobileGlues", Drivers.Origin.CATALOG, "",
+                                           entry = entry("mobileglues", "gles"))).anyGpu)
     }
 
     @Test fun `the phone's driver keeps textures through its compat layer only`() {
-        val ways = Drivers.textureWays(paths, Drivers.PHONE, mapOf("A" to "1"))
-        assertEquals(listOf(Drivers.TextureWay.LAYER), ways.map { it.saved })
+        val ways = Route.of(paths, Drivers.PHONE).textureWays(paths, mapOf("A" to "1"))
+        assertEquals(listOf(TextureWay.LAYER), ways.map { it.saved })
         assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "1"), ways.single().environment)
     }
 
     @Test fun `a Vulkan driver is tried as it is, then under the compat layer with its own stand-in off`() {
         val environment = mapOf("PANVK_DEBUG" to "sync", "MESA_VK_WSI_DEBUG" to "sw")
-        val ways = Drivers.textureWays(paths, "panvk-kbase-26", environment)
-        assertEquals(listOf(Drivers.TextureWay.DRIVER, Drivers.TextureWay.LAYER, Drivers.TextureWay.LAYER_VULKAN_13),
+        val ways = Route.of(paths, "panvk-kbase-26").textureWays(paths, environment)
+        assertEquals(listOf(TextureWay.DRIVER, TextureWay.LAYER, TextureWay.LAYER_VULKAN_13),
                      ways.map { it.saved })
         assertEquals("1.3", ways.last().environment["MESA_VK_VERSION_OVERRIDE"])
         assertEquals(ways[1].environment, ways.last().environment - "MESA_VK_VERSION_OVERRIDE")
@@ -160,21 +160,21 @@ class DriversTest {
         assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "1", "VK_LAYER_PATH" to "/files/usr/lib/hybris",
                            "VK_INSTANCE_LAYERS" to "VK_LAYER_HYBRIS_compat", "PANVK_DEBUG" to "sync,no_bc_emul",
                            "HYBRIS_MALI_SPEC_CONSTANTS" to "0"),
-                     Drivers.textureWay(paths, "panvk-kbase-26", environment, Drivers.TextureWay.LAYER))
+                     Drivers.textureWay(paths, "panvk-kbase-26", environment, TextureWay.LAYER))
     }
 
     @Test fun `the test picture draws with the drivers' stand-ins for BC off`() {
-        assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "0"), Drivers.withoutStandIns(paths, Drivers.PHONE, emptyMap()))
+        assertEquals(mapOf("HYBRIS_BC_TEXTURES" to "0"), Route.of(paths, Drivers.PHONE).withoutStandIns(emptyMap()))
         assertEquals(mapOf("PANVK_DEBUG" to "sync,no_bc_emul"),
-                     Drivers.withoutStandIns(paths, "panvk-kbase-26", mapOf("PANVK_DEBUG" to "sync")))
+                     Route.of(paths, "panvk-kbase-26").withoutStandIns(mapOf("PANVK_DEBUG" to "sync")))
         assertEquals(emptyMap<String, String>(),
-                     Drivers.withoutStandIns(installed("freedreno", "opengl"), "freedreno", emptyMap()))
+                     Route.of(installed("freedreno", "opengl"), "freedreno").withoutStandIns(emptyMap()))
     }
 
     @Test fun `a driver with its own OpenGL keeps textures its own way only`() {
         val paths = installed("freedreno", "opengl")
-        assertEquals(listOf(Drivers.TextureWay.DRIVER),
-                     Drivers.textureWays(paths, "freedreno", emptyMap()).map { it.saved })
+        assertEquals(listOf(TextureWay.DRIVER),
+                     Route.of(paths, "freedreno").textureWays(paths, emptyMap()).map { it.saved })
     }
 
     @Test fun `an imported driver draws through Zink on its own Vulkan driver, presenting in software`() {
@@ -197,15 +197,18 @@ class DriversTest {
         val paths = installed("freedreno", "opengl")
         installed("cpu", "cpu")
         assertEquals(listOf(DriverImport.folder(paths, "freedreno"), paths.lib),
-                     Drivers.libraryPath(paths, "freedreno"))
-        assertEquals(listOf(DriverImport.folder(paths, "cpu"), paths.lib), Drivers.libraryPath(paths, "cpu"))
+                     Route.of(paths, "freedreno").libraryPath(paths, "freedreno"))
+        assertEquals(listOf(DriverImport.folder(paths, "cpu"), paths.lib),
+                     Route.of(paths, "cpu").libraryPath(paths, "cpu"))
     }
 
     @Test fun `a Vulkan driver's folder only adds to the runtime`() {
         val paths = installed("turnip", "vulkan")
-        assertEquals(listOf(paths.lib, DriverImport.folder(paths, "turnip")), Drivers.libraryPath(paths, "turnip"))
-        assertEquals(listOf(paths.lib, DriverImport.folder(paths, "imported")), Drivers.libraryPath(paths, "imported"))
-        assertEquals(listOf(paths.lib), Drivers.libraryPath(paths, "phone"))
+        assertEquals(listOf(paths.lib, DriverImport.folder(paths, "turnip")),
+                     Route.of(paths, "turnip").libraryPath(paths, "turnip"))
+        assertEquals(listOf(paths.lib, DriverImport.folder(paths, "imported")),
+                     Route.of(paths, "imported").libraryPath(paths, "imported"))
+        assertEquals(listOf(paths.lib), Route.of(paths, "phone").libraryPath(paths, "phone"))
     }
 
     @Test fun `High sprites need room for what the textures really cost`() {
@@ -221,13 +224,13 @@ class DriversTest {
         val paths = installed("freedreno", "opengl")
         installed("cpu", "cpu")
         installed("mobileglues", "gles")
-        assertTrue(Drivers.checked(paths, "freedreno"))
-        assertFalse(Drivers.checked(paths, "cpu"))
-        assertFalse(Drivers.checked(paths, "mobileglues"))
-        assertFalse(Drivers.checked(paths, "listed", entry("listed", "gles")))
-        assertFalse(Drivers.checked(paths, "listed", entry("listed", "cpu")))
-        assertTrue(Drivers.checked(paths, "phone"))
-        assertTrue(Drivers.checked(paths, "turnip"))
+        assertTrue(Route.of(paths, "freedreno").checked)
+        assertFalse(Route.of(paths, "cpu").checked)
+        assertFalse(Route.of(paths, "mobileglues").checked)
+        assertFalse(Route.of(paths, "listed", entry("listed", "gles")).checked)
+        assertFalse(Route.of(paths, "listed", entry("listed", "cpu")).checked)
+        assertTrue(Route.of(paths, "phone").checked)
+        assertTrue(Route.of(paths, "turnip").checked)
     }
 
     private val today = java.time.LocalDate.of(2026, 11, 10)

@@ -1,8 +1,10 @@
 package app.pocketfoundry.core.runtime
 
 import app.pocketfoundry.core.controller.InputBridge
+import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.Drivers
+import app.pocketfoundry.core.drivers.Route
 import app.pocketfoundry.core.controller.PadButton
 import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.AudioBridge
@@ -60,6 +62,14 @@ class SourceContractTest {
         assertIn(paths, "getenv (\"${Program.RESTART_LIBRARIES}\")", "set-ld-variables.patch")
     }
 
+    @Test fun `the X server's settings in the drivers' checkboxes are names Termux X11 reads`() {
+        val x11 = File("../third_party/termux-x11/lorie/src/main/cpp/lorie").walk()
+            .filter { it.extension in setOf("c", "cpp", "h") }.joinToString("\n") { it.readText() }
+        val names = Catalog.APP_SETTINGS.values.flatten().flatMap { it.env.keys }
+        assertTrue(names.isNotEmpty())
+        for (name in names) assertIn(x11, "getenv(\"$name\")", "Termux:X11's X server")
+    }
+
     @Test fun `Detailed logs reach the Mesa and Termux X11 patches by one name`() {
         for (patch in listOf("../runtime/mesa/patches/0004-zink-log-presents.patch",
                              "../runtime/mesa/patches/0005-zink-hide-extensions.patch",
@@ -97,9 +107,9 @@ class SourceContractTest {
 
     @Test fun `libhybris reads Android's properties by the names the app sets`() {
         assertIn(File("../runtime/hybris/patches/0003-properties-android-values-from-the-app.patch").readText(),
-                 "getenv(\"${Drivers.HYBRIS_PROPERTIES}\")", "hybris 0003")
+                 "getenv(\"${Route.HYBRIS_PROPERTIES}\")", "hybris 0003")
         assertIn(File("../runtime/hybris/patches/0004-linker-android-10-config.patch").readText(),
-                 "getenv(\"${Drivers.HYBRIS_VNDK}\")", "hybris 0004")
+                 "getenv(\"${Route.HYBRIS_VNDK}\")", "hybris 0004")
     }
 
     @Test fun `the screen's lines in screen log start as our Termux X11 patches write them`() {

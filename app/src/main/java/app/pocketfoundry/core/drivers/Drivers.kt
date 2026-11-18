@@ -8,7 +8,6 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.X11Prefs
-import java.io.File
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -31,9 +30,6 @@ object Drivers {
     const val PHONE = "phone"
     const val CPU = "cpu"
 
-    /** Read by our libhybris patches 0003 and 0004 (runtime/hybris/patches). */
-    internal const val HYBRIS_PROPERTIES = "HYBRIS_PROPERTY_FILE"
-    internal const val HYBRIS_VNDK = "HYBRIS_VNDK_VERSION"
     /** The app's Turnip until 0.8.18: its records and choice moved to the catalog's. */
     private const val OLD_TURNIP = "zink"
 
@@ -70,15 +66,7 @@ object Drivers {
             Origin.CATALOG -> (DriverImport.downloaded(Paths(context), driver.id) ?: driver.entry)
                 ?.let { buildVersion(it.version, it.mesa, it.updated, LocalDate.now()) }.orEmpty()
         }
-        return withEngine(engine(driver), build)
-    }
-
-    private fun engine(driver: Driver) = when {
-        driver.origin == Origin.APP -> "Zink"
-        driver.origin == Origin.IMPORTED -> null
-        driver.entry?.kind == Catalog.Kind.GLES -> "MobileGlues"
-        driver.entry?.kind == Catalog.Kind.CPU -> "llvmpipe"
-        else -> null
+        return withEngine(Route.of(driver).engine, build)
     }
 
     /** "MobileGlues 2.3.0", its own version after it, but "Zink · Arm r38p1". */
@@ -113,13 +101,9 @@ object Drivers {
     /** Listed To try: made for another GPU of the same family. */
     fun toTry(driver: Driver) = driver.entry?.let { Catalog.mightFit(it, Gpu.name, Catalog.android) } == true
 
-    /** The phone's driver, the CPU and MobileGlues, on the phone's own OpenGL ES. */
-    fun forAnyGpu(driver: Driver) = driver.origin == Origin.APP ||
-        driver.entry?.kind.let { it == Catalog.Kind.CPU || it == Catalog.Kind.GLES }
-
     /** A catalog driver for neither this GPU nor its family can't be used. */
     fun fits(driver: Driver) =
-        driver.origin != Origin.CATALOG || forAnyGpu(driver) || forThisGpu(driver) || toTry(driver)
+        driver.origin != Origin.CATALOG || Route.of(driver).anyGpu || forThisGpu(driver) || toTry(driver)
 
     /** A choice that can't be used any more (a phone moved to another GPU, a driver removed) isn't one. */
     fun chosen(context: Context): String =
@@ -167,14 +151,6 @@ object Drivers {
 
     /** MaliBridge's fixes come with the phone's own driver. */
     fun isPhone(id: String) = id == PHONE
-
-    /**
-     * Whether DriverCheck checks [id]: every driver the game reaches through Mesa, as the check program does. Not
-     * MobileGlues, which goes through Android's OpenGL ES, nor the CPU, which a game falls back on anyway. [listed]:
-     * the catalog's entry, for one not downloaded yet.
-     */
-    fun checked(paths: Paths, id: String, listed: Catalog.Entry? = null) =
-        (DriverImport.downloaded(paths, id) ?: listed)?.kind.let { it != Catalog.Kind.GLES && it != Catalog.Kind.CPU }
 
     /** Not downloaded yet, or the catalog has a newer build of it: the next game downloads [id] first. */
     fun pending(context: Context, id: String): Catalog.Entry? {
@@ -232,7 +208,7 @@ object Drivers {
         // the GPU compressor crashed a Redmi 12's Mali-G52 through MobileGlues. MobileGlues keeps that BC as ASTC (from
         // its 2.3.0), or unpacks it where it can't, as it did before. MG_BC_DECODE in Options acts as a GPU without BC:
         // with ASTC (astc), or unpacking all (1).
-        DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES -> when {
+        Route.of(paths, id) == Route.MOBILEGLUES -> when {
             environment["MG_BC_DECODE"] == "1" -> Compression.NONE
             "BC" in Gpu.textureFormats && environment["MG_BC_DECODE"] != "astc" -> Compression.GPU
             else -> Compression.CPU
@@ -241,78 +217,9 @@ object Drivers {
         else -> Compression.GPU
     }
 
-    /** Through MobileGlues Factorio finds no GPU memory ("0 MB (failed to detect)"): FactorioConfig's noGpuMemory. */
-    fun findsNoGpuMemory(paths: Paths, id: String) = DriverImport.downloaded(paths, id)?.kind == Catalog.Kind.GLES
-
-    /**
-     * A way the game's BC textures can be kept on a driver, over its [environment]: DriverCheck tries them in order
-     * and measures what each does. [convertsWhatsMissing]: it can't leave them unpacked, where the driver doesn't say
-     * its memory.
-     */
-    class TextureWay(val saved: String, val environment: Map<String, String>, val convertsWhatsMissing: Boolean) {
-        companion object {
-            /** As the driver keeps BC: its own formats, or its own stand-in for them. */
-            const val DRIVER = "driver"
-            /**
-             * Through the compat layer's converter: BC where the driver has it, ASTC and EAC where it doesn't.
-             * Unpacked, they take about five times the room: a Mali-G52 with 3.7 GB ran out of memory loading the
-             * base game.
-             */
-            const val LAYER = "layer"
-            /**
-             * The same with the driver saying it's Vulkan 1.3 (Mesa's MESA_VK_VERSION_OVERRIDE): the layer turns
-             * itself off on 1.4, whose descriptor commands it doesn't handle yet, and PanVK-kbase on a Mali-G615 is
-             * 1.4. Mesa's drivers only; the phone's own driver doesn't read it.
-             */
-            const val LAYER_VULKAN_13 = "layer at Vulkan 1.3"
-        }
-    }
-
-    /** The compat layer's converter (runtime/hybris): 1 converts what the driver lacks, 0 leaves it to Mesa. */
-    internal const val CONVERTER = "HYBRIS_BC_TEXTURES"
-
-    /**
-     * The phone's driver has the compat layer already: its converter only. Other drivers first as they are, then with
-     * the layer on top, their own stand-in off so the layer sees what they lack (PANVK_DEBUG; the others have none),
-     * and without the layer's fixes for Arm's own shader compiler, which only the phone's driver has.
-     */
-    fun textureWays(paths: Paths, id: String, environment: Map<String, String>): List<TextureWay> {
-        val layer = TextureWay(TextureWay.LAYER, mapOf(CONVERTER to "1") + if (isPhone(id)) emptyMap() else mapOf(
-            "VK_LAYER_PATH" to listOfNotNull(environment["VK_LAYER_PATH"], paths.hybris.path).joinToString(":"),
-            "VK_INSTANCE_LAYERS" to listOfNotNull(environment["VK_INSTANCE_LAYERS"], COMPAT_LAYER).joinToString(":"),
-            "PANVK_DEBUG" to listOfNotNull(environment["PANVK_DEBUG"], "no_bc_emul").joinToString(","),
-            "HYBRIS_MALI_SPEC_CONSTANTS" to "0"), convertsWhatsMissing = true)
-        val layerAt13 = TextureWay(TextureWay.LAYER_VULKAN_13, layer.environment +
-                                       ("MESA_VK_VERSION_OVERRIDE" to "1.3"), convertsWhatsMissing = true)
-        return when {
-            isPhone(id) -> listOf(layer)
-            usesVulkan(paths, id) -> listOf(driverWay, layer, layerAt13)
-            // Freedreno: no Vulkan for the layer to go on.
-            else -> listOf(driverWay)
-        }
-    }
-
-    private val driverWay = TextureWay(TextureWay.DRIVER, emptyMap(), convertsWhatsMissing = false)
-
-    /**
-     * For DriverCheck's test picture: the driver's stand-ins for the BC it lacks off, so Mesa unpacks the compressed
-     * squares itself, exactly. The compat layer's converter on the phone's driver, PanVK's own on Vulkan drivers (the
-     * others have none, and ignore it); the textures step judges each stand-in on its own.
-     */
-    fun withoutStandIns(paths: Paths, id: String, environment: Map<String, String>): Map<String, String> = when {
-        isPhone(id) -> mapOf(CONVERTER to "0")
-        usesVulkan(paths, id) -> mapOf("PANVK_DEBUG" to
-            listOfNotNull(environment["PANVK_DEBUG"], "no_bc_emul").joinToString(","))
-        else -> emptyMap()
-    }
-
     /** What keeps the textures the way DriverCheck found, by its name. */
     fun textureWay(paths: Paths, id: String, environment: Map<String, String>, name: String) =
-        textureWays(paths, id, environment).firstOrNull { it.saved == name }?.environment.orEmpty()
-
-    /** The phone's driver, imported drivers and the catalog's Vulkan ones: Zink, where the compat layer can go. */
-    private fun usesVulkan(paths: Paths, id: String) =
-        DriverImport.downloaded(paths, id)?.kind.let { it == null || it == Catalog.Kind.VULKAN }
+        Route.of(paths, id).textureWays(paths, environment).firstOrNull { it.saved == name }?.environment.orEmpty()
 
     /**
      * Off the main thread: the newest catalog, which can change the recommended driver (a first start without it
@@ -359,8 +266,7 @@ object Drivers {
         val settings = Settings(context)
         val driver = chosen(context)
         val fit = if (cpu) null else SpeedTest.fit(context, DriverCheck.speed(context, driver), settings.frameRate)
-        val gles = (DriverImport.downloaded(Paths(context), driver) ?: Catalog.get(context).find(driver))?.kind ==
-            Catalog.Kind.GLES
+        val gles = Route.of(Paths(context), driver, Catalog.get(context).find(driver)) == Route.MOBILEGLUES
         val room = highSpritesFit(DriverCheck.freeMemory(context, driver), DriverCheck.textureCost(context, driver))
         settings.setGraphicsDefaults(if (cpu || gles || !room) Settings.MEDIUM else Settings.HIGH,
                                      cpu || fit?.light == true, onlyUnset)
@@ -399,61 +305,9 @@ object Drivers {
         // app id's (pocket-foundry-drivers built for app.pocketfoundry, before 0.9); here they're always found.
         val base = mapOf("__EGL_VENDOR_LIBRARY_DIRS" to paths.eglVendors.path, "MESA_LOADER_DRIVER_OVERRIDE" to "zink",
                          "DRIRC_CONFIGDIR" to paths.drirc.path)
-        return base + when (id) {
-            // Zink on Android's own Vulkan driver, which libhybris loads (runtime/hybris). Its compat layer adds what
-            // Zink needs and the driver may lack, like null descriptors on Mali.
-            PHONE -> mapOf("VK_DRIVER_FILES" to paths.hybrisIcd.path,
-                           "VK_LAYER_PATH" to paths.hybris.path,
-                           HYBRIS_PROPERTIES to paths.androidProperties.path,
-                           // Android 10's linker config is named by it: libhybris's linker can't read properties.
-                           HYBRIS_VNDK to vndk(),
-                           "VK_INSTANCE_LAYERS" to COMPAT_LAYER)
-            else -> if (installed?.kind == Catalog.Kind.GLES) {
-                mobileGlues(paths, DriverImport.folder(paths, id), vndk()) + installed.env + fixes
-            } else if (installed != null) {
-                val icd = DriverImport.icd(paths, id).path
-                val vulkan = if (installed.kind.ownMesa) emptyMap()
-                             else mapOf("VK_DRIVER_FILES" to icd) + androidBuffers(paths, vndk())
-                vulkan + installed.env + fixes
-            } else {
-                // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
-                mapOf("VK_DRIVER_FILES" to DriverImport.icd(paths, id).path, "MESA_VK_WSI_DEBUG" to "sw")
-            }
-        }
+        return base + Route.of(id, installed).environment(paths, id, vndk) + installed?.env.orEmpty() + fixes
     }
 
-    /**
-     * SDL makes the game's OpenGL context with [folder]'s EGL, a shim to MobileGlues' (libmgx11.so, from
-     * pocket-foundry-drivers): MobileGlues turns OpenGL into the phone's OpenGL ES, which libhybris's EGL and GLES
-     * load (runtime/hybris), and the shim gives SDL's X11 window a pbuffer the GPU copies into Android hardware buffers
-     * the X server shows. No Zink, no Vulkan.
-     */
-    private fun mobileGlues(paths: Paths, folder: File, vndk: String) = mapOf(
-        "SDL_VIDEO_FORCE_EGL" to "1",
-        "SDL_EGL_LIBRARY" to File(folder, "libmgx11.so").path,
-        "SDL_OPENGL_LIBRARY" to File(folder, "libmobileglues.so").path,
-        "MG_LIBRARY" to File(folder, "libmobileglues.so").path,
-        "MG_EGL_LIBRARY" to File(paths.hybris, "libEGL.so.1").path,
-        "MG_GLES_LIBRARY" to File(paths.hybris, "libGLESv2.so.2").path,
-        "MG_DIR_PATH" to File(folder, "mobileglues").path,
-        // libhybris's EGL draws offscreen only: the shim shows the frames.
-        "EGL_PLATFORM" to "null",
-        HYBRIS_PROPERTIES to paths.androidProperties.path,
-        HYBRIS_VNDK to vndk)
-
-    /**
-     * A catalog Vulkan driver's swapchain draws into Android hardware buffers, which Termux:X11 shows as they are,
-     * when it can load libhybris, which brings Android's own libraries into the game (pocket-foundry-drivers'
-     * mesa-x11-android-hardware-buffers.patch, in Turnip): otherwise the screen copies or uploads every frame. A
-     * driver without the patch doesn't read it; POCKETFOUNDRY_HYBRIS= in its Options turns it off.
-     */
-    private fun androidBuffers(paths: Paths, vndk: String) = mapOf(
-        ANDROID_BUFFERS to File(paths.hybris, "libhybris-common.so.1").path,
-        HYBRIS_PROPERTIES to paths.androidProperties.path,
-        HYBRIS_VNDK to vndk)
-
-    internal const val ANDROID_BUFFERS = "POCKETFOUNDRY_HYBRIS"
-    private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
     private const val X11_PREFIX = "TERMUX_X11_"
 
     /** Factorio's estimate of its textures at High, compressed, with Space Age: 1053 MB on a vivo X200 Ultra. */
@@ -469,17 +323,6 @@ object Drivers {
      */
     internal fun highSpritesFit(freeMb: Int?, cost: Double) =
         freeMb != null && freeMb >= HEADROOM * (HIGH_TEXTURES_MB * cost + REST_MB)
-
-    /**
-     * Where [id]'s process finds its libraries. A driver with its own Mesa needs it before the runtime's; a Vulkan
-     * driver's folder only adds what the runtime lacks.
-     */
-    fun libraryPath(paths: Paths, id: String): List<File> {
-        if (id == PHONE) return listOf(paths.lib)
-        val folder = DriverImport.folder(paths, id)
-        return if (DriverImport.downloaded(paths, id)?.kind?.ownMesa == true) listOf(folder, paths.lib)
-               else listOf(paths.lib, folder)
-    }
 
     /**
      * What's laid over [id]'s environment, last: its Settings checkboxes, then Settings -> Driver -> Options for it

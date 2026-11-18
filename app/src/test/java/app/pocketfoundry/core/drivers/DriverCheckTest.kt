@@ -211,8 +211,8 @@ class DriverCheckTest {
         assertEquals("Couldn't draw", DriverCheck.brief(saved("off" to "", "failed" to true)))
     }
 
-    private val driverWay = Drivers.TextureWay(Drivers.TextureWay.DRIVER, emptyMap(), convertsWhatsMissing = false)
-    private val layerWay = Drivers.TextureWay(Drivers.TextureWay.LAYER, emptyMap(), convertsWhatsMissing = true)
+    private val driverWay = TextureWay(TextureWay.DRIVER, emptyMap(), convertsWhatsMissing = false)
+    private val layerWay = TextureWay(TextureWay.LAYER, emptyMap(), convertsWhatsMissing = true)
     private fun atlases(draws: Boolean = true, comesBack: Boolean = true, takes: Int = 66) =
         DriverCheck.Atlases(draws, comesBack, copies = true, takesMb = takes, compressedMb = 64)
 
