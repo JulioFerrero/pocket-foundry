@@ -49,6 +49,8 @@ import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.immersive
 import app.pocketfoundry.ui.kit.pad
 import app.pocketfoundry.ui.kit.panel
+import app.pocketfoundry.ui.kit.padForCutout
+import app.pocketfoundry.ui.kit.edgeToEdge
 import app.pocketfoundry.ui.kit.stack
 import java.io.File
 import kotlin.concurrent.thread
@@ -95,8 +97,12 @@ class LogActivity : Activity() {
             add(stack(context, Frame.DEEP) { add(scroll, MATCH, MATCH) }, height = 0, weight = 1f)
             add(buttonBar(context, "Back", ::finish, report, copy))
         }
+        // Drawn under the camera cutout as the launcher is, the panel kept clear of it: else the strip beside it
+        // shows the theme's own background.
+        edgeToEdge()
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Factorio.BODY)
+            padForCutout()
             add(panel, start = 24, top = 24, end = 24, bottom = 24)
         })
     }
@@ -230,6 +236,7 @@ class LogActivity : Activity() {
                     span(ForegroundColorSpan(Factorio.HEADING))
                     span(StyleSpan(Typeface.BOLD))
                 }
+                LOOKUP.matches(line) -> span(ForegroundColorSpan(DIM))
                 ERROR.containsMatchIn(line) -> span(ForegroundColorSpan(RED))
                 WARNING.containsMatchIn(line) -> span(ForegroundColorSpan(AMBER))
                 stamp != null -> span(ForegroundColorSpan(DIM), start + stamp.range.last + 1)
@@ -250,6 +257,11 @@ class LogActivity : Activity() {
         private val LOGS = listOf(Excerpt(Paths::gameLog, last = 340, first = 60), Excerpt(Paths::wmLog, 20),
                                   Excerpt(Paths::screenLog, 120), Excerpt(Paths::x11Log, 120),
                                   Excerpt(Paths::driverCheckLog, 40))
+        /**
+         * libhybris's linker looking for a library in one of Android's namespaces before the one that has it: kept
+         * for a load that really fails, dimmed so it doesn't read as one.
+         */
+        private val LOOKUP = Regex("""library "[^"]+" not found""")
         private val TEXT = Color.rgb(0xD5, 0xD9, 0xE0)
         private val DIM = Color.rgb(0x7A, 0x78, 0x76)
         private val AMBER = Color.rgb(0xE6, 0xB4, 0x50)
