@@ -304,7 +304,9 @@ object Session {
         keepXServerLog(server, paths.x11Log)
         val deadline = System.currentTimeMillis() + X_START_TIMEOUT_MS
         while (!paths.xSocket.exists()) {
-            if (!server.isAlive) throw IOException("The X server exited; see ${paths.x11Log.name}")
+            // How it ended tells a crash (a signal) from a refusal (a status) when it dies before writing its log.
+            if (!server.isAlive) throw IOException("The X server exited (${Program.Exit(server.exitValue())}); " +
+                                                   "see ${paths.x11Log.name}")
             if (System.currentTimeMillis() > deadline) {
                 // On a Galaxy A03s one still starting outlived destroy()'s SIGTERM and slowed the next start.
                 server.destroyForcibly()
