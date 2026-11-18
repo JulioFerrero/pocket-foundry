@@ -134,7 +134,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         setting("Frame rate", frameRate),
         dropdownSetting("Sprite quality", sprites),
         setting("Graphics", graphics),
-        setting("Driver", driver, CONTROL_WIDTH))
+        setting("Driver", driver, CONTROL_WIDTH, CONTROL_HEIGHT))
 
     private fun interfacePage() = page(
         dropdownSetting("Border", border),

@@ -38,7 +38,9 @@ import app.pocketfoundry.ui.kit.Dropdown
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.Tone
+import app.pocketfoundry.ui.kit.MATCH
 import app.pocketfoundry.ui.kit.WRAP
+import app.pocketfoundry.ui.kit.Window
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.label
@@ -91,7 +93,8 @@ class LauncherActivity : Activity() {
             add(importing.view, 560, WRAP, Gravity.CENTER)
             add(startScreen.view, 560, WRAP, Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM, bottom = 24)
             add(home.view)
-            add(settingsScreen.view, start = 24, top = 16, end = 24, bottom = 16)
+            add(Window(this@LauncherActivity, SETTINGS_WIDTH).apply { add(settingsScreen.view) }, MATCH, MATCH,
+                Gravity.CENTER, start = 24, top = 16, end = 24, bottom = 16)
         }
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Stage.BACKGROUND)
@@ -427,6 +430,8 @@ class LauncherActivity : Activity() {
     }
 
     private companion object {
+        /** Settings' window at most, in dp: its rows keep their labels near their controls. */
+        const val SETTINGS_WIDTH = 660
         const val PICK_FILES = 1
         const val ASK_NOTIFICATIONS = 2
         const val PICK_GAME = 3

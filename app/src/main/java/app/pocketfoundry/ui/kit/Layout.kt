@@ -116,6 +116,17 @@ fun <V : View> FrameLayout.add(view: V, width: Int = MATCH, height: Int = MATCH,
 
 fun LinearLayout.spacer() = add(View(context), 0, 0, weight = 1f)
 
+/** Takes the width it's given up to [max] dp, centred: a window over the screen rather than the whole of it. */
+class Window(context: Context, max: Int) : FrameLayout(context) {
+    private val maxPx = context.dpi(max)
+
+    override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+        val size = MeasureSpec.getSize(widthSpec)
+        super.onMeasure(if (size > maxPx) MeasureSpec.makeMeasureSpec(maxPx, MeasureSpec.EXACTLY) else widthSpec,
+                        heightSpec)
+    }
+}
+
 fun row(context: Context, gravity: Int = Gravity.CENTER_VERTICAL, build: LinearLayout.() -> Unit) = LinearLayout(context).apply {
     this.gravity = gravity
     build()
