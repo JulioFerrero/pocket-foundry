@@ -293,6 +293,8 @@ object Session {
             put("TMPDIR", paths.tmp.path)
             put("XKB_CONFIG_ROOT", paths.xkb.path)
             put("XLORIE_LIB", paths.xlorie.path)
+            // The chosen driver's checkboxes and Options meant for Termux:X11 (Show frames directly).
+            putAll(Drivers.xServerEnvironment(context, Drivers.chosen(context)))
             putAll(DetailedLogs.environment(context))
             putAll(DebugEnv.read(context, "x11"))
         }

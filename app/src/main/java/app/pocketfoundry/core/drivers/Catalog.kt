@@ -35,6 +35,20 @@ object Catalog {
 
     class Setting(val id: String, val label: String, val about: String, val env: Map<String, String>)
 
+    /**
+     * Checkboxes the app adds to a driver beside the catalog's: ones for the X server (TERMUX_X11_*, Session), which
+     * an older app would pass to the game instead, so the catalog can't offer them.
+     */
+    private val APP_SETTINGS = mapOf(
+        // Termux:X11 copies each frame of a driver whose buffers it imported ("it does not work fine with turnip",
+        // upstream, from before our Mesa waited for a frame before presenting it): 48 FPS at 3168x1440 on the vivo,
+        // 60 shown directly. Untested on other phones, so the player's to turn on.
+        "turnip" to listOf(Setting("flip", "Show frames directly",
+                                   "Faster at high resolutions: the screen shows the game's frames itself instead of " +
+                                   "copying each one. Turn it off if the screen flashes.",
+                                   mapOf("TERMUX_X11_FORCE_FLIP" to "1"))),
+    )
+
     class Test(val phone: String, val gpu: String, val android: Int?, val result: String, val fps: String?)
 
     /** A driver as the catalog lists it, or as it was when installed (DriverDownload keeps that copy). */
@@ -54,7 +68,7 @@ object Catalog {
         val env = json.optJSONObject("env").toMap()
         val settings = json.optJSONArray("settings")?.objects().orEmpty().map {
             Setting(it.getString("id"), it.getString("label"), it.optString("about"), it.optJSONObject("env").toMap())
-        }
+        }.let { listed -> listed + APP_SETTINGS[id].orEmpty().filter { own -> listed.none { it.id == own.id } } }
         /** Not ready for players: listed only with Settings.testDrivers, and never chosen by itself. */
         val testing = json.optBoolean("testing")
         val tested = json.optJSONArray("tested")?.objects().orEmpty().map {

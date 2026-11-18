@@ -441,6 +441,7 @@ object Drivers {
         HYBRIS_VNDK to vndk)
 
     private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
+    private const val X11_PREFIX = "TERMUX_X11_"
 
     /** Factorio's estimate of its textures at High, compressed, with Space Age: 1053 MB on a vivo X200 Ultra. */
     private const val HIGH_TEXTURES_MB = 1053
@@ -477,6 +478,9 @@ object Drivers {
             .fold(emptyMap<String, String>()) { env, setting -> env + setting.env }
         return settings + parseOptions(DriverRecords.options(context, id)) + DebugEnv.read(context, "game")
     }
+
+    /** The X server's share of [id]'s overrides: Termux:X11 reads the TERMUX_X11_* ones (Catalog.APP_SETTINGS). */
+    fun xServerEnvironment(context: Context, id: String) = overrides(context, id).filterKeys { it.startsWith(X11_PREFIX) }
 
     internal fun parseOptions(text: String): Map<String, String> = text.split(Regex("\\s+"))
         .mapNotNull { OPTION.matchEntire(it)?.destructured }.associate { (name, value) -> name to value }
