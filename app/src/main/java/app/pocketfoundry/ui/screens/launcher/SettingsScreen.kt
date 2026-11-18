@@ -5,6 +5,8 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.text.TextUtils
+import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.GameFilesProvider
 import app.pocketfoundry.core.system.GITHUB
@@ -22,6 +24,8 @@ import app.pocketfoundry.ui.kit.Dropdown
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.MATCH
+import app.pocketfoundry.ui.kit.MaxWidth
+import app.pocketfoundry.ui.kit.Tabs
 import app.pocketfoundry.ui.kit.WRAP
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
@@ -87,15 +91,26 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         add(link(launcher, "GitHub", GITHUB, 13f))
     }
     private val importAgain = button(launcher, "Import game", size = 15f, onClick = launcher::pickGame)
+    private val driver = button(launcher, "", size = 15f) { DriverDialog(launcher).show() }.apply {
+        maxLines = 1
+        ellipsize = TextUtils.TruncateAt.END
+    }
+
+    // As in the game's own settings: a tab for each kind, none long enough to scroll on a phone.
+    private val pages = listOf(graphicsPage(), interfacePage(), controlsPage(), otherPage())
+    private val pageFrame = FrameLayout(launcher).apply { pages.forEach { add(it) } }
+    private val tabs = Tabs(launcher, listOf("Graphics", "Interface", "Controls", "Other"), ::open)
+
+    init {
+        open(0)
+    }
 
     val view: View = panel(launcher, header()) {
-        add(row(launcher) {
-            add(display(), 0, MATCH, weight = 1f)
-            add(game(), 0, MATCH, weight = 1f, start = 10)
-        }, height = 0, weight = 1f)
+        add(tabs)
+        add(stack(launcher, Frame.SHALLOW, padding = 10) { add(pageFrame, height = MATCH) }, height = 0, weight = 1f,
+            top = -6)
         add(buttonBar(launcher, "Back", { launcher.showSettings(false) }).apply {
-            add(button(launcher, "Driver", size = 15f) { DriverDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)
-            add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 4)
+            add(button(launcher, "Saves", size = 15f) { SavesDialog(launcher).show() }, height = BUTTON_HEIGHT, start = 12)
             add(button(launcher, "Files", size = 15f) { GameFilesProvider.open(launcher) }, height = BUTTON_HEIGHT, start = 4)
             add(importAgain, height = BUTTON_HEIGHT, start = 4)
         })
@@ -107,19 +122,33 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         add(credit, end = 4)
     }
 
-    private fun display() = section("Display",
+    private fun open(tab: Int) {
+        tabs.selected = tab
+        pages.forEachIndexed { i, page -> page.shown = i == tab }
+    }
+
+    private fun graphicsPage() = page(
         dropdownSetting("Resolution", resolution),
-        dropdownSetting("Border", border),
         setting("Frame rate", frameRate),
         dropdownSetting("Sprite quality", sprites),
-        setting("Graphics", graphics))
+        setting("Graphics", graphics),
+        setting("Driver", driver, CONTROL_WIDTH))
 
-    private fun game() = section("Game",
-        checkSetting("Pause in background", settings.pauseInBackground) { settings.pauseInBackground = it },
-        checkSetting("Vibration", settings.vibration) { settings.vibration = it },
+    private fun interfacePage() = page(
+        dropdownSetting("Border", border),
+        checkSetting("FPS counter", settings.fpsCounter) { settings.fpsCounter = it },
+        checkSetting("Pause in background", settings.pauseInBackground) { settings.pauseInBackground = it })
+
+    private fun controlsPage() = page(
         setting("Touch", touch),
         trackpadSpeedRow,
-        checkSetting("FPS counter", settings.fpsCounter) { settings.fpsCounter = it },
+        checkSetting("Vibration", settings.vibration) { settings.vibration = it },
+        setting("Layout", FrameLayout(launcher).apply {
+            add(editLayout, WRAP, 40, Gravity.END)
+            add(layoutLater, WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL)
+        }))
+
+    private fun otherPage() = page(
         setting(fastStart, checkBox(launcher, settings.fastStart) {
             settings.fastStart = it
             if (!it) paths.atlasCache.delete()
@@ -128,20 +157,14 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         checkSetting("Detailed logs", settings.detailedLogs) { settings.detailedLogs = it },
         setting(label(launcher, "", 15f).apply {
             text = withNote("Driver downloads", "from GitHub, outside F-Droid's checks", Factorio.FAINT)
-        }, driverDownloads, controlHeight = CONTROL_HEIGHT),
-        setting("Controls layout", FrameLayout(launcher).apply {
-            add(editLayout, WRAP, 40, Gravity.END)
-            add(layoutLater, WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL)
-        }))
+        }, driverDownloads, controlHeight = CONTROL_HEIGHT))
 
-    private fun section(title: String, vararg rows: View) = stack(launcher, Frame.SHALLOW, padding = 10, gap = 6) {
-        add(heading(launcher, title, 17f))
-        add(ScrollView(launcher).apply {
-            isVerticalFadingEdgeEnabled = true
-            setFadingEdgeLength(launcher.dpi(24))
-            keepScrollBar()
-            addView(column(launcher, gap = 6) { rows.forEach { add(it) } })
-        }, height = 0, weight = 1f)
+    /** One tab's rows, as wide as a phone's half of the screen at most. Scrolls only on the smallest. */
+    private fun page(vararg rows: View) = ScrollView(launcher).apply {
+        isVerticalFadingEdgeEnabled = true
+        setFadingEdgeLength(launcher.dpi(24))
+        keepScrollBar()
+        addView(MaxWidth(launcher, PAGE_WIDTH).apply { add(column(launcher, gap = 6) { rows.forEach { add(it) } }) })
     }
 
     private fun setting(text: String, control: View, controlWidth: Int = WRAP, controlHeight: Int = 40) =
@@ -195,10 +218,12 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         layoutLater.shown = !Session.live
         importAgain.isEnabled = !Session.inGame && idle
         driverDownloads.isChecked = settings.driverDownloads == Settings.ON
+        driver.text = Drivers.find(launcher, Drivers.chosen(launcher))?.name.orEmpty()
     }
 
     private companion object {
         const val CONTROL_WIDTH = 170
+        const val PAGE_WIDTH = 560
         const val CONTROL_HEIGHT = 34
         const val FULL = 0
         const val LIGHT = 1
