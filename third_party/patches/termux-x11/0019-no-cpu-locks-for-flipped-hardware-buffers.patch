@@ -1,0 +1,49 @@
+--- a/lorie/src/main/cpp/lorie/InitOutput.c
++++ b/lorie/src/main/cpp/lorie/InitOutput.c
+@@ -589,6 +589,8 @@
+ 
+     nonEmpty = RegionNotEmpty(DamageRegion(pvfb->damage));
+     priv = root ? exaGetPixmapDriverPrivate(root) : NULL;
++    pvfb->state->rootIsClients = root && priv && priv->buffer && root != (*pScreenPtr->GetScreenPixmap)(pScreenPtr) &&
++                                 LorieBuffer_description(priv->buffer)->type == LORIEBUFFER_AHARDWAREBUFFER;
+ 
+     if (!priv)
+         // Impossible situation, but let's skip this step
+@@ -697,7 +699,12 @@
+             old->locked = NULL;
+             old->wasLocked = false;
+         }
+-        if (new && new->buffer && !new->locked) {
++        // Pocket Foundry: not a client's hardware buffer flipped in, which only its GPU draws: each lock and unlock of
++        // one the CPU may read syncs its cache, a whole frame's worth each time. loriePrepareAccess locks it if the
++        // server ever draws on it.
++        bool clients = newPixmap != pScreenPtr->GetScreenPixmap(pScreenPtr) && new && new->buffer &&
++                       LorieBuffer_description(new->buffer)->type == LORIEBUFFER_AHARDWAREBUFFER;
++        if (new && new->buffer && !new->locked && !clients) {
+             LorieBuffer_lock(new->buffer, &new->locked);
+             new->wasLocked = false;
+         }
+--- a/lorie/src/main/cpp/lorie/lorie.h
++++ b/lorie/src/main/cpp/lorie/lorie.h
+@@ -241,6 +241,10 @@
+     /* Pocket Foundry's Detailed logs, from POCKETFOUNDRY_DETAILED_LOGS in the X server's environment: the renderer
+      * then writes its log to stderr too. */
+     volatile uint8_t detailedLogs;
++
++    /* Pocket Foundry: the root window shows a client's hardware buffer (a Present flip), which its GPU drew: no CPU
++     * cache to sync before the renderer samples it. */
++    volatile uint8_t rootIsClients;
+ };
+ 
+ #ifdef __cplusplus
+--- a/lorie/src/main/cpp/lorie/renderer.cpp
++++ b/lorie/src/main/cpp/lorie/renderer.cpp
+@@ -967,7 +967,7 @@
+     // The X server sets it again when the screen reconnects.
+     if (relockRefused)
+         state->rendererRelock = 0;
+-    if (state->rendererRelock)
++    if (state->rendererRelock && !state->rootIsClients)
+         syncRootForGpu(state, buffer);
+     state->drawRequested = FALSE;
+ 

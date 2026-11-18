@@ -412,7 +412,8 @@ object Drivers {
                 mobileGlues(paths, DriverImport.folder(paths, id), vndk()) + installed.env + fixes
             } else if (installed != null) {
                 val icd = DriverImport.icd(paths, id).path
-                val vulkan = if (installed.kind.ownMesa) emptyMap() else mapOf("VK_DRIVER_FILES" to icd)
+                val vulkan = if (installed.kind.ownMesa) emptyMap()
+                             else mapOf("VK_DRIVER_FILES" to icd) + androidBuffers(paths, vndk())
                 vulkan + installed.env + fixes
             } else {
                 // Imported drivers lack our wait-before-present patch; the software path waits for the GPU instead.
@@ -440,6 +441,18 @@ object Drivers {
         HYBRIS_PROPERTIES to paths.androidProperties.path,
         HYBRIS_VNDK to vndk)
 
+    /**
+     * A catalog Vulkan driver's swapchain draws into Android hardware buffers, which Termux:X11 shows as they are,
+     * when it can load libhybris, which brings Android's own libraries into the game (pocket-foundry-drivers'
+     * mesa-x11-android-hardware-buffers.patch, in Turnip): otherwise the screen copies or uploads every frame. A
+     * driver without the patch doesn't read it; POCKETFOUNDRY_HYBRIS= in its Options turns it off.
+     */
+    private fun androidBuffers(paths: Paths, vndk: String) = mapOf(
+        ANDROID_BUFFERS to File(paths.hybris, "libhybris-common.so.1").path,
+        HYBRIS_PROPERTIES to paths.androidProperties.path,
+        HYBRIS_VNDK to vndk)
+
+    internal const val ANDROID_BUFFERS = "POCKETFOUNDRY_HYBRIS"
     private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
     private const val X11_PREFIX = "TERMUX_X11_"
 

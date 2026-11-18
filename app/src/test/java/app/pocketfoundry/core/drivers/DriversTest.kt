@@ -79,12 +79,21 @@ class DriversTest {
 
     @Test fun `a catalog Vulkan driver draws through Zink on it, with its own settings and the fixes for it`() {
         val turnip = entry("turnip", "vulkan", """{"TU_DEBUG": "x"}""")
-        val environment = Drivers.environment(paths, "turnip", turnip, mapOf("FD_DEV_FEATURES" to "y"))
+        val environment = Drivers.environment(paths, "turnip", turnip, mapOf("FD_DEV_FEATURES" to "y")) { "33" }
         assertEquals("zink", environment["MESA_LOADER_DRIVER_OVERRIDE"])
         assertEquals(DriverImport.icd(paths, "turnip").path, environment["VK_DRIVER_FILES"])
         assertEquals("x", environment["TU_DEBUG"])
         assertEquals("y", environment["FD_DEV_FEATURES"])
         assertEquals(null, environment["MESA_VK_WSI_DEBUG"])
+    }
+
+    @Test fun `a catalog Vulkan driver can draw into Android hardware buffers, through libhybris`() {
+        val environment = Drivers.environment(paths, "turnip", entry("turnip", "vulkan"), emptyMap()) { "33" }
+        assertEquals("/files/usr/lib/hybris/libhybris-common.so.1", environment["POCKETFOUNDRY_HYBRIS"])
+        assertEquals(paths.androidProperties.path, environment["HYBRIS_PROPERTY_FILE"])
+        assertEquals("33", environment["HYBRIS_VNDK_VERSION"])
+        val freedreno = Drivers.environment(paths, "freedreno", entry("freedreno", "opengl"), emptyMap()) { "33" }
+        assertEquals(null, freedreno["POCKETFOUNDRY_HYBRIS"])
     }
 
     @Test fun `a catalog OpenGL driver is its own Mesa, without Zink`() {
@@ -96,7 +105,7 @@ class DriversTest {
 
     @Test fun `every driver reads Mesa's per-application settings from the runtime, whatever path it was built for`() {
         for ((id, kind) in listOf("turnip" to "vulkan", "freedreno" to "opengl", "cpu" to "cpu")) {
-            val environment = Drivers.environment(paths, id, entry(id, kind, "{}"), emptyMap())
+            val environment = Drivers.environment(paths, id, entry(id, kind, "{}"), emptyMap()) { "33" }
             assertEquals(id, paths.drirc.path, environment["DRIRC_CONFIGDIR"])
         }
     }
