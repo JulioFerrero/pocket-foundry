@@ -60,7 +60,10 @@ enum class KeyIcon(val path: String, val stroke: Float = 2f) {
     CLOSE("M5 5l10 10M15 5L5 15"),
     DOTS("M4 10h.01M10 10h.01M16 10h.01", stroke = 3.4f),
     EDIT("M3 6h14M3 10h14M3 14h14M7 4.5v3M13 8.5v3M9 12.5v3"),
-    HIDE("M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6zM10 7.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5M4 16L16 4");
+    HIDE("M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6zM10 7.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5M4 16L16 4"),
+    LOCK("M4.5 9h11v8h-11zM7 9V6.5a3 3 0 0 1 6 0V9", stroke = 2.4f),
+    /** The stick, in the editor's list: it's drawn as itself on screen. */
+    STICK("M10 3a7 7 0 1 0 0 14a7 7 0 1 0 0-14M10 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6");
 
     companion object {
         /** The box its path is drawn in. */
@@ -171,7 +174,7 @@ object Keys {
             places = drawer(KeySet.GAME, KeySet.MAP)),
         key("paste", KeyGroup.EDITING, "", KeyIcon.PASTE, "Paste", KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_V,
             places = drawer(KeySet.GAME, KeySet.MAP)),
-        Def("stick", Kind.KeyStick, KeyGroup.MOVING, "", null, "Stick", wide = false, size = STICK,
+        Def("stick", Kind.KeyStick, KeyGroup.MOVING, "", KeyIcon.STICK, "Stick", wide = false, size = STICK,
             places = mapOf(KeySet.GAME to Place(0.0852f, 0.652f), KeySet.MAP to Place(0.0852f, 0.652f))),
         key("console", KeyGroup.OTHER, "`", KeyIcon.CONSOLE, "Console", KeyEvent.KEYCODE_GRAVE),
         Def("keyboard", Kind.ToolKey(Tool.KEYBOARD), KeyGroup.OTHER, "", KeyIcon.KEYBOARD, "Keyboard", wide = false,
@@ -190,7 +193,7 @@ object Keys {
         Control(def.id, def.kind, place?.takeUnless { it.drawer }?.x ?: NEW_X,
                 place?.takeUnless { it.drawer }?.y ?: NEW_Y, def.size, glyph = null, pill = def.wide,
                 label = def.label, name = def.name, keyIcon = def.icon, defaultShown = place != null,
-                defaultInDrawer = place?.drawer == true, defaultLatch = def.latch)
+                defaultInDrawer = place?.drawer == true, defaultLatch = def.latch, group = def.group)
     }
 
     /** The keys the stick holds, as [DpadDir] bits, for its knob [dx], [dy] from the middle, [r] its reach. */

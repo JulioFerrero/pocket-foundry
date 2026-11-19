@@ -151,6 +151,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
         val tool = toolbar.lift(id)
         if (tool != null) return use(tool)
         editor.up(id)
+        if (editor.active) invalidate()
         val control = pressed[id] ?: return
         pressed[id] = null
         if (control.lift(id)) invalidate()
@@ -182,7 +183,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
     }
 
     private fun tools() = when {
-        editor.active -> Toolbar.EDITING
+        editor.active -> if (input == Input.KEYS) Toolbar.EDITING_KEYS else Toolbar.EDITING
         input == Input.KEYBOARD -> Toolbar.NONE
         // A real controller still needs the phone's keyboard, for typing names.
         padInHand -> Toolbar.PAD_IN_HAND
@@ -197,6 +198,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
         if (tools.isEmpty() && !controlsShown) return
         val sheet = GuiSprites.get(context)
         painter.box = settings.touch == Settings.BOX
+        painter.editing = editor.active
         if (editor.active) canvas.drawColor(EDITOR_SHADE)
         val controls = layout.shownControls
         val sprites = ControlSprites.get(context, layout.frame, ::invalidate)
@@ -211,6 +213,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
             if (painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected, now)) moving = true
         }
         if (controlsShown && painter.drawDrawer(canvas, sheet, editor.selected, now)) moving = true
+        if (editor.active) editor.drawSets(canvas, sheet)
         if (editor.counterSelected) {
             counter.bounds(counterBox)
             if (!counterBox.isEmpty) painter.drawSelection(canvas, counterBox)

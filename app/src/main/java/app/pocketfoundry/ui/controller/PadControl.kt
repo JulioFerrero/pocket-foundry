@@ -50,6 +50,8 @@ class Control(
     val defaultShown: Boolean = true,
     val defaultInDrawer: Boolean = false,
     val defaultLatch: Boolean = false,
+    /** Where the editor lists a Mouse & keys key. */
+    val group: KeyGroup? = null,
 ) {
     val anchor = when {
         defaultY < 0.2f -> Anchor.TOP

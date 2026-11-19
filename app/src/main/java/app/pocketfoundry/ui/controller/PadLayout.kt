@@ -83,6 +83,11 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         placeDrawer()
     }
 
+    fun showDrawer(drawer: Control) {
+        openDrawer = drawer
+        placeDrawer()
+    }
+
     fun closeDrawer() {
         openDrawer = null
     }

@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.PointF
 import android.graphics.RectF
 import android.os.VibrationEffect
+import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.GuiSheet
 import kotlin.math.hypot
 
@@ -42,12 +43,16 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     private val counterBox = RectF()
 
     fun down(id: Int, x: Float, y: Float) {
-        if (adding) {
+        if (adding && layout.keysMode) {
+            val offer = offerAt(x, y)
+            if (offer != null) return add(offer)
+        } else if (adding) {
             val removed = addable()
             val s = toolbar.size
             val i = rowRects(removed).indexOfFirst { it.inset(-s * 0.06f, -s * 0.1f); it.contains(x, y) }
             if (i >= 0) return add(removed[i])
         }
+        if (layout.keysMode && setsDown(x, y)) return
         last[id].set(x, y)
         if (counterFinger != NO_FINGER && counterPinch == NO_FINGER) {
             counterPinch = id
@@ -64,10 +69,15 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
             select(null, counter = true)
             return
         }
-        val control = layout.controlAt(x, y)
+        val control = layout.drawerKeyAt(x, y) ?: layout.controlAt(x, y)
         if (control == null) {
             select(null)
+            layout.closeDrawer()
             return
+        }
+        // The drawer opens as it's picked, for its keys to be picked; picked again, it shuts.
+        if (control.kind == Kind.Drawer) {
+            if (selected === control && layout.openDrawer === control) layout.closeDrawer() else layout.showDrawer(control)
         }
         val other = drags.indexOfFirst { it === control }
         drags[id] = control
@@ -100,6 +110,15 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
             return true
         }
         val control = drags[id] ?: return false
+        if (control.inDrawer) {
+            // A drawer key stays in its cell till it's dragged off the panel, onto the screen.
+            if (layout.drawerPanel.contains(x, y)) return false
+            control.inDrawer = false
+            layout.refreshShown()
+            layout.moveCentre(control, x, y)
+            last[id].set(x, y)
+            return true
+        }
         val a = drags.indexOfFirst { it === control }
         val b = drags.indexOfLast { it === control }
         if (a != b) {
@@ -114,7 +133,9 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     }
 
     fun up(id: Int) {
+        val dropped = drags[id]
         drags[id] = null
+        if (dropped != null) intoDrawer(dropped)
         if (id != counterFinger && id != counterPinch) return
         // After a pinch the finger left drags on, from where it is on the counter's new size.
         counterFinger = if (id == counterFinger) counterPinch else counterFinger
@@ -122,6 +143,14 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         if (counterFinger == NO_FINGER) return
         counter.bounds(counterBox)
         grab.set(last[counterFinger].x - counterBox.left, last[counterFinger].y - counterBox.top)
+    }
+
+    /** A key let go of over the open drawer's panel goes into the drawer. */
+    private fun intoDrawer(c: Control) {
+        if (layout.openDrawer == null || c.inDrawer || c.kind !is Kind.Key && c.kind !is Kind.ToolKey) return
+        if (drags.any { it === c } || !layout.drawerPanel.contains(layout.cx(c), layout.cy(c))) return
+        c.inDrawer = true
+        layout.refreshShown()
     }
 
     fun releaseAll() {
@@ -147,7 +176,9 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
             Tool.SMALLER -> resize(-SCALE_STEP)
             Tool.BIGGER -> resize(SCALE_STEP)
             Tool.OPACITY -> layout.nextOpacity()
+            Tool.LATCH -> selected?.takeIf { it.kind is Kind.Key }?.let { it.latch = !it.latch }
             Tool.RESET -> {
+                layout.closeDrawer()
                 layout.reset()
                 placeCounter()
                 select(null)
@@ -156,6 +187,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
             Tool.DONE -> {
                 active = false
                 adding = false
+                layout.closeDrawer()
                 select(null)
                 releaseAll()
                 layout.save()
@@ -175,9 +207,9 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
 
     private fun add(c: Control) {
         c.resetPlacement()
-        // A Mouse & keys key the set doesn't have by default comes onto the screen.
+        // A Mouse & keys key the set doesn't have by default comes onto the screen, or into the drawer when it's open.
         c.shown = true
-        c.inDrawer = false
+        c.inDrawer = layout.openDrawer != null && (c.kind is Kind.Key || c.kind is Kind.ToolKey)
         layout.refreshShown()
         select(c)
         adding = false
@@ -206,6 +238,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     }
 
     fun drawAddList(canvas: Canvas, sheet: GuiSheet?) {
+        if (layout.keysMode) return drawOffers(canvas, sheet)
         val controls = addable()
         val rects = rowRects(controls)
         if (rects.isEmpty()) return
@@ -219,8 +252,102 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         }
     }
 
+    /** Mouse & keys' add list: the keys the set hasn't, a row for each group, over the toolbar. */
+    private fun placeOffers() {
+        offers.clear()
+        headings.clear()
+        val groups = addable().filter { it.group != null }.groupBy { it.group!! }.toSortedMap()
+        if (groups.isEmpty()) return addPanel.setEmpty()
+        val r = offerRadius()
+        val cell = r * OFFER_CELL
+        val row = r * OFFER_ROW
+        val pad = r * 0.6f
+        val heads = groups.keys.maxOf { painter.textWidth(it.title, r * HEADING) } + r * 0.8f
+        val w = heads + groups.values.maxOf { it.size } * cell + 2 * pad
+        val h = groups.size * row + 2 * pad
+        val left = (layout.width - w) / 2f
+        val top = (toolbar.top - r * 0.5f - h).coerceAtLeast(r * 0.4f)
+        addPanel.set(left, top, left + w, top + h)
+        var i = 0
+        for ((group, keys) in groups) {
+            val y = top + pad + i++ * row + r * 1.2f
+            headings += group.title to PointF(left + pad + (heads - r * 0.8f) / 2f, y)
+            keys.forEachIndexed { k, c -> offers += Offer(c, left + pad + heads + (k + 0.5f) * cell, y) }
+        }
+    }
+
+    private fun offerAt(x: Float, y: Float): Control? {
+        placeOffers()
+        val r = offerRadius()
+        return offers.firstOrNull { hypot(x - it.x, y - it.y) <= r * 1.25f }?.control
+    }
+
+    private fun drawOffers(canvas: Canvas, sheet: GuiSheet?) {
+        placeOffers()
+        if (addPanel.isEmpty) return
+        val r = offerRadius()
+        painter.panel(canvas, sheet, addPanel, r * 0.5f)
+        for ((title, at) in headings) painter.letter(canvas, title, at.x, at.y, r * HEADING, Factorio.HEADING)
+        for (o in offers) {
+            // A wide key is twice as wide as tall: smaller, it keeps to its cell.
+            painter.drawKey(canvas, o.control, o.x, o.y, if (o.control.pill) r * WIDE_OFFER else r, false)
+            painter.letter(canvas, o.control.name, o.x, o.y + r * 1.55f, r * 0.42f, PadPainter.LIGHT)
+        }
+    }
+
+    private fun offerRadius() = layout.drawerKeyRadius() * 0.8f
+
+    /** Mouse & keys' sets, as chips: the editor works on the one picked. */
+    fun drawSets(canvas: Canvas, sheet: GuiSheet?) {
+        if (!layout.keysMode) return
+        placeChips()
+        val s = chipHeight()
+        bounds.set(chips.first().left, chips.first().top, chips.last().right, chips.last().bottom)
+        painter.panel(canvas, sheet, bounds, s)
+        KeySet.KEYS.forEachIndexed { i, set ->
+            val on = layout.set == set
+            painter.toolKey(canvas, sheet, chips[i], on, s)
+            painter.letter(canvas, set.title, chips[i].centerX(), chips[i].centerY(), s * 0.42f,
+                           if (on) PadPainter.INK else PadPainter.LIGHT)
+        }
+    }
+
+    private fun setsDown(x: Float, y: Float): Boolean {
+        placeChips()
+        val i = chips.indexOfFirst { it.contains(x, y) }
+        if (i < 0) return false
+        layout.switchTo(KeySet.KEYS[i])
+        select(null)
+        haptic(ControllerView.TICK)
+        return true
+    }
+
+    private fun placeChips() {
+        val s = chipHeight()
+        var left = layout.frame * 0.03f
+        val top = layout.frame * 0.2f
+        KeySet.KEYS.forEachIndexed { i, set ->
+            val w = painter.textWidth(set.title, s * 0.42f) + s * 0.9f
+            chips[i].set(left, top, left + w, top + s)
+            left += w + s * 0.12f
+        }
+    }
+
+    private fun chipHeight() = toolbar.size * 0.8f
+
+    private class Offer(val control: Control, val x: Float, val y: Float)
+    private val offers = ArrayList<Offer>()
+    private val headings = ArrayList<Pair<String, PointF>>()
+    private val addPanel = RectF()
+    private val chips = Array(KeySet.KEYS.size) { RectF() }
+
     private companion object {
         const val SCALE_STEP = 0.1f
+        /** An offered key's cell and row, in its radii; its group's title, the same. */
+        const val OFFER_CELL = 2.9f
+        const val OFFER_ROW = 3.3f
+        const val HEADING = 0.55f
+        const val WIDE_OFFER = 0.68f
         const val NO_FINGER = -1
     }
 }

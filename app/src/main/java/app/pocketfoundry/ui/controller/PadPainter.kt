@@ -49,6 +49,8 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
 
     /** The right stick is a trackpad box (Settings.touch BOX). */
     var box = false
+    /** In the layout editor: latching keys wear a lock. */
+    var editing = false
 
     /** The rendered look; until its pictures load, the controls are drawn as before. */
     val sprites = SpritePainter(layout)
@@ -77,6 +79,13 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         val pressed = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
         if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind == Kind.Drawer) {
             drawKey(canvas, c, x, y, r, pressed)
+            if (editing && c.latch) {
+                val bx = if (c.pill) x + 1.75f * r else x + 0.72f * r
+                val by = y - 0.72f * r
+                fill.color = Tone.ORANGE.face
+                canvas.drawCircle(bx, by, r * 0.34f, fill)
+                keyIcon(canvas, KeyIcon.LOCK, bx, by, r * 0.42f, INK)
+            }
             if (selected) drawSelection(canvas, null, c, x, y, r)
             return false
         }
@@ -129,7 +138,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     }
 
     /** A keyboard key: its word, or its icon with its letter small over it (Keys). */
-    private fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean) {
+    fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean) {
         val colour = glyphColour(pressed)
         if (c.pill) {
             rect.set(x - 2 * r, y - r, x + 2 * r, y + r)
