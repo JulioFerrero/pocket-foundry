@@ -255,7 +255,9 @@ object Session {
 
     private fun launchGame(context: Context, paths: Paths, driver: String, gameArgs: List<String>) {
         Saves.deleteInterrupted(paths)
-        keyboard = keyboardConnected(context) && !gamepadConnected(context)
+        // debug.env's app.keyboard=1: Factorio's keyboard-and-mouse mode without a keyboard, to work on touch for it.
+        keyboard = keyboardConnected(context) && !gamepadConnected(context) ||
+                   DebugEnv.read(context, "app")["keyboard"] == "1"
         val testProgram = DebugEnv.read(context, "test")["program"]?.takeIf { it.matches(TOOL_NAME) }
         val testing = testProgram != null
         val command = if (testProgram != null) listOf(paths.program(testProgram).path)
