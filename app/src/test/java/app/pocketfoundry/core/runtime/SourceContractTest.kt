@@ -7,6 +7,7 @@ import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Route
 import app.pocketfoundry.core.controller.PadButton
 import app.pocketfoundry.core.game.FrameCounter
+import app.pocketfoundry.core.game.PerformanceHints
 import app.pocketfoundry.core.game.AudioBridge
 import app.pocketfoundry.core.logs.DetailedLogs
 import app.pocketfoundry.core.logs.ScreenLog
@@ -103,6 +104,11 @@ class SourceContractTest {
         assertEquals(DriverCheck.Atlases(draws = true, comesBack = false, copies = true, takesMb = 66,
                                          compressedMb = 64),
                      DriverCheck.Atlases.parse(format.format(1, 0, 1, 66, 64)))
+    }
+
+    @Test fun `our SDL takes Android's performance hints by the name the app sets`() {
+        assertIn(File("../runtime/sdl/pocketfoundry/SDL_pocketfoundry.c").readText(),
+                 "SDL_getenv(\"${PerformanceHints.SWITCH}\")", "SDL_pocketfoundry.c")
     }
 
     @Test fun `libhybris reads Android's properties by the names the app sets`() {

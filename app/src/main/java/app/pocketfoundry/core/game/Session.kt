@@ -297,7 +297,7 @@ object Session {
     }
 
     private fun gameEnvironment(context: Context, paths: Paths, driver: String): Map<String, String> {
-        return Drivers.environment(context, driver) + MEMORY +
+        return Drivers.environment(context, driver) + PerformanceHints.environment(context, paths) + MEMORY +
                DetailedLogs.environment(context) + Drivers.overrides(context, driver)
     }
 

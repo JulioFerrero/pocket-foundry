@@ -14,6 +14,9 @@
   These names and values are the app's too (core/runtime/Sdl.kt, AudioBridge.kt, InputBridge.kt, Settings.kt):
   SourceContractTest checks they agree.
 
+  Performance hints: with POCKETFOUNDRY_HINTS naming libhybris-common, Android's own (ADPF, libandroid's
+  APerformanceHint, Android 13 and later) get each frame's work against the frame rate's target, for the game's threads:
+  how a game tells Android it needs more of the CPU, the same on every phone.
   Copyright (C) 2026 Pocket Foundry contributors. Released under the zlib licence, like SDL.
 */
 #include "SDL_internal.h"
@@ -24,10 +27,13 @@
 #include "../audio/SDL_sysaudio.h"
 #include "../joystick/SDL_joystick_c.h"
 
+#include <dirent.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
@@ -333,11 +339,14 @@ static int POCKETFOUNDRY_ReadFrameRate(const char *path)
     return (fps > 0 && fps < GAME_UPS) ? fps : 0;
 }
 
+// The frame rate PaceFrame keeps to, 0 for none: performance hints aim at it too.
+static int paced_fps;
+
 void SDL_POCKETFOUNDRY_PaceFrame(void)
 {
     static const char *path;
     static bool looked;
-    static int fps;
+    int fps = paced_fps;
     static Uint64 checked, next;
     Uint64 now, interval;
 
@@ -353,7 +362,7 @@ void SDL_POCKETFOUNDRY_PaceFrame(void)
         int wanted = POCKETFOUNDRY_ReadFrameRate(path);
         if (wanted != fps) {
             SDL_LogInfo(SDL_LOG_CATEGORY_VIDEO, "Pocket Foundry frame rate: %s", wanted ? "capped" : "free");
-            fps = wanted;
+            fps = paced_fps = wanted;
         }
         checked = now;
     }
@@ -410,6 +419,163 @@ void SDL_POCKETFOUNDRY_CountFrame(void)
         __atomic_store_n(&stamp->swapped_ns, (Sint64)now.tv_sec * 1000000000 + now.tv_nsec, __ATOMIC_RELAXED);
         __atomic_add_fetch(&stamp->frames, 1, __ATOMIC_RELAXED);
         __atomic_add_fetch(&stamp->sequence, 1, __ATOMIC_RELEASE);
+    }
+}
+
+/*
+ * Android's performance hints, from libandroid through libhybris: the game's glibc process can't link Android's
+ * libraries, but libhybris loads them as Mesa's Turnip patch does for hardware buffers. A frame's work is its main
+ * thread's time from one buffer swap's return to the next swap, waits for the display left out; reported every frame
+ * against the target, it lets Android raise the clocks for the game's threads when frames run late, and lower them when
+ * they're early. The NDK's own signatures (android/performance_hint.h).
+ */
+typedef struct APerformanceHintManager APerformanceHintManager;
+typedef struct APerformanceHintSession APerformanceHintSession;
+
+static struct
+{
+    APerformanceHintManager *(*get_manager)(void);
+    APerformanceHintSession *(*create)(APerformanceHintManager *, const int32_t *, size_t, int64_t);
+    int (*report)(APerformanceHintSession *, int64_t);
+    int (*update_target)(APerformanceHintSession *, int64_t);
+    int (*set_threads)(APerformanceHintSession *, const pid_t *, size_t); // Android 14
+    APerformanceHintSession *session;
+    int64_t target_ns;
+    Uint64 work_started_ns;
+    unsigned frames;
+    size_t thread_count;
+} hints;
+
+#define HINT_THREADS_MAX 256
+#define HINT_THREADS_EVERY 300 // frames between looks for threads Factorio started since
+
+static Uint64 POCKETFOUNDRY_Now(void)
+{
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (Uint64)now.tv_sec * SDL_NS_PER_SECOND + (Uint64)now.tv_nsec;
+}
+
+static size_t POCKETFOUNDRY_Threads(pid_t *tids, size_t most)
+{
+    size_t count = 0;
+    struct dirent *entry;
+    DIR *dir = opendir("/proc/self/task");
+
+    if (!dir) {
+        return 0;
+    }
+    while (count < most && (entry = readdir(dir))) {
+        if (entry->d_name[0] != '.') {
+            tids[count++] = (pid_t)SDL_atoi(entry->d_name);
+        }
+    }
+    closedir(dir);
+    return count;
+}
+
+static int64_t POCKETFOUNDRY_Target(void)
+{
+    return (int64_t)(SDL_NS_PER_SECOND / (paced_fps ? paced_fps : GAME_UPS));
+}
+
+/* The game's threads now, into the session: a list with one that has just ended is refused, and tried again later. */
+static void POCKETFOUNDRY_JoinThreads(void)
+{
+    pid_t tids[HINT_THREADS_MAX];
+    size_t count;
+
+    if (!hints.set_threads) {
+        return;
+    }
+    count = POCKETFOUNDRY_Threads(tids, HINT_THREADS_MAX);
+    if (count != hints.thread_count && hints.set_threads(hints.session, tids, count) == 0) {
+        hints.thread_count = count;
+    }
+}
+
+static void POCKETFOUNDRY_OpenHints(void)
+{
+    const char *path = SDL_getenv("POCKETFOUNDRY_HINTS");
+    void *common, *android = NULL;
+    void *(*android_open)(const char *, int) = NULL;
+    void *(*android_sym)(void *, const char *) = NULL;
+    APerformanceHintManager *manager;
+    int32_t self;
+
+    if (!path || !*path) {
+        return;
+    }
+    common = dlopen(path, RTLD_NOW | RTLD_GLOBAL);
+    if (common) {
+        *(void **)&android_open = dlsym(common, "android_dlopen");
+        *(void **)&android_sym = dlsym(common, "android_dlsym");
+    }
+    if (android_open && android_sym) {
+        android = android_open("libandroid.so", RTLD_NOW);
+    }
+    if (!android) {
+        fprintf(stderr, "Pocket Foundry performance hints: no libandroid through %s\n", path);
+        return;
+    }
+    *(void **)&hints.get_manager = android_sym(android, "APerformanceHint_getManager");
+    *(void **)&hints.create = android_sym(android, "APerformanceHint_createSession");
+    *(void **)&hints.report = android_sym(android, "APerformanceHint_reportActualWorkDuration");
+    *(void **)&hints.update_target = android_sym(android, "APerformanceHint_updateTargetWorkDuration");
+    *(void **)&hints.set_threads = android_sym(android, "APerformanceHint_setThreads");
+    manager = hints.get_manager ? hints.get_manager() : NULL;
+    if (!manager || !hints.create || !hints.report || !hints.update_target) {
+        fprintf(stderr, "Pocket Foundry performance hints: Android has none here\n");
+        return;
+    }
+    // This thread first, which is surely alive: Android refuses a session for a list with a thread that has just
+    // ended, and Factorio starts and ends threads as it loads. The others join through setThreads.
+    self = (int32_t)syscall(SYS_gettid);
+    hints.target_ns = POCKETFOUNDRY_Target();
+    hints.session = hints.create(manager, &self, 1, hints.target_ns);
+    if (!hints.session) {
+        fprintf(stderr, "Pocket Foundry performance hints: Android refused a session\n");
+        return;
+    }
+    hints.thread_count = 1;
+    POCKETFOUNDRY_JoinThreads();
+    fprintf(stderr, "Pocket Foundry performance hints: on, %d threads, a frame every %lld us\n",
+            (int)hints.thread_count, (long long)(hints.target_ns / 1000));
+}
+
+void SDL_POCKETFOUNDRY_FrameWorked(void)
+{
+    static bool opened;
+    Uint64 now;
+    int64_t target;
+
+    if (!opened) {
+        opened = true;
+        POCKETFOUNDRY_OpenHints();
+    }
+    if (!hints.session || !hints.work_started_ns) {
+        return;
+    }
+    now = POCKETFOUNDRY_Now();
+    target = POCKETFOUNDRY_Target();
+    if (target != hints.target_ns) {
+        hints.target_ns = target;
+        hints.update_target(hints.session, target);
+    }
+    // A frame longer than a second is a load or a pause, not a frame to speed up.
+    if (now - hints.work_started_ns < SDL_NS_PER_SECOND) {
+        hints.report(hints.session, (int64_t)(now - hints.work_started_ns));
+    }
+    if (++hints.frames >= HINT_THREADS_EVERY) {
+        hints.frames = 0;
+        POCKETFOUNDRY_JoinThreads();
+    }
+}
+
+void SDL_POCKETFOUNDRY_FrameSwapped(void)
+{
+    if (hints.session) {
+        hints.work_started_ns = POCKETFOUNDRY_Now();
     }
 }
 

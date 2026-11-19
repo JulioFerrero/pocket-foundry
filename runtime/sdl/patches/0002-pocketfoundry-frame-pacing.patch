@@ -10,13 +10,20 @@
  
  #ifdef SDL_VIDEO_OPENGL
  #include <SDL3/SDL_opengl.h>
-@@ -5630,6 +5633,10 @@
+@@ -5630,6 +5633,17 @@
          return SDL_SetError("The specified window has not been made current");
      }
  
 +#ifdef SDL_POCKETFOUNDRY
++    // The frame's work ends here, before any wait: for Android's performance hints.
++    SDL_POCKETFOUNDRY_FrameWorked();
 +    SDL_POCKETFOUNDRY_PaceFrame();
 +    SDL_POCKETFOUNDRY_CountFrame();
++    {
++        const bool swapped = _this->GL_SwapWindow(_this, window);
++        SDL_POCKETFOUNDRY_FrameSwapped();
++        return swapped;
++    }
 +#endif
      return _this->GL_SwapWindow(_this, window);
  }

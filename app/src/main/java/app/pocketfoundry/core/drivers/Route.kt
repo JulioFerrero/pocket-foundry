@@ -118,7 +118,7 @@ enum class Route(
         private const val COMPAT_LAYER = "VK_LAYER_HYBRIS_compat"
 
         /** Android's properties, which libhybris's linker can't read; Android 10 names its linker config by VNDK. */
-        private fun hybris(paths: Paths, vndk: String) =
+        internal fun hybris(paths: Paths, vndk: String) =
             mapOf(HYBRIS_PROPERTIES to paths.androidProperties.path, HYBRIS_VNDK to vndk)
 
         /**
