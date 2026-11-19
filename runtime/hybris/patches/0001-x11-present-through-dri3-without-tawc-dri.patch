@@ -16,9 +16,11 @@ per image on the presenting queue's family. HYBRIS_SWAPCHAIN_BLIT=1 does the sam
 HYBRIS_SWAPCHAIN_TEST=1 paints the copied buffers' top half magenta and copies only the bottom half of each frame, to
 tell a screen that never shows the buffers from frames that are black.
 
---- a/hybris/vulkan/Makefile.am	2026-11-02 14:03:33
-+++ b/hybris/vulkan/Makefile.am	2026-11-02 14:03:33
-@@ -91,7 +91,7 @@
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index 437af4a..60a41c0 100644
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -95,7 +95,7 @@ if WANT_X11
  libhybris_vulkan_icd_la_SOURCES += icd/native_window_x11.cpp
  libhybris_vulkan_icd_la_CFLAGS += $(XCB_CFLAGS) $(X11_CFLAGS)
  libhybris_vulkan_icd_la_CXXFLAGS += $(XCB_CFLAGS) $(X11_CFLAGS)
@@ -27,9 +29,97 @@ tell a screen that never shows the buffers from frames that are black.
  endif
  libhybris_vulkan_icd_la_SOURCES += \
      icd/native_window.h icd/native_window_wayland.c icd/native_window_headless.cpp \
---- a/hybris/vulkan/icd/native_window.h	2026-11-02 14:03:33
-+++ b/hybris/vulkan/icd/native_window.h	2026-11-02 14:03:33
-@@ -16,6 +16,9 @@
+diff --git a/hybris/vulkan/icd/device.c b/hybris/vulkan/icd/device.c
+index 1758b37..0fe3b71 100644
+--- a/hybris/vulkan/icd/device.c
++++ b/hybris/vulkan/icd/device.c
+@@ -19,6 +19,7 @@ struct device_state {
+     int swapchain_enabled;
+     uint32_t queue_count;
+     VkQueue *queues;
++    uint32_t *families;
+     VkAllocationCallbacks allocator;
+     int custom_allocator;
+     struct device_state *next;
+@@ -26,12 +27,17 @@ struct device_state {
+ static pthread_mutex_t device_guard = PTHREAD_MUTEX_INITIALIZER;
+ static struct device_state *devices;
+ static uint64_t next_generation;
++static void free_array(struct device_state *state, void *array)
++{
++    if (!array) return;
++    if (state->custom_allocator) state->allocator.pfnFree(state->allocator.pUserData, array);
++    else free(array);
++}
++
+ static void free_state(struct device_state *state)
+ {
+-    if (state->queues) {
+-        if (state->custom_allocator) state->allocator.pfnFree(state->allocator.pUserData, state->queues);
+-        else free(state->queues);
+-    }
++    free_array(state, state->queues);
++    free_array(state, state->families);
+     if (state->custom_allocator)
+         state->allocator.pfnFree(state->allocator.pUserData, state);
+     else
+@@ -103,9 +109,12 @@ VkResult hybris_icd_create_device(PFN_vkCreateDevice create, PFN_vkGetDeviceProc
+         result = VK_ERROR_OUT_OF_HOST_MEMORY;
+     else if (queue_count) {
+         size_t size = (size_t)queue_count * sizeof(VkQueue);
++        size_t families = (size_t)queue_count * sizeof(uint32_t);
+         state->queues = allocator ? allocator->pfnAllocation(allocator->pUserData, size,
+             _Alignof(VkQueue), VK_SYSTEM_ALLOCATION_SCOPE_DEVICE) : malloc(size);
+-        if (!state->queues) result = VK_ERROR_OUT_OF_HOST_MEMORY;
++        state->families = allocator ? allocator->pfnAllocation(allocator->pUserData, families,
++            _Alignof(uint32_t), VK_SYSTEM_ALLOCATION_SCOPE_DEVICE) : malloc(families);
++        if (!state->queues || !state->families) result = VK_ERROR_OUT_OF_HOST_MEMORY;
+         else {
+             PFN_vkGetDeviceQueue get = (PFN_vkGetDeviceQueue)resolver(*device, "vkGetDeviceQueue");
+             PFN_vkGetDeviceQueue2 get2 = (PFN_vkGetDeviceQueue2)resolver(*device, "vkGetDeviceQueue2");
+@@ -120,6 +129,7 @@ VkResult hybris_icd_create_device(PFN_vkCreateDevice create, PFN_vkGetDeviceProc
+                         get2(*device, &qi, &handle);
+                     }
+                     if (!handle) { result = VK_ERROR_INITIALIZATION_FAILED; break; }
++                    state->families[state->queue_count] = created->queueFamilyIndex;
+                     state->queues[state->queue_count++] = handle;
+                 }
+             }
+@@ -180,6 +190,17 @@ int hybris_icd_lookup_device(VkDevice device, struct hybris_icd_device *out)
+     return found;
+ }
+ 
++int hybris_icd_queue_family(VkQueue queue, uint32_t *family)
++{
++    int found = 0;
++    pthread_mutex_lock(&device_guard);
++    for (const struct device_state *state = devices; state && !found; state = state->next)
++        for (uint32_t i = 0; i < state->queue_count; ++i)
++            if (state->queues[i] == queue) { *family = state->families[i]; found = 1; break; }
++    pthread_mutex_unlock(&device_guard);
++    return found;
++}
++
+ int hybris_icd_lookup_queue(VkQueue queue, struct hybris_icd_device *out)
+ {
+     VkDevice device = VK_NULL_HANDLE;
+diff --git a/hybris/vulkan/icd/device.h b/hybris/vulkan/icd/device.h
+index ad45391..47a35ea 100644
+--- a/hybris/vulkan/icd/device.h
++++ b/hybris/vulkan/icd/device.h
+@@ -16,5 +16,7 @@ VkResult hybris_icd_create_device(PFN_vkCreateDevice create, PFN_vkGetDeviceProc
+ PFN_vkVoidFunction VKAPI_CALL hybris_icd_device_proc(VkDevice device, const char *name);
+ void VKAPI_CALL hybris_icd_destroy_device(VkDevice device, const VkAllocationCallbacks *allocator);
+ int hybris_icd_lookup_queue(VkQueue queue, struct hybris_icd_device *out);
++/* The family of a queue the device created: for the commands the adapter records itself. */
++int hybris_icd_queue_family(VkQueue queue, uint32_t *family);
+ int hybris_icd_lookup_device(VkDevice device, struct hybris_icd_device *out);
+ #endif
+diff --git a/hybris/vulkan/icd/native_window.h b/hybris/vulkan/icd/native_window.h
+index ea0901b..1b9d400 100644
+--- a/hybris/vulkan/icd/native_window.h
++++ b/hybris/vulkan/icd/native_window.h
+@@ -16,6 +16,9 @@ struct hybris_icd_window_ops {
      void (*destroy)(struct hybris_icd_window *);
      /* Zero extent means application-selected (Wayland). */
      int (*extent)(struct hybris_icd_window *, uint32_t *, uint32_t *);
@@ -39,8 +129,10 @@ tell a screen that never shows the buffers from frames that are black.
  };
  struct hybris_icd_window { const struct hybris_icd_window_ops *ops; };
  #ifdef __cplusplus
---- a/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 14:03:33
-+++ b/hybris/vulkan/icd/native_window_x11.cpp	2026-11-02 14:03:33
+diff --git a/hybris/vulkan/icd/native_window_x11.cpp b/hybris/vulkan/icd/native_window_x11.cpp
+index 947dce5..43e531f 100644
+--- a/hybris/vulkan/icd/native_window_x11.cpp
++++ b/hybris/vulkan/icd/native_window_x11.cpp
 @@ -1,10 +1,17 @@
  /* SPDX-License-Identifier: Apache-2.0 */
  #include "native_window.h"
@@ -78,7 +170,7 @@ tell a screen that never shows the buffers from frames that are black.
  static int64_t now_ns() {
      timespec t; clock_gettime(CLOCK_MONOTONIC, &t);
      return (int64_t)t.tv_sec * 1000000000LL + t.tv_nsec;
-@@ -32,6 +51,7 @@
+@@ -32,6 +51,7 @@ static int consume_fence(int fd) {
  struct Buffer : BaseNativeWindowBuffer {
      bool held = false;
      bool queued = false;
@@ -86,7 +178,7 @@ tell a screen that never shows the buffers from frames that are black.
      Buffer() { handle = nullptr; }
      ~Buffer() { if (handle) hybris_gralloc_release(handle, 1); }
  };
-@@ -45,7 +65,8 @@
+@@ -45,7 +65,8 @@ struct Owner {
      xcb_special_event_t *events;
      Buffer *pool[8];
      unsigned count, pool_width, pool_height, next_buffer;
@@ -96,7 +188,7 @@ tell a screen that never shows the buffers from frames that are black.
      unsigned trace_count;
      Pending *pending;
      pthread_mutex_t mutex;
-@@ -71,21 +92,38 @@
+@@ -71,21 +92,38 @@ static int check(xcb_connection_t *connection, unsigned sequence) {
      return xcb_connection_has_error(connection) ? -EPIPE : 0;
  }
  static int select(Owner *o, uint32_t mask) {
@@ -140,7 +232,7 @@ tell a screen that never shows the buffers from frames that are black.
              Pending **link = &o->pending;
              while (*link && (*link)->serial != serial) link = &(*link)->next;
              if (*link) {
-@@ -105,7 +143,10 @@
+@@ -105,7 +143,10 @@ static void drain(Owner *o) {
      }
  }
  static void drop_pool(Owner *o) {
@@ -152,7 +244,7 @@ tell a screen that never shows the buffers from frames that are black.
      o->count = 0;
      o->next_buffer = 0;
  }
-@@ -116,6 +157,25 @@
+@@ -116,6 +157,25 @@ static void disconnect(hybris_icd_window *base) {
      drain(o); drop_pool(o); o->draining = false;
      pthread_mutex_unlock(&o->mutex);
  }
@@ -178,7 +270,7 @@ tell a screen that never shows the buffers from frames that are black.
  static int configure(hybris_icd_window *base, unsigned width, unsigned height,
      int format, unsigned usage, unsigned count) {
      if (!width || !height || width > INT_MAX || height > INT_MAX || count < 2 || count > 8) return -EINVAL;
-@@ -137,6 +197,7 @@
+@@ -137,6 +197,7 @@ static int configure(hybris_icd_window *base, unsigned width, unsigned height,
          b->stride = stride;
          b->common.incRef(&b->common);
          o->pool[o->count++] = b;
@@ -186,7 +278,7 @@ tell a screen that never shows the buffers from frames that are black.
      }
      if (error) drop_pool(o);
      pthread_mutex_unlock(&o->mutex); return error;
-@@ -196,7 +257,7 @@
+@@ -196,7 +257,7 @@ static int present(Owner *o, Buffer *b, int fd) {
      auto *data = static_cast<char *>(calloc(1, bytes));
      if (!p || !data) { free(p); free(data); return -ENOMEM; }
      int fds[64], copied = 0;
@@ -195,7 +287,7 @@ tell a screen that never shows the buffers from frames that are black.
          fds[copied] = dup(h->data[copied]);
          if (fds[copied] < 0) {
              while (copied) close(fds[--copied]);
-@@ -210,16 +271,22 @@
+@@ -210,16 +271,22 @@ static int present(Owner *o, Buffer *b, int fd) {
          p->serial = o->serial;
          for (Pending *q = o->pending; q; q = q->next) if (q->serial == p->serial) { p->serial = 0; break; }
      } while (!p->serial);
@@ -228,7 +320,7 @@ tell a screen that never shows the buffers from frames that are black.
      p->buffer = b; b->common.incRef(&b->common);
      p->next = o->pending; o->pending = p;
      trace(o, "present", p);
-@@ -331,7 +398,21 @@
+@@ -334,7 +401,21 @@ static void destroy(hybris_icd_window *base) {
      pthread_cond_destroy(&o->work_ready); pthread_cond_destroy(&o->idle);
      pthread_mutex_destroy(&o->mutex); free(o);
  }
@@ -251,7 +343,7 @@ tell a screen that never shows the buffers from frames that are black.
  int hybris_icd_xcb_supported(xcb_connection_t *connection, uint32_t visual) {
      if (!connection || xcb_connection_has_error(connection)) return 0;
      sockaddr_storage peer = {}; socklen_t peer_size = sizeof(peer);
-@@ -341,11 +422,14 @@
+@@ -344,11 +425,14 @@ int hybris_icd_xcb_supported(xcb_connection_t *connection, uint32_t visual) {
      for (auto screen = xcb_setup_roots_iterator(setup); screen.rem; xcb_screen_next(&screen))
          for (auto depth = xcb_screen_allowed_depths_iterator(screen.data); depth.rem; xcb_depth_next(&depth))
              for (auto v = xcb_depth_visuals_iterator(depth.data); v.rem; xcb_visualtype_next(&v))
@@ -268,7 +360,7 @@ tell a screen that never shows the buffers from frames that are black.
      tawc_dri_query_version_req body = {}; body.major_version = 0; body.minor_version = 3;
      iovec parts[3] = {}; parts[2] = {&body, sizeof(body)};
      xcb_protocol_request_t request = {1, &extension, X_TAWCDRI_QueryVersion, 0};
-@@ -359,17 +443,26 @@
+@@ -362,17 +446,30 @@ int hybris_icd_window_xcb(xcb_connection_t *connection, uint32_t window, hybris_
      xcb_generic_error_t *error = nullptr;
      auto *attributes = xcb_get_window_attributes_reply(connection, xcb_get_window_attributes(connection, window), &error);
      if (!attributes || error) { free(attributes); free(error); return -EPIPE; }
@@ -283,6 +375,7 @@ tell a screen that never shows the buffers from frames that are black.
 +    auto *geometry = xcb_get_geometry_reply(connection, xcb_get_geometry(connection, window), nullptr);
 +    if (!geometry) return -EPIPE;
 +    uint8_t depth = geometry->depth;
++    uint16_t width = geometry->width, height = geometry->height;
 +    free(geometry);
      auto *o = static_cast<Owner *>(calloc(1, sizeof(Owner)));
      if (!o) return -ENOMEM;
@@ -291,6 +384,9 @@ tell a screen that never shows the buffers from frames that are black.
      o->base.ops = &ops; o->connection = connection; o->window = window; o->eid = xcb_generate_id(connection);
 +    o->dri3 = !xcb_get_extension_data(connection, &extension)->present;
 +    o->depth = depth;
++    /* Present sends ConfigureNotify only when the window changes, not when
++     * the events are selected as TAWC-DRI does: start from its geometry. */
++    if (o->dri3) { o->width = width; o->height = height; }
      pthread_mutex_init(&o->mutex, nullptr);
      pthread_cond_init(&o->work_ready, nullptr); pthread_cond_init(&o->idle, nullptr);
 -    o->events = xcb_register_for_special_xge(connection, &extension, o->eid, nullptr);
@@ -298,21 +394,11 @@ tell a screen that never shows the buffers from frames that are black.
      if (!o->events) { destroy(&o->base); return -ENOMEM; }
      int result = select(o, TAWC_DRI_EVENT_MASK_CONFIGURE_NOTIFY | TAWC_DRI_EVENT_MASK_BUFFER_RELEASE);
      if (result) { destroy(&o->base); return result; }
---- a/hybris/vulkan/icd/wsi.c	2026-11-02 14:03:33
-+++ b/hybris/vulkan/icd/wsi.c	2026-11-02 14:03:33
-@@ -551,7 +551,8 @@
-      * BGRA has no equivalent native backing here, so do not advertise a
-      * format-independent OPAQUE guarantee when BGRA is also offered. */
-     capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
--    if (count == 1 && formats[0].format == VK_FORMAT_R8G8B8A8_UNORM)
-+    if ((count == 1 && formats[0].format == VK_FORMAT_R8G8B8A8_UNORM) ||
-+        (state->window->ops->opaque && state->window->ops->opaque(state->window)))
-         capabilities->supportedCompositeAlpha |= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     capabilities->supportedUsageFlags = usage;
-     return VK_SUCCESS;
---- a/hybris/vulkan/icd/swapchain.c	2026-11-02 14:03:33
-+++ b/hybris/vulkan/icd/swapchain.c	2026-11-02 21:08:54
-@@ -34,6 +34,14 @@
+diff --git a/hybris/vulkan/icd/swapchain.c b/hybris/vulkan/icd/swapchain.c
+index 7a36a7d..4840c2b 100644
+--- a/hybris/vulkan/icd/swapchain.c
++++ b/hybris/vulkan/icd/swapchain.c
+@@ -36,6 +36,14 @@ struct swapchain_image {
      enum image_state state;
      int acquire_fence;
      VkSemaphore present_ready;
@@ -327,17 +413,17 @@ tell a screen that never shows the buffers from frames that are black.
  };
  
  struct swapchain_state {
-@@ -48,6 +56,9 @@
-     int retired;
-     VkAllocationCallbacks allocator;
-     int custom_allocator;
+@@ -55,6 +63,9 @@ struct swapchain_state {
+     uint64_t presented_frames;
+     uint64_t first_present_ns;
+     uint64_t last_report_ns;
 +    int blit;
 +    VkCommandPool pool;
 +    uint32_t pool_family;
      struct swapchain_state *next;
  };
  
-@@ -107,6 +118,12 @@
+@@ -114,6 +125,12 @@ static void retire_swapchain(VkSwapchainKHR swapchain)
      if (window) window->ops->disconnect(window);
  }
  
@@ -350,7 +436,7 @@ tell a screen that never shows the buffers from frames that are black.
  static int hal_format(VkFormat format)
  {
      if (format == VK_FORMAT_R8G8B8A8_UNORM) return HAL_PIXEL_FORMAT_RGBA_8888;
-@@ -116,7 +133,8 @@
+@@ -123,7 +140,8 @@ static int hal_format(VkFormat format)
  
  static VkResult import_image(const struct hybris_icd_device *device,
      const VkSwapchainCreateInfoKHR *info, struct ANativeWindowBuffer *native,
@@ -360,7 +446,7 @@ tell a screen that never shows the buffers from frames that are black.
  {
      PFN_vkCreateImage create = (PFN_vkCreateImage)device->resolver(device->handle, "vkCreateImage");
      if (!create) return VK_ERROR_EXTENSION_NOT_PRESENT;
-@@ -136,13 +154,13 @@
+@@ -143,13 +161,13 @@ static VkResult import_image(const struct hybris_icd_device *device,
          .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
          .pNext = &buffer,
          .imageType = VK_IMAGE_TYPE_2D,
@@ -376,7 +462,7 @@ tell a screen that never shows the buffers from frames that are black.
          .sharingMode = info->imageSharingMode,
          .queueFamilyIndexCount = info->queueFamilyIndexCount,
          .pQueueFamilyIndices = info->pQueueFamilyIndices,
-@@ -150,19 +168,219 @@
+@@ -157,19 +175,219 @@ static VkResult import_image(const struct hybris_icd_device *device,
      return create(device->handle, &image_info, allocator, image);
  }
  
@@ -561,13 +647,6 @@ tell a screen that never shows the buffers from frames that are black.
  {
      PFN_vkDestroyImage destroy = device
          ? (PFN_vkDestroyImage)device->resolver(device->handle, "vkDestroyImage") : NULL;
--    for (uint32_t i = 0; i < state->count; ++i) {
--        if (state->images[i].present_ready && device) {
--            PFN_vkDestroySemaphore destroy_semaphore = (PFN_vkDestroySemaphore)
--                device->resolver(device->handle, "vkDestroySemaphore");
--            destroy_semaphore(device->handle, state->images[i].present_ready,
--                state->custom_allocator ? &state->allocator : NULL);
--        }
 +    const VkAllocationCallbacks *allocator = state->custom_allocator ? &state->allocator : NULL;
 +    PFN_vkDestroySemaphore destroy_semaphore = device
 +        ? (PFN_vkDestroySemaphore)device->resolver(device->handle, "vkDestroySemaphore") : NULL;
@@ -587,7 +666,13 @@ tell a screen that never shows the buffers from frames that are black.
 +        destroy_pool(device->handle, state->pool, allocator);   // frees the blit command buffers
 +        state->pool = VK_NULL_HANDLE;
 +    }
-+    for (uint32_t i = 0; i < state->count; ++i) {
+     for (uint32_t i = 0; i < state->count; ++i) {
+-        if (state->images[i].present_ready && device) {
+-            PFN_vkDestroySemaphore destroy_semaphore = (PFN_vkDestroySemaphore)
+-                device->resolver(device->handle, "vkDestroySemaphore");
+-            destroy_semaphore(device->handle, state->images[i].present_ready,
+-                state->custom_allocator ? &state->allocator : NULL);
+-        }
 +        if (state->images[i].present_ready && destroy_semaphore)
 +            destroy_semaphore(device->handle, state->images[i].present_ready, allocator);
 +        if (state->images[i].blitted && destroy_semaphore)
@@ -604,7 +689,7 @@ tell a screen that never shows the buffers from frames that are black.
          if (state->images[i].native && !state->retired && state->window &&
              state->images[i].state != IMAGE_PRESENTED) {
              state->window->ops->cancel(state->window, state->images[i].native,
-@@ -173,6 +391,12 @@
+@@ -180,6 +398,12 @@ static void destroy_images(const struct hybris_icd_device *device, struct swapch
          if (state->images[i].native)
              state->images[i].native->common.decRef(&state->images[i].native->common);
          state->images[i].image = VK_NULL_HANDLE;
@@ -617,7 +702,7 @@ tell a screen that never shows the buffers from frames that are black.
          state->images[i].native = NULL;
      }
  }
-@@ -190,7 +414,18 @@
+@@ -197,7 +421,18 @@ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
      if (info->oldSwapchain) retire_swapchain(info->oldSwapchain);
      if (!info->imageExtent.width || !info->imageExtent.height)
          return VK_ERROR_INITIALIZATION_FAILED;
@@ -637,7 +722,7 @@ tell a screen that never shows the buffers from frames that are black.
      if (!pixel) return VK_ERROR_FORMAT_NOT_SUPPORTED;
      /* RGBX preserves the Vulkan RGBA image layout while making the native
       * compositor ignore application alpha, as OPAQUE requires. */
-@@ -224,12 +459,13 @@
+@@ -231,12 +466,13 @@ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
       * report SUBOPTIMAL while the window and image sizes differ; actual surface
       * loss and pool errors retain their ordinary failure paths. */
      VkImageFormatProperties properties;
@@ -654,7 +739,7 @@ tell a screen that never shows the buffers from frames that are black.
          !(info->compositeAlpha & capabilities.supportedCompositeAlpha))
          return VK_ERROR_INITIALIZATION_FAILED;
      for (const VkBaseInStructure *next = info->pNext; next; next = next->pNext) {
-@@ -242,7 +478,7 @@
+@@ -249,7 +485,7 @@ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
              "vkGetSwapchainGrallocUsage2ANDROID");
      if (!usage2) return VK_ERROR_EXTENSION_NOT_PRESENT;
      uint64_t consumer = 0, producer = 0;
@@ -663,7 +748,7 @@ tell a screen that never shows the buffers from frames that are black.
      if (result != VK_SUCCESS) {
          fprintf(stderr, "hybris WSI: gralloc usage query failed: result=%d format=%d usage=0x%x\n",
              result, info->imageFormat, info->imageUsage);
-@@ -257,6 +493,8 @@
+@@ -264,6 +500,8 @@ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
      int usage = android_convertGralloc1To0Usage(producer, consumer);
      uint32_t count = info->minImageCount;
      if (count < 2 || count > 8) return VK_ERROR_INITIALIZATION_FAILED;
@@ -672,16 +757,16 @@ tell a screen that never shows the buffers from frames that are black.
      struct swapchain_state *state = object_alloc(allocator, sizeof(*state),
          VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
      if (!state) return VK_ERROR_OUT_OF_HOST_MEMORY;
-@@ -268,6 +506,8 @@
-     state->extent = info->imageExtent;
-     state->custom_allocator = allocator != NULL;
+@@ -277,6 +515,8 @@ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
+     const char *statistics = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_VULKAN_WSI_STATS");
+     state->statistics_enabled = statistics && !strcmp(statistics, "1");
      if (allocator) state->allocator = *allocator;
 +    state->blit = blit;
 +    if (blit) fprintf(stderr, "hybris WSI: BGRA swapchain, copied into RGBA buffers\n");
      state->images = object_alloc(allocator, count * sizeof(*state->images),
          VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
      if (!state->images) {
-@@ -303,8 +543,11 @@
+@@ -312,8 +552,11 @@ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
          buffer->common.incRef(&buffer->common);
          state->images[i].native = buffer;
          state->images[i].acquire_fence = fence;
@@ -695,7 +780,7 @@ tell a screen that never shows the buffers from frames that are black.
          if (result != VK_SUCCESS) {
              fprintf(stderr, "hybris WSI: native image import failed: result=%d format=%d usage=0x%x"
                  " native_format=%d native_usage=0x%x extent=%ux%u\n",
-@@ -319,6 +562,8 @@
+@@ -328,6 +571,8 @@ static VkResult VKAPI_CALL create_swapchain(VkDevice device,
              context.resolver(device, "vkCreateSemaphore");
          VkSemaphoreCreateInfo semaphore = {.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
          result = create_semaphore(device, &semaphore, allocator, &state->images[i].present_ready);
@@ -704,7 +789,7 @@ tell a screen that never shows the buffers from frames that are black.
          if (result != VK_SUCCESS) {
              destroy_images(&context, state);
              object_free(allocator, state->custom_allocator, state->images);
-@@ -451,7 +696,7 @@
+@@ -460,7 +705,7 @@ static VkResult VKAPI_CALL acquire_next_image(VkDevice device, VkSwapchainKHR sw
          return VK_ERROR_EXTENSION_NOT_PRESENT;
      }
      /* Driver owns native_fence after this call, including failure. */
@@ -713,7 +798,7 @@ tell a screen that never shows the buffers from frames that are black.
      if (result != VK_SUCCESS) return result;
      state->images[slot].state = IMAGE_ACQUIRED;
      *index = slot;
-@@ -545,9 +790,17 @@
+@@ -573,9 +818,17 @@ static VkResult present_one(struct hybris_icd_device *context, VkQueue queue,
          (PFN_vkQueueSignalReleaseImageANDROID)context->resolver(context->handle,
              "vkQueueSignalReleaseImageANDROID");
      if (!release_image) return VK_ERROR_EXTENSION_NOT_PRESENT;
@@ -733,85 +818,17 @@ tell a screen that never shows the buffers from frames that are black.
      if (result != VK_SUCCESS) {
          if (fence >= 0) close(fence);
          return result;
---- a/hybris/vulkan/icd/device.c	2026-11-02 14:03:33
-+++ b/hybris/vulkan/icd/device.c	2026-11-02 14:03:47
-@@ -19,6 +19,7 @@
-     int swapchain_enabled;
-     uint32_t queue_count;
-     VkQueue *queues;
-+    uint32_t *families;
-     VkAllocationCallbacks allocator;
-     int custom_allocator;
-     struct device_state *next;
-@@ -26,12 +27,17 @@
- static pthread_mutex_t device_guard = PTHREAD_MUTEX_INITIALIZER;
- static struct device_state *devices;
- static uint64_t next_generation;
-+static void free_array(struct device_state *state, void *array)
-+{
-+    if (!array) return;
-+    if (state->custom_allocator) state->allocator.pfnFree(state->allocator.pUserData, array);
-+    else free(array);
-+}
-+
- static void free_state(struct device_state *state)
- {
--    if (state->queues) {
--        if (state->custom_allocator) state->allocator.pfnFree(state->allocator.pUserData, state->queues);
--        else free(state->queues);
--    }
-+    free_array(state, state->queues);
-+    free_array(state, state->families);
-     if (state->custom_allocator)
-         state->allocator.pfnFree(state->allocator.pUserData, state);
-     else
-@@ -103,9 +109,12 @@
-         result = VK_ERROR_OUT_OF_HOST_MEMORY;
-     else if (queue_count) {
-         size_t size = (size_t)queue_count * sizeof(VkQueue);
-+        size_t families = (size_t)queue_count * sizeof(uint32_t);
-         state->queues = allocator ? allocator->pfnAllocation(allocator->pUserData, size,
-             _Alignof(VkQueue), VK_SYSTEM_ALLOCATION_SCOPE_DEVICE) : malloc(size);
--        if (!state->queues) result = VK_ERROR_OUT_OF_HOST_MEMORY;
-+        state->families = allocator ? allocator->pfnAllocation(allocator->pUserData, families,
-+            _Alignof(uint32_t), VK_SYSTEM_ALLOCATION_SCOPE_DEVICE) : malloc(families);
-+        if (!state->queues || !state->families) result = VK_ERROR_OUT_OF_HOST_MEMORY;
-         else {
-             PFN_vkGetDeviceQueue get = (PFN_vkGetDeviceQueue)resolver(*device, "vkGetDeviceQueue");
-             PFN_vkGetDeviceQueue2 get2 = (PFN_vkGetDeviceQueue2)resolver(*device, "vkGetDeviceQueue2");
-@@ -120,6 +129,7 @@
-                         get2(*device, &qi, &handle);
-                     }
-                     if (!handle) { result = VK_ERROR_INITIALIZATION_FAILED; break; }
-+                    state->families[state->queue_count] = created->queueFamilyIndex;
-                     state->queues[state->queue_count++] = handle;
-                 }
-             }
-@@ -180,6 +190,17 @@
-     return found;
- }
- 
-+int hybris_icd_queue_family(VkQueue queue, uint32_t *family)
-+{
-+    int found = 0;
-+    pthread_mutex_lock(&device_guard);
-+    for (const struct device_state *state = devices; state && !found; state = state->next)
-+        for (uint32_t i = 0; i < state->queue_count; ++i)
-+            if (state->queues[i] == queue) { *family = state->families[i]; found = 1; break; }
-+    pthread_mutex_unlock(&device_guard);
-+    return found;
-+}
-+
- int hybris_icd_lookup_queue(VkQueue queue, struct hybris_icd_device *out)
- {
-     VkDevice device = VK_NULL_HANDLE;
---- a/hybris/vulkan/icd/device.h	2026-11-02 14:03:33
-+++ b/hybris/vulkan/icd/device.h	2026-11-02 14:03:47
-@@ -16,5 +16,7 @@
- PFN_vkVoidFunction VKAPI_CALL hybris_icd_device_proc(VkDevice device, const char *name);
- void VKAPI_CALL hybris_icd_destroy_device(VkDevice device, const VkAllocationCallbacks *allocator);
- int hybris_icd_lookup_queue(VkQueue queue, struct hybris_icd_device *out);
-+/* The family of a queue the device created: for the commands the adapter records itself. */
-+int hybris_icd_queue_family(VkQueue queue, uint32_t *family);
- int hybris_icd_lookup_device(VkDevice device, struct hybris_icd_device *out);
- #endif
+diff --git a/hybris/vulkan/icd/wsi.c b/hybris/vulkan/icd/wsi.c
+index bef7032..063c4d2 100644
+--- a/hybris/vulkan/icd/wsi.c
++++ b/hybris/vulkan/icd/wsi.c
+@@ -551,7 +551,8 @@ VkResult hybris_icd_wsi_capabilities(VkPhysicalDevice physical,
+      * BGRA has no equivalent native backing here, so do not advertise a
+      * format-independent OPAQUE guarantee when BGRA is also offered. */
+     capabilities->supportedCompositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+-    if (count == 1 && formats[0].format == VK_FORMAT_R8G8B8A8_UNORM)
++    if ((count == 1 && formats[0].format == VK_FORMAT_R8G8B8A8_UNORM) ||
++        (state->window->ops->opaque && state->window->ops->opaque(state->window)))
+         capabilities->supportedCompositeAlpha |= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+     capabilities->supportedUsageFlags = usage;
+     return VK_SUCCESS;

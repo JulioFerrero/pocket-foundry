@@ -1,15 +1,15 @@
 diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
-index fc1ad25..f905986 100644
+index 60a41c0..9c7b87b 100644
 --- a/hybris/vulkan/Makefile.am
 +++ b/hybris/vulkan/Makefile.am
-@@ -20,7 +20,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
-     compat/multiviewport.c compat/multiviewport.h \
+@@ -22,7 +22,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/texel_alignment.c compat/texel_alignment.h \
      compat/robustness2.c compat/robustness2.h compat/null_descriptors.c compat/null_descriptors.h compat/null_map.h \
      compat/bc_decode.c compat/bc_decode.h compat/shaders/bc_decode.inc \
--    compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h \
-+    compat/bc_image.c compat/bc_image.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h compat/bc_shadow.c compat/bc_shadow.h \
-     compat/bc_context.c compat/bc_context.h compat/bc_commands.c compat/bc_resources.c compat/bc_record.c compat/bc_barriers.c compat/bc_image_copy.c compat/bc_policy.c compat/bc_policy.h \
-     compat/application_policy.c compat/application_policy.h \
+-    compat/bc_image.c compat/bc_image.h compat/bc_alias.c compat/bc_alias.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h \
++    compat/bc_image.c compat/bc_image.h compat/bc_alias.c compat/bc_alias.h compat/bc_command_state.c compat/bc_command_state.h compat/bc_transfer.c compat/bc_transfer.h compat/bc_shadow.c compat/bc_shadow.h \
+     compat/bc_context.c compat/bc_context.h compat/bc_commands.c compat/bc_push_descriptors.c compat/bc_resources.c compat/bc_record.c compat/bc_barriers.c compat/bc_image_copy.c compat/bc_policy.c compat/bc_policy.h \
+     compat/application_policy.c compat/application_policy.h compat/planar_usage.h \
      compat/memory_visibility.c compat/memory_visibility.h compat/rendering_segments.c compat/rendering_segments.h \
 diff --git a/hybris/vulkan/compat/bc_barriers.c b/hybris/vulkan/compat/bc_barriers.c
 index f46825b..084a9b2 100644
@@ -52,18 +52,18 @@ index f46825b..084a9b2 100644
          uint32_t levels = level_count(image, &original->subresourceRange);
          for (uint32_t j = 0; j < levels; ++j) {
 diff --git a/hybris/vulkan/compat/bc_image.c b/hybris/vulkan/compat/bc_image.c
-index 46f5529..678db00 100644
+index 9ca0fb7..ce9b231 100644
 --- a/hybris/vulkan/compat/bc_image.c
 +++ b/hybris/vulkan/compat/bc_image.c
-@@ -1,6 +1,7 @@
- /* SPDX-License-Identifier: Apache-2.0 */
+@@ -2,6 +2,7 @@
  #define VK_NO_PROTOTYPES
  #include "bc_image.h"
+ #include "bc_alias.h"
 +#include "bc_shadow.h"
  #include <string.h>
  
  #define PROC(name) PFN_vk##name name = (PFN_vk##name)image->resolver(image->device, "vk" #name)
-@@ -53,6 +54,15 @@ VkFormat hybris_bc_transcode_format(VkFormat format)
+@@ -54,6 +55,15 @@ VkFormat hybris_bc_transcode_format(VkFormat format)
      }
  }
  
@@ -79,17 +79,17 @@ index 46f5529..678db00 100644
  int hybris_bc_mutable_format(VkFormat format)
  {
      return format >= VK_FORMAT_BC1_RGB_UNORM_BLOCK && format <= VK_FORMAT_BC7_SRGB_BLOCK;
-@@ -95,6 +105,7 @@ void hybris_bc_image_destroy(struct hybris_bc_image *image, const VkAllocationCa
-     if (image->image) DestroyImage(image->device, image->image, allocator);
+@@ -97,6 +107,7 @@ void hybris_bc_image_destroy(struct hybris_bc_image *image, const VkAllocationCa
      if (image->blocks) DestroyBuffer(image->device, image->blocks, allocator);
-     if (image->decoded_memory) FreeMemory(image->device, image->decoded_memory, NULL);
+     if (image->alias) hybris_bc_alias_release(image);
+     else if (image->decoded_memory) FreeMemory(image->device, image->decoded_memory, NULL);
 +    if (image->shadow) hybris_bc_shadow_release(image->shadow, image->shadow_offset, image->block_size);
      memset(image, 0, sizeof(*image));
  }
  
-@@ -201,14 +212,7 @@ VkResult hybris_bc_image_create(VkDevice device, PFN_vkGetDeviceProcAddr resolve
-     VkImageCreateInfo decoded = *info;
-     decoded.pNext = NULL;
+@@ -217,14 +228,7 @@ VkResult hybris_bc_image_create(VkDevice device, PFN_vkGetDeviceProcAddr resolve
+             decoded.pNext=&compression;
+         }
      /* The two transfer functions must use the same storage representation. */
 -    image->decoded_format = hybris_bc_image_format(info->format);
 -    if (output_format != VK_FORMAT_UNDEFINED) image->decoded_format = output_format;
@@ -103,7 +103,7 @@ index 46f5529..678db00 100644
      decoded.format = image->decoded_format;
      decoded.usage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
      result = CreateImage(device, &decoded, allocator, &image->image);
-@@ -222,6 +226,14 @@ VkResult hybris_bc_image_create(VkDevice device, PFN_vkGetDeviceProcAddr resolve
+@@ -238,6 +242,14 @@ VkResult hybris_bc_image_create(VkDevice device, PFN_vkGetDeviceProcAddr resolve
          .image = image->image};
      GetImageMemoryRequirements2(device, &request, &queried);
      VkMemoryRequirements requirements = queried.memoryRequirements;
@@ -118,8 +118,8 @@ index 46f5529..678db00 100644
      uint32_t type = memory->memoryTypeCount;
      for (uint32_t i = 0; i < memory->memoryTypeCount; ++i) {
          if (!(requirements.memoryTypeBits & (1u << i))) continue;
-@@ -259,7 +271,11 @@ fail:
- VkResult hybris_bc_image_bind(const struct hybris_bc_image *image,
+@@ -278,7 +290,11 @@ fail:
+ VkResult hybris_bc_image_bind(struct hybris_bc_image *image,
      VkDeviceMemory memory, VkDeviceSize offset)
  {
 -    if (!image || !image->blocks) return VK_ERROR_INITIALIZATION_FAILED;
@@ -129,13 +129,13 @@ index 46f5529..678db00 100644
 +        return BindImageMemory(image->device, image->image, memory, offset);
 +    }
      PROC(BindBufferMemory);
-     return BindBufferMemory(image->device, image->blocks, memory, offset);
- }
+     VkResult result=BindBufferMemory(image->device, image->blocks, memory, offset);
+     return result==VK_SUCCESS?hybris_bc_alias_bind(image,memory,offset):result;
 diff --git a/hybris/vulkan/compat/bc_image.h b/hybris/vulkan/compat/bc_image.h
-index 987d430..932692f 100644
+index 08f8fff..e62c3e8 100644
 --- a/hybris/vulkan/compat/bc_image.h
 +++ b/hybris/vulkan/compat/bc_image.h
-@@ -17,11 +17,18 @@ struct hybris_bc_image {
+@@ -18,11 +18,18 @@ struct hybris_bc_image {
      VkExtent3D extent;
      uint32_t mip_levels, layers, block_bytes;
      VkDeviceSize mip_offset[32], block_size;
@@ -279,18 +279,18 @@ index 2e7327c..55df9e4 100644
      for (uint32_t i = 0; i < count; ++i) {
          const VkImageCopy *region = &regions[i];
 diff --git a/hybris/vulkan/compat/bc_resources.c b/hybris/vulkan/compat/bc_resources.c
-index 486b56b..c0b4d58 100644
+index eb26060..8526937 100644
 --- a/hybris/vulkan/compat/bc_resources.c
 +++ b/hybris/vulkan/compat/bc_resources.c
-@@ -2,6 +2,7 @@
- #define VK_NO_PROTOTYPES
+@@ -3,6 +3,7 @@
  #include "bc_context.h"
  #include "bc_policy.h"
+ #include "bc_alias.h"
 +#include "bc_shadow.h"
+ #include "planar_usage.h"
  #include <stdlib.h>
  #include <string.h>
- #include <stdio.h>
-@@ -76,7 +77,8 @@ static void requirements2(VkDevice handle, const VkImageMemoryRequirementsInfo2
+@@ -95,7 +96,8 @@ static void requirements2(VkDevice handle, const VkImageMemoryRequirementsInfo2
      struct hybris_bc_device *device = hybris_bc_device_find(handle);
      if (!device) return;
      struct hybris_bc_resource *resource = hybris_bc_resource_find(device, info->image);
@@ -300,7 +300,7 @@ index 486b56b..c0b4d58 100644
          PROC(GetBufferMemoryRequirements2);
          VkBufferMemoryRequirementsInfo2 buffer = {.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
              .buffer = resource->emulated.blocks};
-@@ -108,6 +110,20 @@ static void device_requirements(VkDevice handle, const VkDeviceImageMemoryRequir
+@@ -131,6 +133,20 @@ static void device_requirements(VkDevice handle, const VkDeviceImageMemoryRequir
          out->memoryRequirements = (VkMemoryRequirements){0};
          return;
      }
@@ -321,7 +321,7 @@ index 486b56b..c0b4d58 100644
      VkBufferCreateInfo backing;
      hybris_bc_image_backing_info(&image, info->pCreateInfo, &backing);
      VkDeviceBufferMemoryRequirements query = {
-@@ -177,7 +193,7 @@ static VkResult bind_images(VkDevice handle, uint32_t count, const VkBindImageMe
+@@ -200,7 +216,7 @@ static VkResult bind_images(VkDevice handle, uint32_t count, const VkBindImageMe
      for (uint32_t i = 0; i < count; ++i) {
          struct hybris_bc_resource *resource = hybris_bc_resource_find(device, infos[i].image);
          VkResult result;
@@ -330,7 +330,7 @@ index 486b56b..c0b4d58 100644
              VkBindBufferMemoryDeviceGroupInfo group = {
                  .sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO};
              VkBindBufferMemoryInfo buffer = {.sType = VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
-@@ -264,7 +280,8 @@ static VkResult VKAPI_CALL allocate_memory(VkDevice handle, const VkMemoryAlloca
+@@ -295,7 +311,8 @@ static VkResult VKAPI_CALL allocate_memory(VkDevice handle, const VkMemoryAlloca
              resource = hybris_bc_resource_find(device, dedicated->image);
              break;
          }

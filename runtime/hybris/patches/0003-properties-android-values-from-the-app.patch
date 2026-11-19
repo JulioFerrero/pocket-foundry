@@ -1,6 +1,8 @@
+diff --git a/hybris/common/legacy_properties/cache.c b/hybris/common/legacy_properties/cache.c
+index 019b7db..6b38d2a 100644
 --- a/hybris/common/legacy_properties/cache.c
 +++ b/hybris/common/legacy_properties/cache.c
-@@ -35,7 +35,8 @@
+@@ -35,7 +35,8 @@ struct hybris_prop_value
  };
  
  /* surely enough for anyone */
@@ -10,7 +12,7 @@
  
  /* the sorted prop array */
  static struct hybris_prop_value prop_array[MAX_PROPS];
-@@ -121,6 +122,16 @@
+@@ -121,6 +122,16 @@ static void cache_update()
  
  		/* cache is stale. fill it back up with fresh data first. */
  		cache_empty_internal();

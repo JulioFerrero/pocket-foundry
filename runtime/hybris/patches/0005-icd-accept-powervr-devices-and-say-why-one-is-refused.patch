@@ -1,6 +1,8 @@
+diff --git a/hybris/vulkan/icd/icd.c b/hybris/vulkan/icd/icd.c
+index 06a53ae..27b69e5 100644
 --- a/hybris/vulkan/icd/icd.c
 +++ b/hybris/vulkan/icd/icd.c
-@@ -119,11 +119,27 @@
+@@ -132,11 +132,27 @@ static void initialize_hal(void)
      }
      int result = module->methods->open(module, HWVULKAN_DEVICE_0,
                                        (hw_device_t **)&candidate);

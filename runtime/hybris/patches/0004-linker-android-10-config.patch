@@ -1,3 +1,5 @@
+diff --git a/hybris/common/q/linker_config.cpp b/hybris/common/q/linker_config.cpp
+index 9b16d1d..03136a9 100644
 --- a/hybris/common/q/linker_config.cpp
 +++ b/hybris/common/q/linker_config.cpp
 @@ -41,6 +41,7 @@
@@ -8,7 +10,7 @@
  #include <unistd.h>
  
  #include <string>
-@@ -588,6 +589,13 @@
+@@ -588,6 +589,13 @@ std::string Config::get_vndk_version_string(const char delimiter) {
      //add the delimiter char in front of the string and return it.
      return version.insert(0, 1, delimiter);
    }*/
