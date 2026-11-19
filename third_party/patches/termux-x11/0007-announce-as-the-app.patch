@@ -1,4 +1,5 @@
 diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+index b4bf8df..c97982f 100644
 --- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 +++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 @@ -91,51 +91,59 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {

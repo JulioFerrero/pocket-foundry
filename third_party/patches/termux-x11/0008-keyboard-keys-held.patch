@@ -1,8 +1,8 @@
 diff --git a/lorie/src/main/java/com/termux/x11/input/InputEventSender.java b/lorie/src/main/java/com/termux/x11/input/InputEventSender.java
-index 22135e6..9e6843f 100644
+index 022d014..81e7482 100644
 --- a/lorie/src/main/java/com/termux/x11/input/InputEventSender.java
 +++ b/lorie/src/main/java/com/termux/x11/input/InputEventSender.java
-@@ -248,7 +248,12 @@ public final class InputEventSender {
+@@ -271,7 +271,12 @@ public final class InputEventSender {
          char unicode = keyCode != KEYCODE_ENTER ? (char) e.getUnicodeChar() : 0;
          int scancode = (preferScancodes || !no_modifiers) ? e.getScanCode(): 0;
  

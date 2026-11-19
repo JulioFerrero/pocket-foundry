@@ -1,5 +1,5 @@
 diff --git a/lorie/src/main/cpp/lorie/lorie.h b/lorie/src/main/cpp/lorie/lorie.h
-index a8c36d0..32b69d3 100644
+index 0477ab1..ba1436d 100644
 --- a/lorie/src/main/cpp/lorie/lorie.h
 +++ b/lorie/src/main/cpp/lorie/lorie.h
 @@ -15,7 +15,7 @@

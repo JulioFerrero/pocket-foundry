@@ -1,8 +1,8 @@
 diff --git a/lorie/src/main/java/com/termux/x11/MainActivity.java b/lorie/src/main/java/com/termux/x11/MainActivity.java
-index dc1a870..3577f0d 100644
+index 98d30ff..715eea2 100644
 --- a/lorie/src/main/java/com/termux/x11/MainActivity.java
 +++ b/lorie/src/main/java/com/termux/x11/MainActivity.java
-@@ -95,13 +95,15 @@ public class MainActivity extends AppCompatActivity {
+@@ -97,13 +97,15 @@ public class MainActivity extends AppCompatActivity {
      public static Handler handler = new Handler();
      private final Runnable connectRetry = this::tryConnect;
      FrameLayout frm;
@@ -21,7 +21,7 @@ index dc1a870..3577f0d 100644
      boolean useTermuxEKBarBehaviour = false;
      private boolean isInPictureInPictureMode = false;
 diff --git a/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java b/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java
-index ec1323a..6de7ae8 100644
+index 11309ed..45a1f28 100644
 --- a/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java
 +++ b/lorie/src/main/java/com/termux/x11/input/TouchInputHandler.java
 @@ -86,7 +86,8 @@ public class TouchInputHandler {

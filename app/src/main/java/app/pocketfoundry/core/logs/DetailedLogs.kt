@@ -6,8 +6,7 @@ import app.pocketfoundry.core.system.Settings
 /**
  * Settings' Detailed logs. The game and the X server get [environment]: our Mesa and Termux:X11 patches then log how
  * each frame gets to the screen (POCKETFOUNDRY_DETAILED_LOGS: runtime/mesa/patches 0004 and 0005,
- * third_party/patches/termux-x11 0011), the X server hands the switch to the app's screen renderer, and Mesa prints
- * every GL error.
+ * third_party/patches/termux-x11 0011), the X server's renderer among them, and Mesa prints every GL error.
  */
 object DetailedLogs {
     internal const val SWITCH = "POCKETFOUNDRY_DETAILED_LOGS"

@@ -1,4 +1,5 @@
 diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
+index f48a24d..d59c1e4 100644
 --- a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
 +++ b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
 @@ -33,7 +33,12 @@ extern "C" {
@@ -15,7 +16,7 @@ diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lor
  
  static int argc = 0;
  static char** argv = nullptr;
-@@ -205,7 +210,7 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
+@@ -204,7 +209,7 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
  
      XkbBaseDirectory = getenv("XKB_CONFIG_ROOT");
      if (access(XkbBaseDirectory, F_OK) != 0) {
@@ -24,7 +25,7 @@ diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lor
          printf("%s is unaccessible: %s\n", XkbBaseDirectory, strerror(errno));
          return JNI_FALSE;
      }
-@@ -680,7 +685,10 @@ void lorieListenForKnocks(int port, const char *tag) {
+@@ -670,7 +675,10 @@ void lorieListenForKnocks(int port, const char *tag) {
          if (poll((struct pollfd[]) {{ .fd = client, .events = POLLIN }}, 1, 200) > 0 &&
              (count = recv(client, buffer, sizeof(buffer), MSG_DONTWAIT)) > 0 &&
              !memcmp(buffer, MAGIC, min(count, sizeof(MAGIC)))) {
@@ -37,6 +38,7 @@ diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lor
          }
          close(client);
 diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+index 19a2872..b4bf8df 100644
 --- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 +++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 @@ -151,6 +151,7 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {

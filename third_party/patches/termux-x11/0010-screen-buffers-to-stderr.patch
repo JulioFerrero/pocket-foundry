@@ -1,5 +1,5 @@
 diff --git a/lorie/src/main/cpp/lorie/buffer.c b/lorie/src/main/cpp/lorie/buffer.c
-index 65914b2..a9de8f5 100644
+index 4b4c43c..b2e7022 100644
 --- a/lorie/src/main/cpp/lorie/buffer.c
 +++ b/lorie/src/main/cpp/lorie/buffer.c
 @@ -7,6 +7,7 @@
@@ -10,7 +10,7 @@ index 65914b2..a9de8f5 100644
  #include <string.h>
  #include <stdlib.h>
  #include <math.h>
-@@ -451,17 +452,29 @@ __LIBC_HIDDEN__ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
+@@ -429,17 +430,29 @@ __LIBC_HIDDEN__ void LorieBuffer_attachToGL(LorieBuffer* buffer) {
      if (!eglGetCurrentDisplay() || !buffer)
          return;
  
@@ -41,5 +41,5 @@ index 65914b2..a9de8f5 100644
 +        if (error) fprintf(stderr, "buffer %llu: GL error 0x%x binding its image\n", (unsigned long long) buffer->desc.id, error);
 +    } else if (buffer->desc.data && buffer->desc.width > 0 && buffer->desc.height > 0) {
          int format = buffer->desc.format == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM ? GL_BGRA_EXT : GL_RGBA;
-         // The image will be updated in redraw call because of `drawRequested` flag, so we are not uploading pixels
+         // The renderer uploads the whole image the first time it draws the buffer, so we are not uploading pixels
          glTexImage2D(GL_TEXTURE_2D, 0, format, buffer->desc.stride, buffer->desc.height, 0, format, GL_UNSIGNED_BYTE, NULL);

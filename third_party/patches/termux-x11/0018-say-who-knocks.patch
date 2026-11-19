@@ -1,6 +1,8 @@
+diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
+index d59c1e4..e6b5559 100644
 --- a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
 +++ b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
-@@ -681,6 +681,11 @@
+@@ -679,6 +679,11 @@ void lorieListenForKnocks(int port, const char *tag) {
              static int knocks = 0;
              if (knocks++ < 3)
                  log(DEBUG, "New client connection!");
@@ -12,9 +14,11 @@
              serverEnv->CallVoidMethod(thiz, sendBroadcast);
          }
          close(client);
+diff --git a/lorie/src/main/java/com/termux/x11/MainActivity.java b/lorie/src/main/java/com/termux/x11/MainActivity.java
+index 715eea2..2368da3 100644
 --- a/lorie/src/main/java/com/termux/x11/MainActivity.java
 +++ b/lorie/src/main/java/com/termux/x11/MainActivity.java
-@@ -94,6 +94,7 @@
+@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
  
      public static Handler handler = new Handler();
      private final Runnable connectRetry = this::tryConnect;
@@ -22,7 +26,7 @@
      FrameLayout frm;
      // Pocket Foundry: public, so its touch controls map points with mInputHandler.mRenderData.
      public TouchInputHandler mInputHandler;
-@@ -740,6 +741,11 @@
+@@ -768,6 +769,11 @@ public class MainActivity extends AppCompatActivity {
  
          if (service == null) {
              boolean sent = getLorieView().requestConnection();

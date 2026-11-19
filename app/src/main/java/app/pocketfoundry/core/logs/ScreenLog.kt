@@ -19,9 +19,9 @@ import kotlin.concurrent.thread
  */
 object ScreenLog {
     /**
-     * The lines our Termux:X11 patches write for it (third_party/patches/termux-x11): the screen's buffers (0010) on
-     * the app's stderr, and with Detailed logs what it draws (0011, the app's stderr) and the frames it's sent (0011,
-     * the X server's output).
+     * The lines our Termux:X11 patches write for it (third_party/patches/termux-x11): the screen's buffers (0010), and
+     * with Detailed logs what it draws and the frames it's sent (0011). The renderer runs in the X server's process,
+     * so they come in the X server's output (Session).
      */
     internal val SCREEN_LINES = listOf("buffer ", "screen: ", "frames: ")
     /** Enough of a trace to see where, without a long chain of causes filling the Logs. */

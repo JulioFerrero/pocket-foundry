@@ -1,6 +1,8 @@
+diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+index 47ca66a..ea8602e 100644
 --- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 +++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
-@@ -112,6 +112,10 @@
+@@ -112,6 +112,10 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
              Log.e("Broadcast", "Failed to broadcast as the app, falling back to the system context:", e);
          }
          try {
@@ -11,7 +13,7 @@
              ctx.sendBroadcast(intent);
              if (report)
                  System.err.println("CmdEntryPoint: announced the X server to the app, through the system context");
-@@ -209,8 +213,6 @@
+@@ -211,8 +215,6 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
      }
  
      private static void initEntryPoint() {

@@ -1,6 +1,8 @@
+diff --git a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
+index ea8602e..f66cce0 100644
 --- a/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
 +++ b/lorie/src/main/java/com/termux/x11/CmdEntryPoint.java
-@@ -144,12 +144,13 @@
+@@ -144,12 +144,13 @@ public class CmdEntryPoint extends ICmdEntryInterface.Stub {
          // The last argument is the app's Android user (uid / UserHandle.PER_USER_RANGE): not 0 in a work profile.
          IIntentSender sender = am.getIntentSender(1, packageName, null, null, 0, new Intent[] { intent },
                  null, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_ONE_SHOT, null, getuid() / 100000);

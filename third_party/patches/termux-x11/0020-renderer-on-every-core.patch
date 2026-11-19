@@ -1,0 +1,27 @@
+--- a/lorie/src/main/cpp/lorie/renderer.cpp
++++ b/lorie/src/main/cpp/lorie/renderer.cpp
+@@ -29,6 +29,8 @@
+ #include <linux/futex.h>
+ #include <unistd.h>
+ #include <pthread.h>
++#include <sched.h>
++#include <errno.h>
+ #include <stdarg.h>
+ #include <stdio.h>
+ #include "list.h"
+@@ -250,6 +252,15 @@
+ }
+ 
+ void* Renderer::initThread() {
++    // Pocket Foundry: the X server's process keeps to the upper half of the cores (cmdentrypoint.cpp). The renderer,
++    // which ran in the app's process before, may use them all again.
++    cpu_set_t everyCore;
++    CPU_ZERO(&everyCore);
++    for (long i = 0, cores = sysconf(_SC_NPROCESSORS_CONF); i < cores && i < CPU_SETSIZE; i++)
++        CPU_SET(i, &everyCore);
++    if (sched_setaffinity(0, sizeof(everyCore), &everyCore) == -1)
++        log("Renderer can't use every core: %s", strerror(errno));
++
+     JavaVMAttachArgs attachArgs = { JNI_VERSION_1_6, "LorieRendererThread", nullptr };
+     bool ready = jvm->AttachCurrentThread(&rendererEnv, &attachArgs) == JNI_OK;
+     if (!ready)

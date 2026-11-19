@@ -1,7 +1,8 @@
 diff --git a/lorie/build.gradle b/lorie/build.gradle
+index 9e90d4a..668362f 100644
 --- a/lorie/build.gradle
 +++ b/lorie/build.gradle
-@@ -29,6 +29,8 @@
+@@ -29,6 +29,8 @@ android {
      defaultConfig {
          minSdkVersion 24
          targetSdkVersion 34
