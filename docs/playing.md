@@ -103,8 +103,13 @@ far enough along.
 
 ## Saves
 
-Settings -> Saves exports them all to `Download/Pocket Foundry`, which uninstalling leaves alone, and imports saves
-from anywhere.
+Home -> All saves lists them as the game's Load game does. Import brings saves in from anywhere; Export copies one to
+`Download/Pocket Foundry`, which uninstalling leaves alone.
+
+**Benchmark** runs Factorio's own benchmark on the save, as [Factorio Bench](https://factoriobench.com/) does: the
+simulation alone, five times 1000 updates with no mods, the best run in updates a second. It also shows how fast the
+phone let its cores run meanwhile: many phones hold games below their top speed, on battery or when warm. Copy gives
+one line for a report.
 
 | | |
 |---|---|

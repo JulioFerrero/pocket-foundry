@@ -58,11 +58,14 @@ class SavesDialog(private val launcher: LauncherActivity) {
     }
     private val exportButton = button(launcher, "Export") { viewing?.let(::export) }
     private val deleteButton = button(launcher, "Delete") { viewing?.let(::confirmDelete) }
+    private val benchmarkButton = button(launcher, "Benchmark") {
+        viewing?.let { save -> BenchmarkDialog(launcher).show(save) { show(save) } }
+    }
     private val loadButton = button(launcher, "Load", Tone.GREEN, Arrow.RIGHT) { viewing?.let(::load) }
 
     fun show(select: File? = null) {
         host.show("Saves", minOf(WIDTH, launcher.screenWidthDp - MARGIN), "Close", importButton, exportButton,
-                  deleteButton, loadButton) {
+                  deleteButton, benchmarkButton, loadButton) {
             add(row(launcher, Gravity.TOP) {
                 add(ScrollView(launcher).apply {
                     isFillViewport = true
@@ -110,8 +113,9 @@ class SavesDialog(private val launcher: LauncherActivity) {
         viewing = save
         rows.forEach { (file, row) -> (row.background as ButtonDrawable).tone = if (file == save) Tone.ORANGE else Tone.GREY }
         for (b in listOf(exportButton, deleteButton)) b.isEnabled = save != null
-        // A save can't be loaded over the game that's running.
+        // A save can't be loaded, or benchmarked, beside the game that's running.
         loadButton.isEnabled = save != null && !Session.inGame
+        benchmarkButton.isEnabled = loadButton.isEnabled
         name.text = save?.nameWithoutExtension.orEmpty()
         facts.text = save?.let { "Saved ${whenSaved(launcher, it)} · ${Formatter.formatShortFileSize(launcher, it.length())}" }
             .orEmpty()
@@ -163,7 +167,7 @@ class SavesDialog(private val launcher: LauncherActivity) {
 
     /** [work] says what came of it. */
     private fun job(work: () -> String) {
-        for (b in listOf(importButton, exportButton, deleteButton, loadButton)) b.isEnabled = false
+        for (b in listOf(importButton, exportButton, deleteButton, benchmarkButton, loadButton)) b.isEnabled = false
         background("saves", work) { result ->
             importButton.isEnabled = true
             listSaves()

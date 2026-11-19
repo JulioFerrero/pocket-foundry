@@ -79,6 +79,8 @@ class Paths(val files: File, nativeLibs: File) {
     val lastMemory = File(logs, "last-memory.txt")
     val x11Log = File(logs, "x11.log")
     val driverCheckLog = File(logs, "drivercheck.log")
+    /** Factorio's own benchmark of a save (Benchmark). */
+    val benchmarkLog = File(logs, "benchmark.log")
     fun toolLog(name: String) = File(logs, "$name.log")
 
     val loader = File(nativeLibs, "libld-linux.so")
