@@ -77,8 +77,8 @@ object AudioBridge {
                 .setChannelMask(mask)
                 .build())
             .setTransferMode(AudioTrack.MODE_STREAM)
-            // Android's own choice, not low latency: on a vivo X200 Ultra the fast path cost the phone's audio driver and
-            // mixer 119 ms of CPU a second against 29, and the game's sound already lags by LAG_FRAMES.
+            // Android's own choice, not low latency: on a vivo X200 Ultra the fast path cost the phone's audio
+            // driver and mixer 119 ms of CPU a second against 29, and the game's sound already lags by LAG_FRAMES.
             .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_NONE)
             .setBufferSizeInBytes(maxOf(minimum, 4 * channels * LAG_FRAMES))
             .build()
