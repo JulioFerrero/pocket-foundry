@@ -21,7 +21,8 @@ object AudioBridge {
     internal const val MAGIC = "PFA1"
     /** Two of SDL's 1024-frame chunks: the lag to the speaker. */
     private const val LAG_FRAMES = 2048
-    private const val READ_FRAMES = 256
+    /** One of SDL's chunks at a time: a smaller read only wakes the bridge more often. */
+    private const val READ_FRAMES = 1024
 
     fun start(paths: Paths) = Sdl.serve(paths.audioSocket) { client ->
         try {
@@ -49,6 +50,7 @@ object AudioBridge {
         } catch (e: EOFException) {
             // The game closed its audio device.
         } finally {
+            Log.i(TAG, "Audio ended: ${track.underrunCount} underruns")
             track.stop()
             track.release()
         }
@@ -75,7 +77,9 @@ object AudioBridge {
                 .setChannelMask(mask)
                 .build())
             .setTransferMode(AudioTrack.MODE_STREAM)
-            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+            // Android's own choice, not low latency: on a vivo X200 Ultra the fast path cost the phone's audio driver and
+            // mixer 119 ms of CPU a second against 29, and the game's sound already lags by LAG_FRAMES.
+            .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_NONE)
             .setBufferSizeInBytes(maxOf(minimum, 4 * channels * LAG_FRAMES))
             .build()
         // Android may give a bigger buffer than asked, and its size is the lag to the speaker.
