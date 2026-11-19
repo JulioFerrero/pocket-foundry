@@ -25,6 +25,7 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:appCategory="game"
+        android:isGame="true"
         tools:replace="android:name">
 
         <meta-data
