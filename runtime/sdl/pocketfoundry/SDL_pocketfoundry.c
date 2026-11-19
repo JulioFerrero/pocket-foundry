@@ -7,8 +7,10 @@
   Audio socket: a 12-byte header ("PFA1", then rate and channels as little-endian int32), then F32LE frames.
   Input socket: 4-byte messages: a type ('B' button, 'A' axis, 'R' rumble back to the app), an index, then a
   little-endian int16 value.
-  Frames file: "PFF1", then the frames the game has swapped, a little-endian uint32 that wraps. Every driver's frames
-  pass here, so the app's counter is the same whichever one draws.
+  Frames file: "PFF2", then the frames the game has swapped (a little-endian uint32 that wraps), the time of the last
+  swap (CLOCK_MONOTONIC nanoseconds, a little-endian int64) and a sequence that is odd while the two change. Every
+  driver's frames pass here, so the app's counter is the same whichever one draws, and the time between frames is
+  exact whenever the app looks.
   These names and values are the app's too (core/runtime/Sdl.kt, AudioBridge.kt, InputBridge.kt, Settings.kt):
   SourceContractTest checks they agree.
 
@@ -27,10 +29,11 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #define AUDIO_MAGIC "PFA1"  // AudioBridge in the app checks it
-#define FRAMES_MAGIC "PFF1" // FrameCounter in the app checks it
+#define FRAMES_MAGIC "PFF2" // FrameCounter in the app checks it
 #define RECONNECT_MS 1000
 #define GAME_UPS 60         // Factorio's updates a second: a cap at or above it is no cap
 
@@ -366,30 +369,47 @@ void SDL_POCKETFOUNDRY_PaceFrame(void)
     next = (next && now < next + interval) ? next + interval : now + interval;
 }
 
+// The frames file's layout: the app's FrameCounter reads it at these offsets.
+struct FrameStamp
+{
+    char magic[4];
+    Uint32 frames;
+    Sint64 swapped_ns;
+    Uint32 sequence;
+    Uint32 unused;
+};
+
 void SDL_POCKETFOUNDRY_CountFrame(void)
 {
     static bool looked;
-    static Uint32 *frames;
+    static struct FrameStamp *stamp;
+    struct timespec now;
 
     if (!looked) {
         const char *path = SDL_getenv("POCKETFOUNDRY_FRAMES");
         looked = true;
         if (path) {
-            // A file the app maps too: one add a frame, no system call.
+            // A file the app maps too: a few stores a frame, no system call but the clock's.
             int fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
             if (fd >= 0) {
-                void *map = ftruncate(fd, 8) == 0 ? mmap(NULL, 8, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0) : MAP_FAILED;
+                void *map = ftruncate(fd, sizeof(*stamp)) == 0 ?
+                    mmap(NULL, sizeof(*stamp), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0) : MAP_FAILED;
                 close(fd);
                 if (map != MAP_FAILED) {
-                    frames = (Uint32 *)((Uint8 *)map + 4);
-                    __atomic_store_n(frames, 0, __ATOMIC_RELAXED);
-                    SDL_memcpy(map, FRAMES_MAGIC, 4);
+                    stamp = (struct FrameStamp *)map;
+                    SDL_memset(stamp, 0, sizeof(*stamp));
+                    SDL_memcpy(stamp->magic, FRAMES_MAGIC, 4);
                 }
             }
         }
     }
-    if (frames) {
-        __atomic_add_fetch(frames, 1, __ATOMIC_RELAXED);
+    if (stamp) {
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        // Odd while the count and its time change, so the app never pairs one frame's count with another's time.
+        __atomic_add_fetch(&stamp->sequence, 1, __ATOMIC_ACQ_REL);
+        __atomic_store_n(&stamp->swapped_ns, (Sint64)now.tv_sec * 1000000000 + now.tv_nsec, __ATOMIC_RELAXED);
+        __atomic_add_fetch(&stamp->frames, 1, __ATOMIC_RELAXED);
+        __atomic_add_fetch(&stamp->sequence, 1, __ATOMIC_RELEASE);
     }
 }
 

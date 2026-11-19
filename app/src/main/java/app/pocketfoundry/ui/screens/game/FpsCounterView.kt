@@ -76,7 +76,7 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         }
     private val tick = object : Runnable {
         override fun run() {
-            rate.add(counter.frames())
+            rate.add(counter.sample(), System.nanoTime())
             invalidate()
             postDelayed(this, FrameRate.TICK_MS)
         }
