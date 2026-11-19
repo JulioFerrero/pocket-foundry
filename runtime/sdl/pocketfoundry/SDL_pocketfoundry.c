@@ -2,7 +2,9 @@
   Pocket Foundry's additions to SDL: sound, a gamepad and a frame cap from the Android app, and the game's frames for
   its FPS counter.
   The game's glibc process can't load Android's libraries, so sound and gamepad go over Unix sockets.
-  Delaying buffer swaps is enough for the cap: Factorio keeps its 60 updates a second and draws fewer frames.
+  Delaying buffer swaps is enough for the cap: Factorio keeps its 60 updates a second and draws fewer frames. At 60 it
+  changes nothing in a game, where Factorio draws a frame an update, but menus, the map editor and a paused game draw
+  as fast as they can otherwise (about 270 a second in the editor on a vivo X200 Ultra).
 
   Audio socket: a 12-byte header ("PFA1", then rate and channels as little-endian int32), then F32LE frames.
   Input socket: 4-byte messages: a type ('B' button, 'A' axis, 'R' rumble back to the app), an index, then a
@@ -41,7 +43,7 @@
 #define AUDIO_MAGIC "PFA1"  // AudioBridge in the app checks it
 #define FRAMES_MAGIC "PFF2" // FrameCounter in the app checks it
 #define RECONNECT_MS 1000
-#define GAME_UPS 60         // Factorio's updates a second: a cap at or above it is no cap
+#define GAME_UPS 60         // Factorio's updates a second: the frame rate when the app sets none
 
 static int POCKETFOUNDRY_Connect(const char *path)
 {
@@ -336,7 +338,7 @@ static int POCKETFOUNDRY_ReadFrameRate(const char *path)
     }
     text[n] = '\0';
     fps = SDL_atoi(text);
-    return (fps > 0 && fps < GAME_UPS) ? fps : 0;
+    return fps > 0 ? fps : 0;
 }
 
 // The frame rate PaceFrame keeps to, 0 for none: performance hints aim at it too.

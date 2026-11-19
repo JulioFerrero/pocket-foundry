@@ -88,7 +88,8 @@ object Runtime {
     }
 
     /**
-     * The game's SDL rereads it every second (runtime/sdl), so a change applies in game. Our 60 is the uncapped one.
+     * The game's SDL rereads it every second (runtime/sdl), so a change applies in game. 60 changes nothing in a game,
+     * where Factorio draws a frame an update, but keeps menus and the map editor from drawing as fast as they can.
      */
     private fun writeFrameRate(context: Context) {
         val file = Paths(context).frameRate
