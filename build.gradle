@@ -5,7 +5,7 @@ buildscript {
     }
     dependencies {
         // Same AGP as third_party/termux-x11.
-        classpath 'com.android.tools.build:gradle:9.3.1'
+        classpath 'com.android.tools.build:gradle:9.5.1'
     }
 }
 
