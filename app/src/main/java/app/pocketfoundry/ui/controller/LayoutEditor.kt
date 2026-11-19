@@ -143,7 +143,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     fun use(tool: Tool) {
         when (tool) {
             Tool.ADD -> adding = !adding
-            Tool.REMOVE -> selected?.let { remove(it) }
+            Tool.REMOVE -> selected?.takeUnless(Keys::kept)?.let { remove(it) }
             Tool.SMALLER -> resize(-SCALE_STEP)
             Tool.BIGGER -> resize(SCALE_STEP)
             Tool.OPACITY -> layout.nextOpacity()
@@ -175,6 +175,9 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
 
     private fun add(c: Control) {
         c.resetPlacement()
+        // A Mouse & keys key the set doesn't have by default comes onto the screen.
+        c.shown = true
+        c.inDrawer = false
         layout.refreshShown()
         select(c)
         adding = false

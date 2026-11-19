@@ -16,6 +16,11 @@ class Settings(context: Context) {
      * laptop's trackpad. BOX: a trackpad box where the right stick was, direct touch elsewhere.
      */
     var touch by prefs.string("touch", BOX)
+    /**
+     * One of CONTROLS. PAD: Factorio's gamepad mode and the on-screen pad. KEYS: Mouse & keys, its keyboard-and-mouse
+     * mode with keys on screen (ui/controller/Keys.kt). For the next game: Factorio keeps its mode till it restarts.
+     */
+    var controls by prefs.string("controls", PAD)
     /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
     var trackpadSpeed by prefs.int("trackpadSpeed", 150)
     var fpsCounter by prefs.bool("fpsCounter", false)
@@ -76,6 +81,9 @@ class Settings(context: Context) {
         const val TRACKPAD = "trackpad"
         const val BOX = "box"
         val TOUCHES = listOf(DIRECT, TRACKPAD, BOX)
+        const val PAD = "pad"
+        const val KEYS = "keys"
+        val CONTROLS = listOf(PAD, KEYS)
 
         /** The app's own prefs file, which other features keep their own keys in too (DriverRecords). */
         fun prefs(context: Context): SharedPreferences = context.getSharedPreferences("pocketfoundry", Context.MODE_PRIVATE)

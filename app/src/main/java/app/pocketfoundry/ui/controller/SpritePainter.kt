@@ -26,8 +26,8 @@ class SpritePainter(private val layout: PadLayout) {
         val set = sprites ?: return null
         val size = 2 * r
         return when (val kind = c.kind) {
-            is Kind.Stick -> {
-                val right = kind.axisX == PadAxis.RIGHT_X
+            is Kind.Stick, Kind.KeyStick -> {
+                val right = (kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X
                 if (right && box) {
                     still(canvas, set["trackpad"] ?: return null, x, y, size)
                     return false
@@ -48,6 +48,8 @@ class SpritePainter(private val layout: PadLayout) {
                 cap(canvas, c, strip ?: moves[c]?.strip?.takeUnless { it.bitmap.isRecycled } ?: set["dpad-up"] ?: return null,
                     c.dpad != 0, x, y, size, now)
             }
+            // Keys are drawn by PadPainter, their labels and icons at runtime.
+            is Kind.Key, is Kind.ToolKey, Kind.Drawer -> null
             else -> {
                 val strip = set[STRIPS[c.id] ?: return null] ?: return null
                 strip.base?.let { set[it] }?.let { still(canvas, it, x, y, size) }

@@ -13,6 +13,14 @@ sealed class Kind(val reach: Float, val follows: Boolean) {
     object Dpad : Kind(1.15f, true)
     class Button(val button: PadButton) : Kind(1.2f, false)
     class Trigger(val axis: PadAxis) : Kind(1.2f, false)
+    /** A keyboard key, or keys pressed together (Ctrl+Z): Android key codes, pressed in order. */
+    class Key(val codes: IntArray, val opens: Opens? = null) : Kind(1.15f, false)
+    /** W, A, S and D, from a stick: a diagonal holds two. */
+    object KeyStick : Kind(1.3f, true)
+    /** Opens and closes a panel of the keys in it ([Control.inDrawer]). */
+    object Drawer : Kind(1.15f, false)
+    /** One of the toolbar's play tools as a key: Mouse & keys keeps them in the drawer. */
+    class ToolKey(val tool: Tool) : Kind(1.15f, false)
 }
 
 // Where a control's frame sits, as parts of the room it leaves across and down the screen.
@@ -34,8 +42,14 @@ class Control(
     val pill: Boolean = false,
     val icon: Icon? = null,
     val label: String = if (icon == null) id else "",
-    /** In the editor's list of controls to add. */
+    /** In the editor's list of controls to add, and under a key in the drawer. */
     val name: String = id,
+    /** A key's drawn sign (Keys). */
+    val keyIcon: KeyIcon? = null,
+    /** Mouse & keys has every key in every set, most of them unshown, for the editor to add. */
+    val defaultShown: Boolean = true,
+    val defaultInDrawer: Boolean = false,
+    val defaultLatch: Boolean = false,
 ) {
     val anchor = when {
         defaultY < 0.2f -> Anchor.TOP
@@ -46,7 +60,11 @@ class Control(
     val idleGlyph = glyph?.replace("*", "color")
     val pressedGlyph = glyph?.replace("*", "black")
 
-    var shown = true
+    var shown = defaultShown
+    /** In the drawer's panel instead of on the screen. */
+    var inDrawer = defaultInDrawer
+    /** A key that stays held when tapped, till it's tapped again: Shift, Ctrl. */
+    var latch = defaultLatch
     var x = defaultX
     var y = defaultY
     var scale = 1f
@@ -58,8 +76,10 @@ class Control(
     var originY = 0f
     var knobX = 0f
     var knobY = 0f
-    /** The D-pad's directions held, as [DpadDir] bits. */
+    /** The D-pad's directions held, as [DpadDir] bits; the key stick's too. */
     var dpad = 0
+    /** Where a key's presses go, from the layout at its press. */
+    private var out: KeyOut? = null
 
     /** Clamped, unlike a saved scale read back as it is. */
     fun scaleTo(value: Float) {
@@ -67,7 +87,9 @@ class Control(
     }
 
     fun resetPlacement() {
-        shown = true
+        shown = defaultShown
+        inDrawer = defaultInDrawer
+        latch = defaultLatch
         x = defaultX
         y = defaultY
         scale = 1f
@@ -84,15 +106,42 @@ class Control(
                 knobX = touchX; knobY = touchY
                 false
             }
+            Kind.KeyStick -> {
+                out = layout.keyOut
+                originX = touchX; originY = touchY
+                knobX = touchX; knobY = touchY
+                false
+            }
             Kind.Dpad -> aim(touchX, touchY, layout)
             is Kind.Button -> { VirtualPad.button(SCREEN, k.button, true); true }
             is Kind.Trigger -> { VirtualPad.axis(SCREEN, k.axis, VirtualPad.AXIS_MAX); true }
+            is Kind.Key -> {
+                val keys = layout.keyOut ?: return true
+                out = keys
+                when {
+                    !latch -> keys.press(k.codes)
+                    layout.toggleLatched(this) -> keys.press(k.codes)
+                    else -> keys.release(k.codes)
+                }
+                true
+            }
+            // ControllerView acts on these.
+            Kind.Drawer, is Kind.ToolKey -> true
         }
     }
 
     /** The first finger moves. Returns whether a D-pad direction went down. */
     fun follow(touchX: Float, touchY: Float, layout: PadLayout): Boolean = when (val k = kind) {
-        is Kind.Stick -> { moveKnob(k, touchX, touchY, layout.radius(this)); false }
+        is Kind.Stick -> {
+            moveKnob(touchX, touchY, layout.radius(this))
+            VirtualPad.axis(SCREEN, k.axisX, (knobDx() / layout.radius(this) * VirtualPad.AXIS_MAX).toInt())
+            VirtualPad.axis(SCREEN, k.axisY, (knobDy() / layout.radius(this) * VirtualPad.AXIS_MAX).toInt())
+            false
+        }
+        Kind.KeyStick -> {
+            moveKnob(touchX, touchY, layout.radius(this))
+            holdKeys(Keys.stickDirections(knobDx(), knobDy(), layout.radius(this)))
+        }
         Kind.Dpad -> aim(touchX, touchY, layout)
         else -> false
     }
@@ -103,6 +152,8 @@ class Control(
         pointers -= id
         val handOver = pointers.isNotEmpty() && wasFirst && kind.follows
         if (pointers.isNotEmpty() && !handOver) return false
+        // A latched key stays down: its next tap lets it go.
+        if (kind is Kind.Key && latch) return true
         release()
         originX = Float.NaN
         return true
@@ -117,10 +168,14 @@ class Control(
             Kind.Dpad -> setDpad(0)
             is Kind.Button -> VirtualPad.button(SCREEN, k.button, false)
             is Kind.Trigger -> VirtualPad.axis(SCREEN, k.axis, 0)
+            Kind.KeyStick -> holdKeys(0)
+            // A latched key is let go by its next tap, or by the layout (PadLayout.releaseKeys).
+            is Kind.Key -> if (!latch) out?.release(k.codes)
+            Kind.Drawer, is Kind.ToolKey -> {}
         }
     }
 
-    private fun moveKnob(stick: Kind.Stick, touchX: Float, touchY: Float, r: Float) {
+    private fun moveKnob(touchX: Float, touchY: Float, r: Float) {
         if (originX.isNaN()) { originX = touchX; originY = touchY }
         var dx = touchX - originX
         var dy = touchY - originY
@@ -131,8 +186,22 @@ class Control(
         }
         knobX = originX + dx
         knobY = originY + dy
-        VirtualPad.axis(SCREEN, stick.axisX, (dx / r * VirtualPad.AXIS_MAX).toInt())
-        VirtualPad.axis(SCREEN, stick.axisY, (dy / r * VirtualPad.AXIS_MAX).toInt())
+    }
+
+    private fun knobDx() = knobX - originX
+    private fun knobDy() = knobY - originY
+
+    /** The key stick's W, A, S and D to [state]'s [DpadDir] bits. Returns whether a key went down. */
+    private fun holdKeys(state: Int): Boolean {
+        val keys = out
+        val changed = dpad xor state
+        if (keys != null) for (dir in DpadDir.ALL) {
+            if (changed and dir.bit == 0) continue
+            val code = intArrayOf(Keys.stickCode(dir))
+            if (state and dir.bit != 0) keys.press(code) else keys.release(code)
+        }
+        dpad = state
+        return state and changed != 0
     }
 
     private fun aim(touchX: Float, touchY: Float, layout: PadLayout): Boolean {

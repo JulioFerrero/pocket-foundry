@@ -6,6 +6,7 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Shader
 import app.pocketfoundry.core.controller.PadAxis
@@ -14,6 +15,7 @@ import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.GuiSheet
 import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.dp
+import androidx.core.graphics.PathParser
 
 /**
  * Draws the controls in their rendered look ([SpritePainter]); while it loads, in the game's own GUI sprites, or in a
@@ -34,6 +36,8 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     }
     private val sprite = Paint(Paint.FILTER_BITMAP_FLAG)
     private val path = Path()
+    private val point = PointF()
+    private val signs = HashMap<KeyIcon, Path>()
     private val cross = Path()
     private val bar = Path()
     private val rect = RectF()
@@ -50,11 +54,32 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     val sprites = SpritePainter(layout)
 
     /** Returns whether [c] is still moving, so another frame should follow. */
-    fun draw(canvas: Canvas, sheet: GuiSheet?, c: Control, selected: Boolean, now: Long): Boolean {
-        val x = layout.cx(c)
-        val y = layout.cy(c)
-        val r = layout.radius(c)
-        val pressed = c.pointers.isNotEmpty()
+    fun draw(canvas: Canvas, sheet: GuiSheet?, c: Control, selected: Boolean, now: Long): Boolean =
+        drawAt(canvas, sheet, c, layout.cx(c), layout.cy(c), layout.radius(c), selected, now)
+
+    /** The open drawer's panel, its keys and their names under them. */
+    fun drawDrawer(canvas: Canvas, sheet: GuiSheet?, selected: Control?, now: Long): Boolean {
+        if (layout.openDrawer == null) return false
+        val r = layout.drawerKeyRadius()
+        panel(canvas, sheet, layout.drawerPanel, r * 0.5f)
+        val keys = layout.drawerKeys
+        var moving = false
+        for (i in keys.indices) {
+            layout.drawerCentre(i, point)
+            if (drawAt(canvas, sheet, keys[i], point.x, point.y, r, keys[i] === selected, now)) moving = true
+            letter(canvas, keys[i].name, point.x, point.y + r * 1.55f, r * 0.42f, LIGHT)
+        }
+        return moving
+    }
+
+    private fun drawAt(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float, selected: Boolean,
+                       now: Long): Boolean {
+        val pressed = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
+        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind == Kind.Drawer) {
+            drawKey(canvas, c, x, y, r, pressed)
+            if (selected) drawSelection(canvas, null, c, x, y, r)
+            return false
+        }
         val moving = sprites.draw(canvas, c, x, y, r, box, now)
         if (moving != null) {
             if (selected) drawSelection(canvas, null, c, x, y, r)
@@ -62,7 +87,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         }
         when {
             box && (c.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X -> drawTrackpadBox(canvas, x, y, r)
-            c.kind is Kind.Stick -> drawStick(canvas, sheet, c, x, y, r, pressed)
+            c.kind is Kind.Stick || c.kind == Kind.KeyStick -> drawStick(canvas, sheet, c, x, y, r, pressed)
             c.kind == Kind.Dpad && sheet != null -> drawSpriteDpad(canvas, sheet, c, x, y, r)
             c.kind == Kind.Dpad -> drawPlainDpad(canvas, c, x, y, r)
             sheet != null -> drawSpriteButton(canvas, sheet, c, x, y, r, pressed)
@@ -101,6 +126,49 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     fun textWidth(label: String, size: Float): Float {
         text.textSize = size
         return text.measureText(label)
+    }
+
+    /** A keyboard key: its word, or its icon with its letter small over it (Keys). */
+    private fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean) {
+        val colour = glyphColour(pressed)
+        if (c.pill) {
+            rect.set(x - 2 * r, y - r, x + 2 * r, y + r)
+            bevelSlot(pressed, rect.top, rect.bottom) { canvas.drawRoundRect(rect, r * 0.3f, r * 0.3f, it) }
+        } else {
+            bevelSlot(pressed, y - r, y + r) { canvas.drawCircle(x, y, r, it) }
+        }
+        val sign = c.keyIcon
+        when {
+            sign == null -> letter(canvas, c.label, x, y, r * if (c.label.length > 2) 0.62f else 0.9f, colour)
+            c.pill && c.label.length > 3 -> {
+                // A word and its icon side by side: Shift.
+                val size = r * 0.95f
+                val words = r * 0.62f
+                val gap = r * 0.2f
+                val width = size + gap + textWidth(c.label, words)
+                keyIcon(canvas, sign, x - width / 2 + size / 2, y, size, colour)
+                letter(canvas, c.label, x + width / 2 - textWidth(c.label, words) / 2, y, words, colour)
+            }
+            else -> {
+                val legend = c.label.isNotEmpty()
+                if (legend && c.pill) letter(canvas, c.label, x - 1.45f * r, y - 0.52f * r, r * 0.42f, colour)
+                else if (legend) letter(canvas, c.label, x, y - 0.55f * r, r * 0.36f, colour)
+                val below = if (legend && !c.pill) r * 0.14f else 0f
+                keyIcon(canvas, sign, x, y + below, r * if (c.pill) 1f else 0.85f, colour)
+            }
+        }
+    }
+
+    /** [sign] [size] wide, its middle at ([x], [y]). */
+    private fun keyIcon(canvas: Canvas, sign: KeyIcon, x: Float, y: Float, size: Float, colour: Int) {
+        val shape = signs.getOrPut(sign) { PathParser.createPathFromPathData(sign.path) }
+        icon.color = colour
+        icon.strokeWidth = sign.stroke
+        canvas.save()
+        canvas.translate(x - size / 2, y - size / 2)
+        canvas.scale(size / KeyIcon.BOX, size / KeyIcon.BOX)
+        canvas.drawPath(shape, icon)
+        canvas.restore()
     }
 
     private fun drawStick(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float, pressed: Boolean) {

@@ -8,7 +8,9 @@ import android.graphics.RectF
 import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.view.KeyEvent
 import android.view.View
+import app.pocketfoundry.core.controller.Input
 import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.VirtualPad
 import app.pocketfoundry.core.controller.VirtualPad.Source.SCREEN
@@ -22,9 +24,9 @@ import kotlin.math.abs
  */
 @SuppressLint("ViewConstructor")
 /** [onSprites]: the controls' rendered sprites as they load and go, for views drawn in the same look (the FPS counter). */
-class ControllerView(context: Context, private val keyboard: Boolean, private val counter: Movable,
+class ControllerView(context: Context, private val input: Input, private val counter: Movable,
                      private val onSprites: (SpriteSet?) -> Unit = {}) : View(context) {
-    private val layout = PadLayout(context)
+    private val layout = PadLayout(context, keysMode = input == Input.KEYS)
     private val painter = PadPainter(context, layout)
     private val toolbar = Toolbar(layout, painter)
     private val editor = LayoutEditor(layout, painter, toolbar, counter, ::haptic)
@@ -35,6 +37,11 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
 
     var onKeyboard: () -> Unit = {}
 
+    /** Where Mouse & keys' keys go: X, through Termux:X11. */
+    var keyOut: KeyOut?
+        get() = layout.keyOut
+        set(value) { layout.keyOut = value }
+
     var padInHand = false
         set(value) {
             if (field == value) return
@@ -42,7 +49,8 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
             if (stepAside) releaseAll() else invalidate()
         }
 
-    private val stepAside get() = (padInHand || keyboard) && !editor.active
+    // A controller in hand only moves the pad aside: Factorio in its keyboard mode doesn't take one.
+    private val stepAside get() = (input == Input.KEYBOARD || input == Input.PAD && padInHand) && !editor.active
     private val controlsShown get() = !stepAside && !layout.hidden
 
     init {
@@ -57,6 +65,7 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
     }
 
     fun startEditing() {
+        layout.closeDrawer()
         releaseAll()
         layout.hidden = false
         editor.active = true
@@ -81,13 +90,50 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
             !controlsShown -> return false
             editor.active -> editor.down(id, x, y)
             else -> {
-                val control = layout.controlAt(x, y) ?: return false
-                pressed[id] = control
-                if (control.press(id, x, y, layout)) haptic(if (control.kind == Kind.Dpad) TICK else CLICK)
+                val inDrawer = layout.drawerKeyAt(x, y)
+                if (inDrawer != null) return press(id, inDrawer, x, y)
+                val control = layout.controlAt(x, y)
+                if (layout.openDrawer != null) {
+                    // A tap off the open drawer closes it, and does nothing else unless it's on another key.
+                    val onPanel = layout.drawerPanel.contains(x, y)
+                    if (!onPanel) layout.closeDrawer()
+                    if (onPanel || control == null || control.kind == Kind.Drawer) {
+                        invalidate()
+                        return true
+                    }
+                }
+                return press(id, control ?: return false, x, y)
             }
         }
         invalidate()
         return true
+    }
+
+    private fun press(id: Int, control: Control, x: Float, y: Float): Boolean {
+        pressed[id] = control
+        if (control.press(id, x, y, layout)) haptic(if (control.kind == Kind.Dpad) TICK else CLICK)
+        when (val k = control.kind) {
+            Kind.Drawer -> layout.toggleDrawer(control)
+            is Kind.ToolKey -> {
+                layout.closeDrawer()
+                use(k.tool)
+            }
+            // The key's screen opens in the game: its keys come up.
+            is Kind.Key -> k.opens?.let { layout.switchTo(layout.set.after(it)) }
+            else -> {}
+        }
+        invalidate()
+        return true
+    }
+
+    /** Mouse & keys' two-finger tap: Esc, which closes what Factorio has open, and the game's keys again. */
+    fun escape() {
+        val keys = layout.keyOut ?: return
+        keys.press(ESC)
+        keys.release(ESC)
+        layout.closeDrawer()
+        layout.switchTo(KeySet.GAME)
+        invalidate()
     }
 
     fun pointerMove(id: Int, x: Float, y: Float) {
@@ -113,8 +159,12 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
     fun releaseAll() {
         toolbar.releaseAll()
         editor.releaseAll()
+        // Fingers may be on keys of a set no longer shown.
+        for (c in pressed) c?.let { it.pointers.clear(); it.release() }
         pressed.fill(null)
         layout.shownControls.forEach { it.pointers.clear(); it.release() }
+        layout.drawerKeys.forEach { it.pointers.clear(); it.release() }
+        layout.releaseKeys()
         VirtualPad.release(SCREEN)
         invalidate()
     }
@@ -133,16 +183,18 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
 
     private fun tools() = when {
         editor.active -> Toolbar.EDITING
-        keyboard -> Toolbar.NONE
+        input == Input.KEYBOARD -> Toolbar.NONE
         // A real controller still needs the phone's keyboard, for typing names.
         padInHand -> Toolbar.PAD_IN_HAND
         layout.hidden -> Toolbar.HIDDEN
+        // Mouse & keys keeps the play tools in the drawer: its keys are where the toolbar was.
+        input == Input.KEYS -> Toolbar.NONE
         else -> Toolbar.PLAYING
     }
 
     override fun onDraw(canvas: Canvas) {
         val tools = tools()
-        if (tools.isEmpty()) return
+        if (tools.isEmpty() && !controlsShown) return
         val sheet = GuiSprites.get(context)
         painter.box = settings.touch == Settings.BOX
         if (editor.active) canvas.drawColor(EDITOR_SHADE)
@@ -158,11 +210,12 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
         if (controlsShown) for (i in controls.indices) {
             if (painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected, now)) moving = true
         }
+        if (controlsShown && painter.drawDrawer(canvas, sheet, editor.selected, now)) moving = true
         if (editor.counterSelected) {
             counter.bounds(counterBox)
             if (!counterBox.isEmpty) painter.drawSelection(canvas, counterBox)
         }
-        if (toolbar.draw(canvas, sheet, tools, editor.adding, now)) moving = true
+        if (tools.isNotEmpty() && toolbar.draw(canvas, sheet, tools, editor.adding, now)) moving = true
         if (moving) postInvalidateOnAnimation()
         if (editor.adding) editor.drawAddList(canvas, sheet)
     }
@@ -190,6 +243,7 @@ class ControllerView(context: Context, private val keyboard: Boolean, private va
         val TICK: VibrationEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
         val CLICK: VibrationEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
         private const val EDITOR_SHADE = 0x55000000
+        private val ESC = intArrayOf(KeyEvent.KEYCODE_ESCAPE)
         /** The rendered trackpad's half width, in the right stick's radii (its picture: 605 x 346). */
         private const val TRACKPAD_HALF_WIDTH = 1.75f
     }

@@ -38,6 +38,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private val doubleTapMs = ViewConfiguration.getDoubleTapTimeout().toLong()
     private val scrollStep = lorie.context.dp(SCROLL_STEP_DP)
     private val location = IntArray(2)
+    /** In place of a two-finger tap's right click: Mouse & keys' Esc (ControllerView.escape). */
+    var twoFingerTap: (() -> Unit)? = null
     private val mapped = FloatArray(2)
 
     /** The fingers down, oldest first: the two oldest pinch and scroll. [xs] and [ys] say where each is, by id. */
@@ -180,8 +182,12 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
             if (pad != null) {
                 pad.tap(PadButton.EAST)
             } else {
-                if (!trackpad) moveTo(midX(), midY())
-                click(InputStub.BUTTON_RIGHT)
+                val escape = twoFingerTap
+                if (escape != null) escape()
+                else {
+                    if (!trackpad) moveTo(midX(), midY())
+                    click(InputStub.BUTTON_RIGHT)
+                }
             }
         }
         mode = Mode.LIFTED   // so the other finger's lift doesn't tap again

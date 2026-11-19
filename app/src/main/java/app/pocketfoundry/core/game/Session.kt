@@ -6,6 +6,7 @@ import android.system.OsConstants
 import android.util.Log
 import app.pocketfoundry.core.controller.InputBridge
 import app.pocketfoundry.core.controller.gamepadConnected
+import app.pocketfoundry.core.controller.Input
 import app.pocketfoundry.core.controller.keyboardConnected
 import app.pocketfoundry.core.drivers.DriverCheck
 import app.pocketfoundry.core.drivers.DriverRecords
@@ -81,8 +82,10 @@ object Session {
     val inGame get() = state != State.STOPPED
     val live get() = state == State.RUNNING || state == State.PAUSED
     /** Factorio can't change its input mode until it restarts. */
-    @Volatile var keyboard = false
+    @Volatile var input = Input.PAD
         private set
+    /** Factorio is in its keyboard-and-mouse mode. */
+    val keyboard get() = input != Input.PAD
     @Volatile var lastGame: Ending? = null
         private set
 
@@ -255,9 +258,14 @@ object Session {
 
     private fun launchGame(context: Context, paths: Paths, driver: String, gameArgs: List<String>) {
         Saves.deleteInterrupted(paths)
-        // debug.env's app.keyboard=1: Factorio's keyboard-and-mouse mode without a keyboard, to work on touch for it.
-        keyboard = keyboardConnected(context) && !gamepadConnected(context) ||
-                   DebugEnv.read(context, "app")["keyboard"] == "1"
+        val controller = gamepadConnected(context)
+        input = when {
+            keyboardConnected(context) && !controller -> Input.KEYBOARD
+            // debug.env's app.keyboard=1: Mouse & keys whatever Settings says.
+            !controller && (Settings(context).controls == Settings.KEYS ||
+                            DebugEnv.read(context, "app")["keyboard"] == "1") -> Input.KEYS
+            else -> Input.PAD
+        }
         val testProgram = DebugEnv.read(context, "test")["program"]?.takeIf { it.matches(TOOL_NAME) }
         val testing = testProgram != null
         val command = if (testProgram != null) listOf(paths.program(testProgram).path)

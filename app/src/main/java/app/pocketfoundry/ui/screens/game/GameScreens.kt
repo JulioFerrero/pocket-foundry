@@ -1,5 +1,7 @@
 package app.pocketfoundry.ui.screens.game
 
+import app.pocketfoundry.ui.controller.KeyOut
+import app.pocketfoundry.core.controller.Input
 import android.app.Activity
 import android.app.Application
 import android.content.Intent
@@ -140,11 +142,11 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
 }
 
 private class GameScreen(activity: MainActivity) {
-    private val keyboard = Session.keyboard
+    private val input = Session.input
     private val settings = Settings(activity)
     private val fps = FpsCounterView(activity, FrameCounter(Paths(activity).frames))
-    val view = ControllerView(activity, keyboard, fps) { fps.sprites = it }
-    private val gestures = PointerGestures(activity, padMode = !keyboard) {
+    val view = ControllerView(activity, input, fps) { fps.sprites = it }
+    private val gestures = PointerGestures(activity, padMode = input == Input.PAD) {
         if (settings.vibration) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
     private val launcher = { toLauncher(activity) }
@@ -158,6 +160,10 @@ private class GameScreen(activity: MainActivity) {
                                                               Gravity.TOP or Gravity.START))
         fps.shown = false
         view.onKeyboard = { activity.lorieView.toggleKeyboardVisible() }
+        if (input == Input.KEYS) {
+            view.keyOut = KeyOut { code, down -> activity.lorieView.sendKeyEvent(0, code, down) }
+            gestures.twoFingerTap = view::escape
+        }
         takeKeysFirst(activity, pads::key)
         activity.window.callback = InputRouter(activity.window.callback, view, gestures, pads::key, pads::motion, launcher)
     }

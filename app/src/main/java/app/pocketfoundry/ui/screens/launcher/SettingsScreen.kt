@@ -73,6 +73,9 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         settings.lightGraphics = it == LIGHT
         settings.graphicsChosen = true
     }
+    private val controls = Choice(launcher, listOf("Gamepad", "Mouse & keys"), width = 132) {
+        settings.controls = Settings.CONTROLS[it]
+    }
     private val touch = Choice(launcher, listOf("Direct", "Trackpad", "Box"), width = 96) {
         settings.touch = Settings.TOUCHES[it]
         trackpadSpeedRow.shown = settings.touch != Settings.DIRECT
@@ -143,6 +146,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         checkSetting("Pause in background", settings.pauseInBackground) { settings.pauseInBackground = it })
 
     private fun controlsPage() = page(
+        setting("Controls", controls),
         setting("Touch", touch),
         trackpadSpeedRow,
         checkSetting("Vibration", settings.vibration) { settings.vibration = it },
@@ -212,6 +216,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         sprites.selected = Settings.SPRITE_QUALITIES.indexOf(settings.spriteQuality).coerceAtLeast(0)
         graphics.selected = if (settings.lightGraphics) LIGHT else FULL
         touch.selected = Settings.TOUCHES.indexOf(settings.touch).coerceAtLeast(0)
+        controls.selected = Settings.CONTROLS.indexOf(settings.controls).coerceAtLeast(0)
         trackpadSpeed.selected = Settings.TRACKPAD_SPEEDS.indexOf(settings.trackpadSpeed).coerceAtLeast(0)
         trackpadSpeedRow.shown = settings.touch != Settings.DIRECT
         showFastStart()
