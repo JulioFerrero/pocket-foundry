@@ -83,8 +83,9 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
             if (activity.isDestroyed) return
             if (activity.lorieView.connected()) return ScreenLog.add("game screen connected")
             if (SystemClock.uptimeMillis() - since > CONNECT_TIMEOUT_MS) {
+                val socket = Paths(activity).screenSocket.exists()
                 return ScreenLog.add("game screen still not connected after ${CONNECT_TIMEOUT_MS / 1000} s; " +
-                                     "the announcement " + if (ScreenLog.announced) "arrived" else "never arrived")
+                                     "the X server's socket " + if (socket) "is there" else "isn't there")
             }
             mainHandler.postDelayed(::check, CONNECT_POLL_MS)
         }

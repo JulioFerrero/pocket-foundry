@@ -301,19 +301,23 @@ object Session {
                DetailedLogs.environment(context) + Drivers.overrides(context, driver)
     }
 
-    /** Termux:X11's X server, which the game screen (Termux:X11's activity) connects to. */
+    /**
+     * Termux:X11's X server, which the game screen (Termux:X11's activity) connects to on [Paths.screenSocket]. A
+     * native program: Termux:X11 runs it in a Java VM of its own (app_process), 40 MB more for a server that only
+     * needs Java to announce itself to the screen.
+     */
     private fun startXServer(context: Context, paths: Paths) {
         // Leftovers from a server that died with the app.
         paths.xSocket.delete()
         paths.xLock.delete()
-        val pb = ProcessBuilder("/system/bin/app_process", "-Xnoimage-dex2oat", "/",
-                                "com.termux.x11.CmdEntryPoint", ":${Paths.DISPLAY}", "-ac")
+        paths.screenSocket.delete()
+        val pb = ProcessBuilder(paths.xServer.path, ":${Paths.DISPLAY}", "-ac")
         pb.environment().apply {
             remove("LD_PRELOAD")
-            put("CLASSPATH", context.applicationInfo.sourceDir)
             put("TMPDIR", paths.tmp.path)
             put("XKB_CONFIG_ROOT", paths.xkb.path)
             put("XLORIE_LIB", paths.xlorie.path)
+            put("LORIE_SOCKET", paths.screenSocket.path)
             // The chosen driver's checkboxes and Options meant for Termux:X11 (Show frames directly).
             putAll(Drivers.xServerEnvironment(context, Drivers.chosen(context)))
             putAll(DetailedLogs.environment(context))

@@ -1,6 +1,5 @@
 package app.pocketfoundry
 
-import android.content.Intent
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.DebugPad
 import app.pocketfoundry.core.game.Session
@@ -8,7 +7,6 @@ import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.X11Prefs
 import app.pocketfoundry.ui.screens.game.GameScreens
-import com.termux.x11.CmdEntryPoint
 import com.termux.x11.LorieApp
 import com.termux.x11.MainActivity
 
@@ -20,6 +18,8 @@ class PocketFoundryApp : LorieApp() {
         logCrashes()
         Session.checkLastRun(this)
         X11Prefs(this).setUp()
+        // The game screen connects straight to our X server's socket (Session.startXServer).
+        MainActivity.serverSocket = Paths(this).screenSocket.path
         Drivers.setUp(this)
         GameScreens.install(this)
         DebugPad.registerIfDebuggable(this)
@@ -43,9 +43,4 @@ class PocketFoundryApp : LorieApp() {
 
     // Keeps Termux:X11 from posting its own notification: GameService shows ours.
     override fun onActivityResumed(activity: MainActivity) {}
-
-    override fun onBroadcastReceive(intent: Intent) {
-        if (intent.action == CmdEntryPoint.ACTION_START) ScreenLog.announcement()
-        super.onBroadcastReceive(intent)
-    }
 }

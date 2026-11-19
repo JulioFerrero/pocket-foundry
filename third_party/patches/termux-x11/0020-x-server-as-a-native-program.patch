@@ -1,0 +1,359 @@
+diff --git a/lorie/src/main/cpp/lorie/InitOutput.c b/lorie/src/main/cpp/lorie/InitOutput.c
+index 900e063..fc032b5 100644
+--- a/lorie/src/main/cpp/lorie/InitOutput.c
++++ b/lorie/src/main/cpp/lorie/InitOutput.c
+@@ -835,14 +835,18 @@ static void lorieWorkingQueueCallback(int fd, int __unused ready, void __unused
+     eventfd_read(fd, &dummy);
+ }
+ 
+-void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
+-    AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
++void lorieFrame(void) {
+     if (pScreenPtr) {
+         QueueWorkProc(lorieRedraw, NULL, NULL);
+         lorieWakeServer();
+     }
+ }
+ 
++void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d) {
++    AChoreographer_postFrameCallback(d, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, d);
++    lorieFrame();
++}
++
+ static Bool lorieScreenInit(ScreenPtr pScreen, unused int argc, unused char **argv) {
+     static int eventFd = -1;
+     pScreenPtr = pScreen;
+diff --git a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
+index c7e83a7..34c4788 100644
+--- a/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
++++ b/lorie/src/main/cpp/lorie/cmdentrypoint.cpp
+@@ -31,6 +31,8 @@ extern "C" {
+ #include <linux/in.h>
+ #include <arpa/inet.h>
+ #include <poll.h>
++#include <sys/un.h>
++#include <android/looper.h>
+ #include "lorie.h"
+ 
+ // Also to stderr, which a host app can show: reading Android's log from an app can bring up a system dialog.
+@@ -59,8 +61,9 @@ static jmethodID sendBroadcast = nullptr;
+ static jmethodID sendBroadcastDelayed = nullptr;
+ static jmethodID setDocumentTag = nullptr;
+ 
++static bool startServer(JavaVM* vm);
++
+ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
+-    pthread_t t;
+     JavaVM* vm = nullptr;
+ 
+     thiz = env->NewGlobalRef(self);
+@@ -69,6 +72,30 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
+     sendBroadcast = env->GetMethodID(env->GetObjectClass(self), "sendBroadcast", "()V");
+     sendBroadcastDelayed = env->GetMethodID(env->GetObjectClass(self), "sendBroadcastDelayed", "()V");
+     setDocumentTag = env->GetMethodID(env->GetObjectClass(self), "setDocumentTag", "(Ljava/lang/String;)V");
++    // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
++    argc = env->GetArrayLength(args) + 1; // Leading executable path
++    argv = (char**) calloc(argc, sizeof(char*));
++
++    argv[0] = (char*) "Xlorie";
++    for(int i=1; i<argc; i++) {
++        auto js = (jstring) env->GetObjectArrayElement(args, i - 1);
++        const char *pjc = env->GetStringUTFChars(js, JNI_FALSE);
++        argv[i] = (char *) calloc(strlen(pjc) + 1, sizeof(char)); //Extra char for the terminating NULL
++        strcpy((char *) argv[i], pjc);
++        env->ReleaseStringUTFChars(js, pjc);
++    }
++
++    env->GetJavaVM(&vm);
++    return startServer(vm) ? JNI_TRUE : JNI_FALSE;
++}
++
++/*
++ * Pocket Foundry: everything but the Java side of start(), for both ways to run the X server: from Termux:X11's
++ * CmdEntryPoint in a Java VM ([vm]), or as a native program (lorieServerMain, no [vm]). Needs argc and argv set and a
++ * looper on the calling thread, for Android's Choreographer.
++ */
++static bool startServer(JavaVM* vm) {
++    pthread_t t;
+     auto detectTracer = []() -> Bool {
+         FILE *fp;
+         char line[256];
+@@ -91,19 +118,6 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
+         fclose(fp);
+         return pid != 0;
+     };
+-    // execv's argv array is a bit incompatible with Java's String[], so we do some converting here...
+-    argc = env->GetArrayLength(args) + 1; // Leading executable path
+-    argv = (char**) calloc(argc, sizeof(char*));
+-
+-    argv[0] = (char*) "Xlorie";
+-    for(int i=1; i<argc; i++) {
+-        auto js = (jstring) env->GetObjectArrayElement(args, i - 1);
+-        const char *pjc = env->GetStringUTFChars(js, JNI_FALSE);
+-        argv[i] = (char *) calloc(strlen(pjc) + 1, sizeof(char)); //Extra char for the terminating NULL
+-        strcpy((char *) argv[i], pjc);
+-        env->ReleaseStringUTFChars(js, pjc);
+-    }
+-
+     {
+         cpu_set_t mask;
+         long num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+@@ -215,19 +229,44 @@ static jboolean start(JNIEnv *env, jobject self, jobjectArray args) {
+         return JNI_FALSE;
+     }
+ 
+-    env->GetJavaVM(&vm);
+-
+     AChoreographer *choreographer = AChoreographer_getInstance();
+     // Trigger it first time
+-    AChoreographer_postFrameCallback(choreographer, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, choreographer);
++    if (choreographer)
++        AChoreographer_postFrameCallback(choreographer, (AChoreographer_frameCallback) lorieChoreographerFrameCallback, choreographer);
++    else {
++        // Pocket Foundry: in case a phone keeps it from a native program: redraws at 60 Hz instead of the display's.
++        log(ERROR, "No Choreographer: redrawing 60 times a second");
++        pthread_create(&t, nullptr, +[](void*) -> void* {
++            for (;;) {
++                usleep(16667);
++                lorieFrame();
++            }
++        }, nullptr);
++    }
+ 
+     xorg_list_init(&registeredBuffers);
+     pthread_create(&t, nullptr, +[](void* cookie) -> void* {
+-        if (((JavaVM*) cookie)->AttachCurrentThread(&serverEnv, nullptr) != JNI_OK)
++        if (cookie && ((JavaVM*) cookie)->AttachCurrentThread(&serverEnv, nullptr) != JNI_OK)
+             FatalError("Failed to attach the X server thread to the JVM");
+         exit(dix_main(argc, (char**) argv, (char*[]) { nullptr }));
+     }, vm);
+-    return JNI_TRUE;
++    return true;
++}
++
++/*
++ * Pocket Foundry: the X server as a native program (libXlorie-server.so), without a Java VM: the 40 MB of one, and its
++ * framework, for a server that only needs Java to announce itself. The screen connects to the socket at
++ * $LORIE_SOCKET instead (lorieListenForKnocks), so there are no knocks and no broadcasts either.
++ */
++extern "C" __attribute__((visibility("default"))) int lorieServerMain(int count, char** args) {
++    argc = count;
++    argv = args;
++    argv[0] = (char*) "Xlorie";
++    ALooper_prepare(0);
++    if (!startServer(nullptr))
++        return 1;
++    for (;;)
++        ALooper_pollOnce(-1, nullptr, nullptr, nullptr);
+ }
+ 
+ static Bool handleTouchEvent(__unused ClientPtr pClient, void *closure) {
+@@ -570,18 +609,23 @@ extern "C" void DDXNotifyFocusChanged(void) {
+     }
+ }
+ 
+-static jobject getXConnection(JNIEnv *env, __unused jobject cls) {
+-    int client[2];
+-    jclass ParcelFileDescriptorClass = env->FindClass("android/os/ParcelFileDescriptor");
+-    jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
+-    socketpair(AF_UNIX, SOCK_STREAM, 0, client);
++// The screen's end of a connection: from getXConnection, or accepted on $LORIE_SOCKET.
++static void takeConnection(int fd) {
+     QueueWorkProc(+[](__unused ClientPtr pClient, void *closure) -> Bool {
+         InputThreadRegisterDev((int) (int64_t) closure, handleLorieEvents, nullptr);
+         conn_fd = (int) (int64_t) closure;
+         lorieActivityConnected();
+         return TRUE;
+-    }, nullptr, (void*) (int64_t) client[1]);
++    }, nullptr, (void*) (int64_t) fd);
+     lorieWakeServer();
++}
++
++static jobject getXConnection(JNIEnv *env, __unused jobject cls) {
++    int client[2];
++    jclass ParcelFileDescriptorClass = env->FindClass("android/os/ParcelFileDescriptor");
++    jmethodID adoptFd = env->GetStaticMethodID(ParcelFileDescriptorClass, "adoptFd", "(I)Landroid/os/ParcelFileDescriptor;");
++    socketpair(AF_UNIX, SOCK_STREAM, 0, client);
++    takeConnection(client[1]);
+ 
+     return env->CallStaticObjectMethod(ParcelFileDescriptorClass, adoptFd, client[0]);
+ }
+@@ -625,10 +669,46 @@ static void reportFatalError(JNIEnv *env, __unused jobject cls, jstring message)
+ 
+ // Called from OsVendorInit() once the display number and "-tag" argument (if any) are resolved,
+ // so the port to knock on and the tag to report back to Java are already known.
++// Pocket Foundry: run as a native program, the server takes the screen's connections on $LORIE_SOCKET.
++static void listenForScreens(void) {
++    const char *path = getenv("LORIE_SOCKET");
++    struct sockaddr_un address = { .sun_family = AF_UNIX };
++    int fd;
++
++    if (!path || strlen(path) >= sizeof(address.sun_path))
++        FatalError("LORIE_SOCKET isn't a socket's path: %s", path ?: "not set");
++    strcpy(address.sun_path, path);
++    unlink(path);
++    if ((fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)) < 0
++            || bind(fd, (struct sockaddr *) &address, sizeof(address)) < 0 || listen(fd, 4) < 0)
++        FatalError("Can't listen for the screen on %s: %s", path, strerror(errno));
++
++    SetNotifyFd(fd, +[](int fd, int ready, __unused void *data) {
++        int client;
++
++        if (ready & X_NOTIFY_ERROR) {
++            RemoveNotifyFd(fd);
++            close(fd);
++            return;
++        }
++        if ((client = accept4(fd, nullptr, nullptr, SOCK_CLOEXEC)) < 0) {
++            log(ERROR, "Failed to accept the screen's connection: %s", strerror(errno));
++            return;
++        }
++        log(INFO, "The screen connected");
++        takeConnection(client);
++    }, X_NOTIFY_READ, NULL);
++}
++
+ void lorieListenForKnocks(int port, const char *tag) {
+     struct sockaddr_in address = { .sin_family = AF_INET, .sin_port = htons(port), .sin_addr = { .s_addr = INADDR_ANY } };
+     int fd, reuse = 1;
+ 
++    if (!thiz) {
++        listenForScreens();
++        return;
++    }
++
+     serverEnv->CallVoidMethod(thiz, setDocumentTag, tag ? serverEnv->NewStringUTF(tag) : nullptr);
+ 
+     // Even in the case if it will fail for some reason everything will work fine
+diff --git a/lorie/src/main/cpp/lorie/lorie.h b/lorie/src/main/cpp/lorie/lorie.h
+index bf1bef1..0b7f202 100644
+--- a/lorie/src/main/cpp/lorie/lorie.h
++++ b/lorie/src/main/cpp/lorie/lorie.h
+@@ -35,6 +35,7 @@ void lorieHandleClipboardData(const char* data);
+ void lorieSetStylusEnabled(Bool enabled);
+ void lorieSyncLockKeysState(uint8_t state);
+ void lorieWakeServer(void);
++void lorieFrame(void);
+ void lorieChoreographerFrameCallback(__unused long t, AChoreographer* d);
+ void lorieActivityConnected(void);
+ void lorieSendSharedServerState(int memfd);
+diff --git a/lorie/src/main/cpp/lorie/server.c b/lorie/src/main/cpp/lorie/server.c
+new file mode 100644
+index 0000000..09f331c
+--- /dev/null
++++ b/lorie/src/main/cpp/lorie/server.c
+@@ -0,0 +1,29 @@
++// Pocket Foundry: the X server as a native program, run by the host app: lorieServerMain in libXlorie.so, which
++// $XLORIE_LIB names or which sits next to this program. Named like a library (libXlorie-server.so) so Android installs
++// it where an app may run programs.
++#include <dlfcn.h>
++#include <libgen.h>
++#include <limits.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <unistd.h>
++
++int main(int argc, char **argv) {
++    char path[PATH_MAX], self[PATH_MAX] = {0};
++    const char *lib = getenv("XLORIE_LIB");
++    if (!lib) {
++        if (readlink("/proc/self/exe", self, sizeof(self) - 1) < 0) {
++            perror("Xlorie-server: /proc/self/exe");
++            return 1;
++        }
++        snprintf(path, sizeof(path), "%s/libXlorie.so", dirname(self));
++        lib = path;
++    }
++    void *handle = dlopen(lib, RTLD_NOW);
++    int (*serverMain)(int, char **) = handle ? (int (*)(int, char **)) dlsym(handle, "lorieServerMain") : NULL;
++    if (!serverMain) {
++        fprintf(stderr, "Xlorie-server: no X server in %s: %s\n", lib, dlerror());
++        return 1;
++    }
++    return serverMain(argc, argv);
++}
+diff --git a/lorie/src/main/cpp/recipes/xserver.cmake b/lorie/src/main/cpp/recipes/xserver.cmake
+index 6faa562..da76af8 100644
+--- a/lorie/src/main/cpp/recipes/xserver.cmake
++++ b/lorie/src/main/cpp/recipes/xserver.cmake
+@@ -299,3 +299,9 @@ target_link_libraries(Xlorie "-Wl,--whole-archive" ${XSERVER_LIBS} "-Wl,--no-who
+ target_compile_options(Xlorie PRIVATE ${compile_options} "$<$<COMPILE_LANGUAGE:C>:${c_only_compile_options}>" "$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions;-fno-rtti>")
+ target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/xserver" "${CMAKE_CURRENT_SOURCE_DIR}/patches/xserver.patch")
+ target_apply_patch(Xlorie "${CMAKE_CURRENT_SOURCE_DIR}/libepoxy" "${CMAKE_CURRENT_SOURCE_DIR}/patches/libepoxy.patch")
++
++# Pocket Foundry: the X server as a native program (lorie/server.c), named like a library so it's packaged with them.
++add_executable(Xlorie-server "${CMAKE_CURRENT_SOURCE_DIR}/lorie/server.c")
++set_target_properties(Xlorie-server PROPERTIES OUTPUT_NAME "libXlorie-server" SUFFIX ".so")
++target_link_libraries(Xlorie-server dl)
++add_dependencies(Xlorie-server Xlorie)
+diff --git a/lorie/src/main/java/com/termux/x11/MainActivity.java b/lorie/src/main/java/com/termux/x11/MainActivity.java
+index 3577f0d..dc6a698 100644
+--- a/lorie/src/main/java/com/termux/x11/MainActivity.java
++++ b/lorie/src/main/java/com/termux/x11/MainActivity.java
+@@ -98,6 +98,11 @@ public class MainActivity extends AppCompatActivity {
+     // Pocket Foundry: public, so its touch controls map points with mInputHandler.mRenderData.
+     public TouchInputHandler mInputHandler;
+     protected ICmdEntryInterface service = null;
++    /**
++     * Pocket Foundry: the socket the host app's X server listens on, as a native program (lorieServerMain): the screen
++     * connects to it straight away, with no knocks and no broadcasts. Null for Termux:X11's own way.
++     */
++    public static String serverSocket = null;
+     public TermuxX11ExtraKeys mExtraKeys;
+     private DisplayManager displayManager;
+     private boolean showIMEWhileExternalConnected = true;
+@@ -738,6 +743,32 @@ public class MainActivity extends AppCompatActivity {
+             return false;
+         }
+ 
++        if (serverSocket != null) {
++            if (isDestroyed() || isFinishing())
++                return false;
++            int fd = connectToServerSocket(serverSocket);
++            if (fd >= 0) {
++                getLorieView().connect(fd);
++                // A view without its native side doesn't take it: asking again at once would never end.
++                if (!getLorieView().connected()) {
++                    try {
++                        ParcelFileDescriptor.adoptFd(fd).close();
++                    } catch (java.io.IOException ignored) {}
++                    fd = -1;
++                }
++            }
++            if (fd < 0) {
++                scheduleConnect();
++                return true;
++            }
++            Log.v("MainActivity", "Connected to the X server's socket.");
++            finishStartupDraw();
++            getLorieView().triggerCallback();
++            clientConnectedStateChanged();
++            getLorieView().reloadPreferences(prefs);
++            return false;
++        }
++
+         if (service == null) {
+             boolean sent = getLorieView().requestConnection();
+             scheduleConnect();
+@@ -764,6 +795,21 @@ public class MainActivity extends AppCompatActivity {
+         return false;
+     }
+ 
++    /** A connection to the X server's socket, or -1 while nothing listens there. */
++    private static int connectToServerSocket(String path) {
++        android.net.LocalSocket socket = new android.net.LocalSocket();
++        try {
++            socket.connect(new android.net.LocalSocketAddress(path, android.net.LocalSocketAddress.Namespace.FILESYSTEM));
++            return ParcelFileDescriptor.dup(socket.getFileDescriptor()).detachFd();
++        } catch (java.io.IOException e) {
++            return -1;
++        } finally {
++            try {
++                socket.close();
++            } catch (java.io.IOException ignored) {}
++        }
++    }
++
+     void scheduleConnect() {
+         handler.removeCallbacks(connectRetry);
+         handler.postDelayed(connectRetry, 250);

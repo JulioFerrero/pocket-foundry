@@ -44,6 +44,8 @@ class Paths(val files: File, nativeLibs: File) {
     val xLock = File(tmp, ".X$DISPLAY-lock")
     val audioSocket = File(tmp, "pocketfoundry-audio")
     val inputSocket = File(tmp, "pocketfoundry-input")
+    /** Where the X server takes the game screen's connection. */
+    val screenSocket = File(tmp, "pocketfoundry-screen")
     /** Read by the game's SDL once a second. */
     val frameRate = File(tmp, "pocketfoundry-frame-rate")
     /** The game's frames, counted by its SDL for the FPS counter (FrameCounter). */
@@ -85,6 +87,8 @@ class Paths(val files: File, nativeLibs: File) {
 
     val loader = File(nativeLibs, "libld-linux.so")
     val xlorie = File(nativeLibs, "libXlorie.so")
+    /** Termux:X11's X server as a native program (third_party/patches/termux-x11). */
+    val xServer = File(nativeLibs, "libXlorie-server.so")
 
     companion object {
         /** The X display the game draws on, Termux:X11's :0. */
