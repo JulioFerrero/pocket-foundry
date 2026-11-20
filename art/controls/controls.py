@@ -390,7 +390,7 @@ TONES = {  # a cap's paint, and what its edges rub to (the palette's own light t
     'grey': ('#8E8E8E', '#E3E3E3'), 'green': ('#5EB663', '#95DF99'), 'red': ('#E8605A', '#F5A29E'),
     'orange': ('#E39C40', '#F7CC8F'), 'dark': ('#454445', '#8A8889'),
     # an IBM keyboard's two greys: the letters' pale one and the modifiers' darker one
-    'pearl': ('#C4C2BC', '#ECEAE5'), 'slate': ('#7E7D7A', '#B2B0AC'),
+    'pearl': ('#C4C2BC', '#ECEAE5'), 'slate': ('#555452', '#8C8A86'),
 }
 
 TOP = 0.0050      # a panel's face
@@ -737,13 +737,6 @@ def keycap_outline(units, tall=1.0):
     return outline(rbox(0, 0, units * UNIT / 2 - KC_GAP, tall * UNIT / 2 - KC_GAP, KC_CORNER), reach=units * UNIT)
 
 
-def keycap_base(units, tall=1.0):
-    """A slim socket round a keycap: a dark rim and the hole it stands in."""
-    with pose():
-        bezel(outline(rbox(0, 0, units * UNIT / 2 - LINE_W, tall * UNIT / 2 - LINE_W, KC_CORNER + 0.0010), reach=units * UNIT),
-              hole_of(keycap_outline(units, tall)), count=1024)
-
-
 def keycap_body(units, tall, tone, glow, count=1024):
     """
     A sculpted keycap, its top's lowest point at height nought: walls that lean in from its foot to a smaller top,
@@ -808,10 +801,13 @@ KEY_TONES = ('pearl', 'slate')                          # letters, and modifiers
 
 
 def keycap_scene(units, tone):
-    """kc-pearl-1.25: Mouse & keys' keys; their sockets, kc-1.25-base, are the same for both greys."""
+    """
+    kc-pearl-1.25: Mouse & keys' keys. No socket: each stands on a plate that isn't drawn, at a panel's height, which
+    catches its shadow and hides what of its walls is below it, as a keyboard's does.
+    """
     size = (units * UNIT, UNIT)
     name = f'kc-{tone}-{units:g}'
-    return dict(name=name, set='keycaps', size=size, base=(f'kc-{units:g}-base', lambda: keycap_base(units)),
+    return dict(name=name, set='keycaps', size=size, base=(f'kc-{units:g}-plate', lambda: None), private=True, flat=TOP,
                 caps=[(name, keycap(units, 1.0, tone), (0, 0), size)])
 
 

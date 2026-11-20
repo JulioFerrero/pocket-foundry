@@ -32,7 +32,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
     private val editor = LayoutEditor(layout, painter, toolbar, counter, ::haptic)
     /** Mouse & keys' editor's windows, over the game (KeyPanels). */
     private val panels = if (input == Input.KEYS) {
-        KeyPanels(context as android.app.Activity, layout) {
+        KeyPanels(context as android.app.Activity, layout, painter) {
             layout.refreshShown()
             invalidate()
         }.also { editor.panels = it }
@@ -74,7 +74,6 @@ class ControllerView(context: Context, private val input: Input, private val cou
     fun reload() {
         layout.load()
         counter.moveTo(layout.counter, layout.counterScale)
-        alpha = layout.opacity
         invalidate()
     }
 
@@ -194,7 +193,6 @@ class ControllerView(context: Context, private val input: Input, private val cou
             else -> {
                 editor.use(tool)
                 if (!editor.active) panels?.close()
-                alpha = layout.opacity
             }
         }
         invalidate()
@@ -216,7 +214,6 @@ class ControllerView(context: Context, private val input: Input, private val cou
         if (tools.isEmpty() && !controlsShown) return
         val sheet = GuiSprites.get(context)
         painter.box = settings.touch == Settings.BOX
-        painter.editing = editor.active
         if (editor.active) canvas.drawColor(EDITOR_SHADE)
         val controls = layout.shownControls
         val sprites = ControlSprites.get(context, layout.frame, ::invalidate)
@@ -226,9 +223,16 @@ class ControllerView(context: Context, private val input: Input, private val cou
         }
         val now = SystemClock.uptimeMillis()
         var moving = false
-        // Indexed: an iterator would be made every frame.
-        if (controlsShown) for (i in controls.indices) {
-            if (painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected, now)) moving = true
+        // The controls at the layout's opacity, the editor's and the drawer's panels over them solid: a layer for
+        // them, as the view's own alpha would fade those too.
+        if (controlsShown) {
+            val faded = layout.opacity < 1f
+            val layer = if (faded) canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), (layout.opacity * 255).toInt()) else 0
+            // Indexed: an iterator would be made every frame.
+            for (i in controls.indices) {
+                if (painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected, now)) moving = true
+            }
+            if (faded) canvas.restoreToCount(layer)
         }
         if (controlsShown && painter.drawDrawer(canvas, sheet, editor.selected, now)) moving = true
         if (editor.active) editor.drawSets(canvas, sheet)

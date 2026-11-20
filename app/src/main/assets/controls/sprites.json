@@ -1172,19 +1172,10 @@
    "offsetX": 0,
    "offsetY": 0
   },
-  "kc-1-base": {
-   "file": "kc-1-base.webp",
-   "w": 187,
-   "h": 196,
-   "cx": 88.2,
-   "cy": 88.2,
-   "controlW": 126,
-   "controlH": 126
-  },
   "kc-pearl-1": {
    "file": "kc-pearl-1.webp",
    "frameW": 176,
-   "frameH": 219,
+   "frameH": 189,
    "frames": 11,
    "fps": 60,
    "cx": 88.2,
@@ -1208,23 +1199,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1-base",
    "offsetX": 0,
    "offsetY": 0
-  },
-  "kc-1.25-base": {
-   "file": "kc-1.25-base.webp",
-   "w": 218,
-   "h": 196,
-   "cx": 104.0,
-   "cy": 88.2,
-   "controlW": 158,
-   "controlH": 126
   },
   "kc-pearl-1.25": {
    "file": "kc-pearl-1.25.webp",
-   "frameW": 207,
-   "frameH": 219,
+   "frameW": 208,
+   "frameH": 189,
    "frames": 11,
    "fps": 60,
    "cx": 104.0,
@@ -1248,23 +1229,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1.25-base",
    "offsetX": 0,
    "offsetY": 0
-  },
-  "kc-1.5-base": {
-   "file": "kc-1.5-base.webp",
-   "w": 250,
-   "h": 196,
-   "cx": 119.7,
-   "cy": 88.2,
-   "controlW": 189,
-   "controlH": 126
   },
   "kc-pearl-1.5": {
    "file": "kc-pearl-1.5.webp",
-   "frameW": 239,
-   "frameH": 219,
+   "frameW": 240,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 119.7,
@@ -1288,23 +1259,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1.5-base",
    "offsetX": 0,
    "offsetY": 0
   },
-  "kc-1.75-base": {
-   "file": "kc-1.75-base.webp",
-   "w": 281,
-   "h": 196,
-   "cx": 135.5,
-   "cy": 88.2,
-   "controlW": 221,
-   "controlH": 126
-  },
   "kc-pearl-1.75": {
    "file": "kc-pearl-1.75.webp",
-   "frameW": 270,
-   "frameH": 219,
+   "frameW": 271,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 135.5,
@@ -1328,23 +1289,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1.75-base",
    "offsetX": 0,
    "offsetY": 0
-  },
-  "kc-2-base": {
-   "file": "kc-2-base.webp",
-   "w": 313,
-   "h": 196,
-   "cx": 151.2,
-   "cy": 88.2,
-   "controlW": 252,
-   "controlH": 126
   },
   "kc-pearl-2": {
    "file": "kc-pearl-2.webp",
    "frameW": 302,
-   "frameH": 219,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 151.2,
@@ -1368,23 +1319,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-2-base",
    "offsetX": 0,
    "offsetY": 0
-  },
-  "kc-2.25-base": {
-   "file": "kc-2.25-base.webp",
-   "w": 344,
-   "h": 196,
-   "cx": 166.9,
-   "cy": 88.2,
-   "controlW": 284,
-   "controlH": 126
   },
   "kc-pearl-2.25": {
    "file": "kc-pearl-2.25.webp",
-   "frameW": 333,
-   "frameH": 219,
+   "frameW": 334,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 166.9,
@@ -1408,23 +1349,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-2.25-base",
    "offsetX": 0,
    "offsetY": 0
-  },
-  "kc-2.75-base": {
-   "file": "kc-2.75-base.webp",
-   "w": 407,
-   "h": 196,
-   "cx": 198.4,
-   "cy": 88.2,
-   "controlW": 346,
-   "controlH": 126
   },
   "kc-pearl-2.75": {
    "file": "kc-pearl-2.75.webp",
-   "frameW": 396,
-   "frameH": 219,
+   "frameW": 397,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 198.4,
@@ -1448,27 +1379,17 @@
     0
    ],
    "held": 6,
-   "base": "kc-2.75-base",
    "offsetX": 0,
    "offsetY": 0
   },
-  "kc-6.25-base": {
-   "file": "kc-6.25-base.webp",
-   "w": 848,
-   "h": 196,
-   "cx": 419.0,
-   "cy": 88.2,
-   "controlW": 788,
-   "controlH": 126
-  },
   "kc-pearl-6.25": {
    "file": "kc-pearl-6.25.webp",
-   "frameW": 847,
-   "frameH": 219,
+   "frameW": 838,
+   "frameH": 189,
    "frames": 11,
    "fps": 60,
    "cx": 419.0,
-   "cy": 88.2,
+   "cy": 87.2,
    "controlW": 788,
    "controlH": 126,
    "press": [
@@ -1488,14 +1409,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-6.25-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-1": {
    "file": "kc-slate-1.webp",
    "frameW": 176,
-   "frameH": 219,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 88.2,
@@ -1519,14 +1439,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-1.25": {
    "file": "kc-slate-1.25.webp",
-   "frameW": 207,
-   "frameH": 219,
+   "frameW": 208,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 104.0,
@@ -1550,14 +1469,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1.25-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-1.5": {
    "file": "kc-slate-1.5.webp",
-   "frameW": 239,
-   "frameH": 219,
+   "frameW": 240,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 119.7,
@@ -1581,14 +1499,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1.5-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-1.75": {
    "file": "kc-slate-1.75.webp",
-   "frameW": 270,
-   "frameH": 219,
+   "frameW": 271,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 135.5,
@@ -1612,14 +1529,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-1.75-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-2": {
    "file": "kc-slate-2.webp",
    "frameW": 302,
-   "frameH": 219,
+   "frameH": 190,
    "frames": 11,
    "fps": 60,
    "cx": 151.2,
@@ -1643,18 +1559,17 @@
     0
    ],
    "held": 6,
-   "base": "kc-2-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-2.25": {
    "file": "kc-slate-2.25.webp",
-   "frameW": 333,
-   "frameH": 219,
+   "frameW": 334,
+   "frameH": 189,
    "frames": 11,
    "fps": 60,
-   "cx": 166.9,
-   "cy": 88.2,
+   "cx": 167.0,
+   "cy": 87.2,
    "controlW": 284,
    "controlH": 126,
    "press": [
@@ -1674,14 +1589,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-2.25-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-2.75": {
    "file": "kc-slate-2.75.webp",
-   "frameW": 396,
-   "frameH": 219,
+   "frameW": 397,
+   "frameH": 191,
    "frames": 11,
    "fps": 60,
    "cx": 198.4,
@@ -1705,14 +1619,13 @@
     0
    ],
    "held": 6,
-   "base": "kc-2.75-base",
    "offsetX": 0,
    "offsetY": 0
   },
   "kc-slate-6.25": {
    "file": "kc-slate-6.25.webp",
-   "frameW": 847,
-   "frameH": 219,
+   "frameW": 838,
+   "frameH": 191,
    "frames": 11,
    "fps": 60,
    "cx": 419.0,
@@ -1736,7 +1649,6 @@
     0
    ],
    "held": 6,
-   "base": "kc-6.25-base",
    "offsetX": 0,
    "offsetY": 0
   }

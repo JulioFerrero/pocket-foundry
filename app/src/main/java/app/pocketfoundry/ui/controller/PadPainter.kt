@@ -49,8 +49,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
 
     /** The right stick is a trackpad box (Settings.touch BOX). */
     var box = false
-    /** In the layout editor: latching keys wear a lock. */
-    var editing = false
 
     /** The rendered look; until its pictures load, the controls are drawn as before. */
     val sprites = SpritePainter(layout)
@@ -82,17 +80,20 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             // The rendered keycap, its name written on its top, which is smaller than the key: its walls lean in. Or
             // the drawn one.
             val moving = sprites.draw(canvas, c, x, y, r, box, now, units)
+            val w: Float
+            val h: Float
             if (moving != null) {
-                val drop = if (pressed) r * PRESS_DROP else 0f
-                keyLabel(canvas, c, x, y + drop, r * (units - CAP_WALLS), r * CAP_TOP, INK)
-            } else drawKey(canvas, c, x, y, r, pressed, units)
-            if (editing && c.latch) {
-                val bx = x + (units - 0.28f) * r
-                val by = y - 0.72f * r
-                fill.color = Tone.ORANGE.face
-                canvas.drawCircle(bx, by, r * 0.34f, fill)
-                keyIcon(canvas, KeyIcon.LOCK, bx, by, r * 0.42f, INK)
+                w = r * (units - CAP_WALLS)
+                h = r * CAP_TOP
+                val ink = if (pressed || c.light) INK_ON_LIGHT else INK_ON_DARK
+                keyLabel(canvas, c, x, y + if (pressed) r * PRESS_DROP else 0f, w, h, ink)
+            } else {
+                w = units * r * 0.85f
+                h = r * 0.75f
+                drawKey(canvas, c, x, y, r, pressed, units)
             }
+            if (c.kind == Kind.Key && c.latch) led(canvas, x + w, y - h + if (pressed && moving != null) r * PRESS_DROP else 0f, h,
+                                                   layout.isLatched(c))
             if (selected) drawSelection(canvas, null, c, x, y, r)
             return moving == true
         }
@@ -144,6 +145,26 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         return text.measureText(label)
     }
 
+    /** [c] drawn as it is on screen, at ([x], [y]), [r] its radius: the editor's window shows the key it edits. */
+    fun preview(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, now: Long) =
+        drawAt(canvas, null, c, x, y, r, false, now)
+
+    /**
+     * A key that stays held has a light, as Caps Lock has, at its top's corner ([right], [top]), its top [h] half high:
+     * dark till the key is held, then lit.
+     */
+    private fun led(canvas: Canvas, right: Float, top: Float, h: Float, lit: Boolean) {
+        val w = h * 0.5f
+        val tall = h * 0.2f
+        rect.set(right - h * 0.22f - w, top + h * 0.22f, right - h * 0.22f, top + h * 0.22f + tall)
+        if (lit) {
+            fill.color = LED_GLOW
+            canvas.drawRoundRect(rect.left - tall, rect.top - tall, rect.right + tall, rect.bottom + tall, tall * 1.5f, tall * 1.5f, fill)
+        }
+        fill.color = if (lit) LED_ON else LED_OFF
+        canvas.drawRoundRect(rect, tall / 2, tall / 2, fill)
+    }
+
     /** A keyboard key in the drawn look: its cap the control's whole size, its name or sign on it (Keys). */
     fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean, units: Float = c.units) {
         rect.set(x - units * r, y - r, x + units * r, y + r)
@@ -152,17 +173,24 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     }
 
     /**
-     * A key's name (Esc, E, Shift, Ctrl+Z) as large as fits on a cap face [w] by [h] from its middle ([x], [y]), a
-     * round face's equal; or the sign of what isn't a key (the drawer, the tools).
+     * A key's legend on a cap top [w] by [h] from its middle ([x], [y]), as a keyboard prints it: a letter large, a word
+     * (Esc, Shift, F11) smaller, a combination its modifiers small over its key; each smaller only to fit. What isn't a
+     * key shows its sign; a key that only brings a set, the set's name.
      */
     private fun keyLabel(canvas: Canvas, c: Control, x: Float, y: Float, w: Float, h: Float, colour: Int) {
         val sign = c.keyIcon
-        if (sign != null) return keyIcon(canvas, sign, x, y, h * 1.4f, colour)
-        val label = layout.label(c)
-        if (label.isEmpty()) return
-        val fit = 2 * w * LABEL_WIDTH / textWidth(label, 1f)
-        letter(canvas, label, x, y, minOf(h * LABEL_HEIGHT, fit), colour)
+        if (sign != null) return keyIcon(canvas, sign, x, y, h * 1.2f, colour)
+        val main = if (c.kind == Kind.Key && c.codes.isEmpty()) layout.label(c) else c.legendMain
+        if (main.isEmpty()) return
+        val room = 2 * w * LABEL_WIDTH
+        if (c.legendTop.isEmpty()) return letter(canvas, main, x, y, fitted(main, legendSize(main, h), room), colour)
+        letter(canvas, c.legendTop, x, y - h * 0.42f, fitted(c.legendTop, h * MODIFIER_SIZE, room), colour)
+        letter(canvas, main, x, y + h * 0.36f, fitted(main, legendSize(main, h) * 0.8f, room), colour)
     }
+
+    private fun legendSize(text: String, h: Float) = h * if (text.length == 1) LETTER_SIZE else WORD_SIZE
+
+    private fun fitted(text: String, size: Float, room: Float) = minOf(size, room / textWidth(text, 1f))
 
     /** [sign] [size] wide, its middle at ([x], [y]). */
     private fun keyIcon(canvas: Canvas, sign: KeyIcon, x: Float, y: Float, size: Float, colour: Int) {
@@ -382,8 +410,17 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
          */
         private const val CAP_TOP = 0.54f
         private const val CAP_WALLS = 0.46f
-        /** A key's name, in its top's half heights: a letter as large as the IBM's. */
-        private const val LABEL_HEIGHT = 1.3f
+        /** A key's legend, in its top's half heights: a letter, a word, a combination's modifiers. */
+        private const val LETTER_SIZE = 1.25f
+        private const val WORD_SIZE = 1.05f
+        private const val MODIFIER_SIZE = 0.62f
+        /** A pale cap's legend is dark, a dark cap's pale; on the lit orange of a held key, dark. */
+        private const val INK_ON_LIGHT = 0xFF2A2926.toInt()
+        private const val INK_ON_DARK = 0xFFEDEBE6.toInt()
+        /** A key's light: off, on, and the glow round it on. */
+        private const val LED_OFF = 0xFF34322F.toInt()
+        private const val LED_ON = 0xFFFFC75A.toInt()
+        private const val LED_GLOW = 0x66FFB13B
         /** A key's name takes at most this part of its face's width. */
         private const val LABEL_WIDTH = 0.82f
         /** How far a pressed cap's sign goes down with it, in radii. */

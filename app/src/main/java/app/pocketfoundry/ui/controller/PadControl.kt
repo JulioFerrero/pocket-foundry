@@ -64,12 +64,32 @@ class Control(
     /** What's written on it: a key's name on a keyboard (Ctrl+Z), worked out from what it sends. */
     var label = if (kind == Kind.Key) KeyNames.label(defaultCodes) else label
         private set
+    /** A key's legend as printed on its cap: the modifiers' line over the key's (KeyNames.legend). */
+    var legendTop = ""
+        private set
+    var legendMain = ""
+        private set
+    /** A key's cap is the pale one: a letter, a number, a sign, Space. */
+    var light = false
+        private set
     var codes: IntArray = defaultCodes
         set(value) {
             field = value
             label = KeyNames.label(value)
             if (own) name = label
+            legend()
         }
+
+    init {
+        if (kind == Kind.Key) legend()
+    }
+
+    private fun legend() {
+        val (top, main) = KeyNames.legend(codes)
+        legendTop = top
+        legendMain = main
+        light = KeyNames.light(codes)
+    }
     var shows = defaultShows
     var units = defaultUnits
     val anchor = when {

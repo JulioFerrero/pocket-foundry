@@ -49,7 +49,9 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     private val latched = HashSet<String>()
     /** An open drawer's panel; [drawerCentre] places its keys in it. */
     val drawerPanel = RectF()
-    var opacity = DEFAULT_OPACITY
+    /** Mouse & keys' keycaps are solid: see-through, the game's ground shows on them. The pad's are faded. */
+    private val defaultOpacity = if (keysMode) 1f else DEFAULT_OPACITY
+    var opacity = defaultOpacity
         private set
     var hidden = false
     /** Where the player put the FPS counter's top-left corner, as fractions of the screen; null for its own corner. */
@@ -239,7 +241,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         sets.getValue(set).removeAll { it.own }
         allControls.forEach { it.resetPlacement() }
         refreshShown()
-        opacity = DEFAULT_OPACITY
+        opacity = defaultOpacity
         counter = null
         counterScale = 1f
     }
@@ -273,7 +275,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
                     reads.forEach { it?.invoke() }
                 })
             } else LayoutJson.read(json, sets.getValue(KeySets.PAD))
-            opacity = json.optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat()
+            opacity = json.optDouble("opacity", defaultOpacity.toDouble()).toFloat()
             hidden = json.optBoolean("hidden", false)
             counter = json.optJSONArray("counter")?.floats()?.takeIf { it.size == 2 }?.let { PointF(it[0], it[1]) }
             counterScale = json.optDouble("counterScale", 1.0).toFloat()

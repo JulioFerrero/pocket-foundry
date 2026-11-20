@@ -142,6 +142,8 @@ open class FButton(context: Context, label: CharSequence, tone: Tone = Tone.GREY
                    size: Float = 16f) : Button(context) {
     protected val bevel = ButtonDrawable(context, tone, arrow)
     var tone by bevel::tone
+    /** A dropdown's caret on its right: a list, or a picker, behind it. */
+    var caret by bevel::caret
 
     init {
         background = bevel

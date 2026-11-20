@@ -41,7 +41,6 @@ enum class KeyIcon(val path: String, val stroke: Float = 2f) {
     DOTS("M4 10h.01M10 10h.01M16 10h.01", stroke = 3.4f),
     EDIT("M3 6h14M3 10h14M3 14h14M7 4.5v3M13 8.5v3M9 12.5v3"),
     HIDE("M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6zM10 7.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5M4 16L16 4"),
-    LOCK("M4.5 9h11v8h-11zM7 9V6.5a3 3 0 0 1 6 0V9", stroke = 2.4f),
     /** The stick, in the editor's list: it's drawn as itself on screen. */
     STICK("M10 3a7 7 0 1 0 0 14a7 7 0 1 0 0-14M10 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6"),
     /** The editor's New key. */
@@ -82,24 +81,34 @@ object KeyNames {
             names.getValue(code).length == 1 || code == KeyEvent.KEYCODE_SPACE
     }.toSet()
 
-    /** The picker's keyboard, a row at a time. */
-    val ROWS: List<IntArray> = listOf(
-        intArrayOf(KeyEvent.KEYCODE_ESCAPE) + IntArray(12) { KeyEvent.KEYCODE_F1 + it },
-        intArrayOf(KeyEvent.KEYCODE_GRAVE) + intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 0).map { KeyEvent.KEYCODE_0 + it } +
-            intArrayOf(KeyEvent.KEYCODE_MINUS, KeyEvent.KEYCODE_EQUALS, KeyEvent.KEYCODE_DEL),
-        intArrayOf(KeyEvent.KEYCODE_TAB) + "QWERTYUIOP".letters() +
-            intArrayOf(KeyEvent.KEYCODE_LEFT_BRACKET, KeyEvent.KEYCODE_RIGHT_BRACKET, KeyEvent.KEYCODE_BACKSLASH),
-        intArrayOf(KeyEvent.KEYCODE_CAPS_LOCK) + "ASDFGHJKL".letters() +
-            intArrayOf(KeyEvent.KEYCODE_SEMICOLON, KeyEvent.KEYCODE_APOSTROPHE, KeyEvent.KEYCODE_ENTER),
-        intArrayOf(KeyEvent.KEYCODE_SHIFT_LEFT) + "ZXCVBNM".letters() +
-            intArrayOf(KeyEvent.KEYCODE_COMMA, KeyEvent.KEYCODE_PERIOD, KeyEvent.KEYCODE_SLASH, KeyEvent.KEYCODE_DPAD_UP),
-        // Insert left out: Factorio has nothing on it, and the row is full.
-        intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_ALT_LEFT, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_FORWARD_DEL, KeyEvent.KEYCODE_MOVE_HOME, KeyEvent.KEYCODE_MOVE_END,
-                   KeyEvent.KEYCODE_PAGE_UP, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_DPAD_LEFT,
-                   KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT),
+    /**
+     * The picker's keyboard, laid out as one, a row at a time: (key, width in a keyboard's units); 0 is a gap. The main
+     * block is 15 units wide, then a gap and a block of three: Home, End, Page Up and Down, Delete and the arrows.
+     */
+    val KEYBOARD: List<List<Pair<Int, Float>>> = listOf(
+        listOf(KeyEvent.KEYCODE_ESCAPE to 1f, 0 to 1f) + (1..4).fn() + listOf(0 to 0.5f) + (5..8).fn() +
+            listOf(0 to 0.5f) + (9..12).fn() + listOf(0 to 3.5f),
+        listOf(KeyEvent.KEYCODE_GRAVE to 1f) + "1234567890".keys() +
+            listOf(KeyEvent.KEYCODE_MINUS to 1f, KeyEvent.KEYCODE_EQUALS to 1f, KeyEvent.KEYCODE_DEL to 2f, 0 to 1.5f,
+                   KeyEvent.KEYCODE_MOVE_HOME to 1f, KeyEvent.KEYCODE_PAGE_UP to 1f),
+        listOf(KeyEvent.KEYCODE_TAB to 1.5f) + "QWERTYUIOP".keys() +
+            listOf(KeyEvent.KEYCODE_LEFT_BRACKET to 1f, KeyEvent.KEYCODE_RIGHT_BRACKET to 1f,
+                   KeyEvent.KEYCODE_BACKSLASH to 1.5f, 0 to 0.5f, KeyEvent.KEYCODE_FORWARD_DEL to 1f,
+                   KeyEvent.KEYCODE_MOVE_END to 1f, KeyEvent.KEYCODE_PAGE_DOWN to 1f),
+        listOf(KeyEvent.KEYCODE_CAPS_LOCK to 1.75f) + "ASDFGHJKL".keys() +
+            listOf(KeyEvent.KEYCODE_SEMICOLON to 1f, KeyEvent.KEYCODE_APOSTROPHE to 1f, KeyEvent.KEYCODE_ENTER to 2.25f),
+        listOf(KeyEvent.KEYCODE_SHIFT_LEFT to 2.25f) + "ZXCVBNM".keys() +
+            listOf(KeyEvent.KEYCODE_COMMA to 1f, KeyEvent.KEYCODE_PERIOD to 1f, KeyEvent.KEYCODE_SLASH to 1f,
+                   0 to 4.25f, KeyEvent.KEYCODE_DPAD_UP to 1f),
+        listOf(KeyEvent.KEYCODE_CTRL_LEFT to 1.5f, KeyEvent.KEYCODE_ALT_LEFT to 1.5f, KeyEvent.KEYCODE_SPACE to 12f,
+               0 to 0.5f, KeyEvent.KEYCODE_DPAD_LEFT to 1f, KeyEvent.KEYCODE_DPAD_DOWN to 1f, KeyEvent.KEYCODE_DPAD_RIGHT to 1f),
     )
 
-    private fun String.letters() = IntArray(length) { KeyEvent.KEYCODE_A + (this[it] - 'A') }
+    /** The picker's keys, a row at a time. */
+    val ROWS: List<IntArray> = KEYBOARD.map { row -> row.map { it.first }.filter { it != 0 }.toIntArray() }
+
+    private fun IntRange.fn() = map { (KeyEvent.KEYCODE_F1 + it - 1) to 1f }
+    private fun String.keys() = map { (if (it.isDigit()) KeyEvent.KEYCODE_0 + (it - '0') else KeyEvent.KEYCODE_A + (it - 'A')) to 1f }
 
     fun name(code: Int) = names[code] ?: "?"
 
@@ -108,6 +117,17 @@ object KeyNames {
         val mods = MODIFIERS.filter { it in codes }
         val rest = codes.filter { it !in MODIFIERS }
         return (mods + rest).joinToString("+", transform = ::name)
+    }
+
+    /**
+     * A key's legend in two lines, as a combination is printed: the modifiers over the key ("Ctrl", "Z"). A key alone,
+     * a modifier alone included, has its name as its one line.
+     */
+    fun legend(codes: IntArray): Pair<String, String> {
+        val mods = MODIFIERS.filter { it in codes }
+        val rest = codes.filter { it !in MODIFIERS }
+        return if (mods.isEmpty() || rest.isEmpty()) "" to label(codes)
+               else mods.joinToString("+", transform = ::name) to rest.joinToString("+", transform = ::name)
     }
 
     /** A key with a light cap: one letter, number, sign or Space. Modifiers, Esc, F keys and combinations are dark. */
