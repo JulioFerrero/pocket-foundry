@@ -30,6 +30,20 @@ class ControllerView(context: Context, private val input: Input, private val cou
     private val painter = PadPainter(context, layout)
     private val toolbar = Toolbar(layout, painter)
     private val editor = LayoutEditor(layout, painter, toolbar, counter, ::haptic)
+    /** Mouse & keys' editor's windows, over the game (KeyPanels). */
+    private val panels = if (input == Input.KEYS) {
+        KeyPanels(context as android.app.Activity, layout) {
+            layout.refreshShown()
+            invalidate()
+        }.also { editor.panels = it }
+    } else null
+
+    /** One of the editor's windows is up: touches are its. */
+    val panelOpen get() = panels?.open == true
+
+    fun closePanel() {
+        panels?.close()
+    }
     private val vibrator = context.getSystemService(Vibrator::class.java)
     private val settings = Settings(context)
     private val pressed = arrayOfNulls<Control>(POINTER_IDS)
@@ -119,7 +133,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
                 use(k.tool)
             }
             // The key's screen opens in the game: its keys come up.
-            is Kind.Key -> k.opens?.let { layout.switchTo(layout.set.after(it)) }
+            Kind.Key -> control.shows?.let { layout.switchTo(KeySets.next(layout.set, it)) }
             else -> {}
         }
         invalidate()
@@ -132,7 +146,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
         keys.press(ESC)
         keys.release(ESC)
         layout.closeDrawer()
-        layout.switchTo(KeySet.GAME)
+        layout.switchTo(KeySets.GAME)
         invalidate()
     }
 
@@ -177,7 +191,11 @@ class ControllerView(context: Context, private val input: Input, private val cou
             Tool.KEYBOARD -> onKeyboard()
             Tool.HIDE -> { releaseAll(); layout.hidden = true; layout.save() }
             Tool.SHOW -> { layout.hidden = false; layout.save() }
-            else -> { editor.use(tool); alpha = layout.opacity }
+            else -> {
+                editor.use(tool)
+                if (!editor.active) panels?.close()
+                alpha = layout.opacity
+            }
         }
         invalidate()
     }

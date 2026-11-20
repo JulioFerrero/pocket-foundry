@@ -13,8 +13,8 @@ sealed class Kind(val reach: Float, val follows: Boolean) {
     object Dpad : Kind(1.15f, true)
     class Button(val button: PadButton) : Kind(1.2f, false)
     class Trigger(val axis: PadAxis) : Kind(1.2f, false)
-    /** A keyboard key, or keys pressed together (Ctrl+Z): Android key codes, pressed in order. */
-    class Key(val codes: IntArray, val opens: Opens? = null) : Kind(1.15f, false)
+    /** A keyboard key, or keys pressed together (Ctrl+Z): its [Control.codes], pressed in order. */
+    object Key : Kind(1.15f, false)
     /** W, A, S and D, from a stick: a diagonal holds two. */
     object KeyStick : Kind(1.3f, true)
     /** Opens and closes a panel of the keys in it ([Control.inDrawer]). */
@@ -41,9 +41,9 @@ class Control(
     glyph: String?,
     val pill: Boolean = false,
     val icon: Icon? = null,
-    val label: String = if (icon == null) id else "",
+    label: String = if (icon == null) id else "",
     /** In the editor's list of controls to add, and under a key in the drawer. */
-    val name: String = id,
+    var name: String = id,
     /** A key's drawn sign (Keys). */
     val keyIcon: KeyIcon? = null,
     /** Mouse & keys has every key in every set, most of them unshown, for the editor to add. */
@@ -52,7 +52,26 @@ class Control(
     val defaultLatch: Boolean = false,
     /** Where the editor lists a Mouse & keys key. */
     val group: KeyGroup? = null,
+    /** A key's: what it sends, Android key codes pressed in order. Empty for a key that only shows a set. */
+    val defaultCodes: IntArray = IntArray(0),
+    /** The set a key brings (KeySets): the inventory's for E. */
+    val defaultShows: String? = null,
+    /** Its width in its heights: a key's in a keyboard's units (2.25 for Shift), a pad's pill 2. */
+    val defaultUnits: Float = if (pill) 2f else 1f,
+    /** A key the player made (Keys.own), saved whole with the layout. */
+    val own: Boolean = false,
 ) {
+    /** What's written on it: a key's name on a keyboard (Ctrl+Z), worked out from what it sends. */
+    var label = if (kind == Kind.Key) KeyNames.label(defaultCodes) else label
+        private set
+    var codes: IntArray = defaultCodes
+        set(value) {
+            field = value
+            label = KeyNames.label(value)
+            if (own) name = label
+        }
+    var shows = defaultShows
+    var units = defaultUnits
     val anchor = when {
         defaultY < 0.2f -> Anchor.TOP
         defaultX < 0.5f -> Anchor.LEFT
@@ -92,6 +111,9 @@ class Control(
         shown = defaultShown
         inDrawer = defaultInDrawer
         latch = defaultLatch
+        if (!codes.contentEquals(defaultCodes)) codes = defaultCodes
+        shows = defaultShows
+        units = defaultUnits
         x = defaultX
         y = defaultY
         scale = 1f
@@ -117,13 +139,13 @@ class Control(
             Kind.Dpad -> aim(touchX, touchY, layout)
             is Kind.Button -> { VirtualPad.button(SCREEN, k.button, true); true }
             is Kind.Trigger -> { VirtualPad.axis(SCREEN, k.axis, VirtualPad.AXIS_MAX); true }
-            is Kind.Key -> {
+            Kind.Key -> {
                 val keys = layout.keyOut ?: return true
                 out = keys
                 when {
-                    !latch -> keys.press(k.codes)
-                    layout.toggleLatched(this) -> keys.press(k.codes)
-                    else -> keys.release(k.codes)
+                    !latch -> keys.press(codes)
+                    layout.toggleLatched(this) -> keys.press(codes)
+                    else -> keys.release(codes)
                 }
                 true
             }
@@ -172,7 +194,7 @@ class Control(
             is Kind.Trigger -> VirtualPad.axis(SCREEN, k.axis, 0)
             Kind.KeyStick -> holdKeys(0)
             // A latched key is let go by its next tap, or by the layout (PadLayout.releaseKeys).
-            is Kind.Key -> if (!latch) out?.release(k.codes)
+            Kind.Key -> if (!latch) out?.release(codes)
             Kind.Drawer, is Kind.ToolKey -> {}
         }
     }

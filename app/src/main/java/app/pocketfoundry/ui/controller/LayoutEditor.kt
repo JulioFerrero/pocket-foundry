@@ -23,6 +23,8 @@ interface Movable {
  */
 class LayoutEditor(private val layout: PadLayout, private val painter: PadPainter, private val toolbar: Toolbar,
                    private val counter: Movable, private val haptic: (VibrationEffect) -> Unit) {
+    /** Mouse & keys' windows: the key picker, a key's options, a set's name. */
+    var panels: KeyPanels? = null
     var active = false
     /** Showing the list of removed controls, to add one back. */
     var adding = false
@@ -176,7 +178,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
             Tool.SMALLER -> resize(-SCALE_STEP)
             Tool.BIGGER -> resize(SCALE_STEP)
             Tool.OPACITY -> layout.nextOpacity()
-            Tool.LATCH -> selected?.takeIf { it.kind is Kind.Key }?.let { it.latch = !it.latch }
+            Tool.OPTIONS -> selected?.takeIf { it.kind is Kind.Key }?.let { panels?.options(it) }
             Tool.RESET -> {
                 layout.closeDrawer()
                 layout.reset()
@@ -197,15 +199,21 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     }
 
     private fun remove(c: Control) {
-        c.shown = false
         for (i in drags.indices) {
             if (drags[i] === c) drags[i] = null
         }
         select(null)
-        layout.refreshShown()
+        layout.remove(c)
     }
 
     private fun add(c: Control) {
+        adding = false
+        when {
+            // The list's New key: the picker, then the key the player made, as any key added.
+            c.id == NEW_KEY -> return panels?.pickKey("New key") { codes -> placeOwn(layout.addOwn(codes)) } ?: Unit
+            // A key that only brings a set.
+            c.id.startsWith(SHOWS) -> return placeOwn(layout.addOwn(IntArray(0), SET_KEY_UNITS, c.shows))
+        }
         c.resetPlacement()
         // A Mouse & keys key the set doesn't have by default comes onto the screen, or into the drawer when it's open.
         c.shown = true
@@ -216,7 +224,28 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         haptic(ControllerView.CLICK)
     }
 
+    private fun placeOwn(c: Control) {
+        if (layout.openDrawer != null) c.inDrawer = true
+        layout.refreshShown()
+        select(c)
+        haptic(ControllerView.CLICK)
+    }
+
     private fun addable() = layout.allControls.filter { !it.shown }
+
+    /** Mouse & keys' list has more than the keys the set hasn't: a new key, and a key to bring each other set. */
+    private fun offered(): List<Control> {
+        val more = ArrayList<Control>()
+        more += Control(NEW_KEY, Kind.ToolKey(Tool.ADD), 0f, 0f, Keys.KEY, glyph = null, name = "New key",
+                        keyIcon = KeyIcon.PLUS, group = KeyGroup.OTHER)
+        for (set in layout.setKeys) {
+            if (set != layout.set) {
+                more += Control(SHOWS + set, Kind.Key, 0f, 0f, Keys.KEY, glyph = null, name = layout.title(set),
+                                group = KeyGroup.SETS, defaultShows = set)
+            }
+        }
+        return addable() + more
+    }
 
     private fun rowRects(controls: List<Control>): List<RectF> {
         val h = toolbar.size
@@ -256,7 +285,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     private fun placeOffers() {
         offers.clear()
         headings.clear()
-        val groups = addable().filter { it.group != null }.groupBy { it.group!! }.toSortedMap()
+        val groups = offered().filter { it.group != null }.groupBy { it.group!! }.toSortedMap()
         if (groups.isEmpty()) return addPanel.setEmpty()
         val r = offerRadius()
         val cell = r * OFFER_CELL
@@ -290,44 +319,54 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         for ((title, at) in headings) painter.letter(canvas, title, at.x, at.y, r * HEADING, Factorio.HEADING)
         for (o in offers) {
             // A wide key is twice as wide as tall: smaller, it keeps to its cell.
-            painter.drawKey(canvas, o.control, o.x, o.y, if (o.control.pill) r * WIDE_OFFER else r, false)
+            painter.drawKey(canvas, o.control, o.x, o.y, r, false, units = 1f)
             painter.letter(canvas, o.control.name, o.x, o.y + r * 1.55f, r * 0.42f, PadPainter.LIGHT)
         }
     }
 
     private fun offerRadius() = layout.drawerKeyRadius() * 0.8f
 
-    /** Mouse & keys' sets, as chips: the editor works on the one picked. */
+    /**
+     * Mouse & keys' sets, as chips: the editor works on the one picked; the player's own, picked again, opens its name.
+     * The last chip, +, makes a new set.
+     */
     fun drawSets(canvas: Canvas, sheet: GuiSheet?) {
         if (!layout.keysMode) return
-        placeChips()
+        val sets = layout.setKeys
+        placeChips(sets)
         val s = chipHeight()
-        bounds.set(chips.first().left, chips.first().top, chips.last().right, chips.last().bottom)
+        bounds.set(chips.first().left, chips.first().top, chips[sets.size].right, chips.first().bottom)
         painter.panel(canvas, sheet, bounds, s)
-        KeySet.KEYS.forEachIndexed { i, set ->
-            val on = layout.set == set
+        for (i in 0..sets.size) {
+            val on = i < sets.size && layout.set == sets[i]
             painter.toolKey(canvas, sheet, chips[i], on, s)
-            painter.letter(canvas, set.title, chips[i].centerX(), chips[i].centerY(), s * 0.42f,
-                           if (on) PadPainter.INK else PadPainter.LIGHT)
+            painter.letter(canvas, if (i < sets.size) layout.title(sets[i]) else NEW_SET, chips[i].centerX(), chips[i].centerY(),
+                           s * 0.42f, if (on) PadPainter.INK else PadPainter.LIGHT)
         }
     }
 
     private fun setsDown(x: Float, y: Float): Boolean {
-        placeChips()
-        val i = chips.indexOfFirst { it.contains(x, y) }
-        if (i < 0) return false
-        layout.switchTo(KeySet.KEYS[i])
+        val sets = layout.setKeys
+        placeChips(sets)
+        val i = (0..sets.size).firstOrNull { chips[it].contains(x, y) } ?: return false
         select(null)
         haptic(ControllerView.TICK)
+        when {
+            i == sets.size -> panels?.set(layout.newSet())
+            sets[i] == layout.set && layout.isOwnSet(sets[i]) -> panels?.set(sets[i])
+            else -> layout.switchTo(sets[i])
+        }
         return true
     }
 
-    private fun placeChips() {
+    private fun placeChips(sets: List<String>) {
         val s = chipHeight()
         var left = layout.frame * 0.03f
         val top = layout.frame * 0.2f
-        KeySet.KEYS.forEachIndexed { i, set ->
-            val w = painter.textWidth(set.title, s * 0.42f) + s * 0.9f
+        while (chips.size <= sets.size) chips += RectF()
+        for (i in 0..sets.size) {
+            val title = if (i < sets.size) layout.title(sets[i]) else NEW_SET
+            val w = painter.textWidth(title, s * 0.42f) + s * 0.9f
             chips[i].set(left, top, left + w, top + s)
             left += w + s * 0.12f
         }
@@ -339,7 +378,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     private val offers = ArrayList<Offer>()
     private val headings = ArrayList<Pair<String, PointF>>()
     private val addPanel = RectF()
-    private val chips = Array(KeySet.KEYS.size) { RectF() }
+    private val chips = ArrayList<RectF>()
 
     private companion object {
         const val SCALE_STEP = 0.1f
@@ -347,7 +386,12 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         const val OFFER_CELL = 2.9f
         const val OFFER_ROW = 3.3f
         const val HEADING = 0.55f
-        const val WIDE_OFFER = 0.68f
+        /** The add list's own entries: New key, and a key that brings a set ("shows:" and the set's key). */
+        const val NEW_KEY = "new"
+        const val SHOWS = "shows:"
+        const val NEW_SET = "+"
+        /** A key that brings a set has its name on it: wider than a letter's. */
+        const val SET_KEY_UNITS = 2f
         const val NO_FINGER = -1
     }
 }

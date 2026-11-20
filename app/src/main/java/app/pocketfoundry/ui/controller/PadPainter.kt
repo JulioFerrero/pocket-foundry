@@ -68,25 +68,26 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         var moving = false
         for (i in keys.indices) {
             layout.drawerCentre(i, point)
-            if (drawAt(canvas, sheet, keys[i], point.x, point.y, r, keys[i] === selected, now)) moving = true
-            letter(canvas, keys[i].name, point.x, point.y + r * 1.55f, r * 0.42f, LIGHT)
+            // A drawer's cells are one key wide, whatever a key's width on screen.
+            if (drawAt(canvas, sheet, keys[i], point.x, point.y, r, keys[i] === selected, now, units = 1f)) moving = true
+            letter(canvas, keys[i].name.ifEmpty { layout.label(keys[i]) }, point.x, point.y + r * 1.55f, r * 0.42f, LIGHT)
         }
         return moving
     }
 
     private fun drawAt(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float, selected: Boolean,
-                       now: Long): Boolean {
+                       now: Long, units: Float = c.units): Boolean {
         val pressed = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
         if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind == Kind.Drawer) {
-            // The rendered cap, blank (key-round, key-wide), its face less than the control's size; or the drawn one.
-            val moving = sprites.draw(canvas, c, x, y, r, box, now)
+            // The rendered keycap, its name written on its top, which is smaller than the key: its walls lean in. Or
+            // the drawn one.
+            val moving = sprites.draw(canvas, c, x, y, r, box, now, units)
             if (moving != null) {
                 val drop = if (pressed) r * PRESS_DROP else 0f
-                if (c.pill) keyLabel(canvas, c, x, y + drop, 2 * r * WIDE_FACE_W, r * WIDE_FACE_H, INK)
-                else keyLabel(canvas, c, x, y + drop, r * ROUND_FACE, r * ROUND_FACE, INK)
-            } else drawKey(canvas, c, x, y, r, pressed)
+                keyLabel(canvas, c, x, y + drop, r * (units - CAP_WALLS), r * CAP_TOP, INK)
+            } else drawKey(canvas, c, x, y, r, pressed, units)
             if (editing && c.latch) {
-                val bx = if (c.pill) x + 1.75f * r else x + 0.72f * r
+                val bx = x + (units - 0.28f) * r
                 val by = y - 0.72f * r
                 fill.color = Tone.ORANGE.face
                 canvas.drawCircle(bx, by, r * 0.34f, fill)
@@ -143,16 +144,11 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         return text.measureText(label)
     }
 
-    /** A keyboard key in the drawn look: its cap the control's whole size, its word or icon on it (Keys). */
-    fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean) {
-        if (c.pill) {
-            rect.set(x - 2 * r, y - r, x + 2 * r, y + r)
-            bevelSlot(pressed, rect.top, rect.bottom) { canvas.drawRoundRect(rect, r * 0.3f, r * 0.3f, it) }
-            keyLabel(canvas, c, x, y, 2 * r, r, glyphColour(pressed))
-        } else {
-            bevelSlot(pressed, y - r, y + r) { canvas.drawCircle(x, y, r, it) }
-            keyLabel(canvas, c, x, y, r, r, glyphColour(pressed))
-        }
+    /** A keyboard key in the drawn look: its cap the control's whole size, its name or sign on it (Keys). */
+    fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean, units: Float = c.units) {
+        rect.set(x - units * r, y - r, x + units * r, y + r)
+        bevelSlot(pressed, rect.top, rect.bottom) { canvas.drawRoundRect(rect, r * 0.25f, r * 0.25f, it) }
+        keyLabel(canvas, c, x, y, units * r * 0.85f, r * 0.75f, glyphColour(pressed))
     }
 
     /**
@@ -161,10 +157,11 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
      */
     private fun keyLabel(canvas: Canvas, c: Control, x: Float, y: Float, w: Float, h: Float, colour: Int) {
         val sign = c.keyIcon
-        val round = w <= h * 1.01f
-        if (sign != null) return keyIcon(canvas, sign, x, y, h * if (round) 1.15f else 1.25f, colour)
-        val fit = 2 * w * LABEL_WIDTH / textWidth(c.label, 1f)
-        letter(canvas, c.label, x, y, minOf(h * if (round) 1f else 1.25f, fit), colour)
+        if (sign != null) return keyIcon(canvas, sign, x, y, h * 1.4f, colour)
+        val label = layout.label(c)
+        if (label.isEmpty()) return
+        val fit = 2 * w * LABEL_WIDTH / textWidth(label, 1f)
+        letter(canvas, label, x, y, minOf(h * LABEL_HEIGHT, fit), colour)
     }
 
     /** [sign] [size] wide, its middle at ([x], [y]). */
@@ -284,7 +281,10 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private fun drawSelection(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float) {
         stroke.color = Tone.ORANGE.face
         stroke.strokeWidth = layout.frame * 0.004f
-        if (c.pill) {
+        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind == Kind.Drawer) {
+            rect.set(x - (c.units + 0.15f) * r, y - 1.15f * r, x + (c.units + 0.15f) * r, y + 1.15f * r)
+            canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
+        } else if (c.pill) {
             rect.set(x - 2.2f * r, y - 1.2f * r, x + 2.2f * r, y + 1.2f * r)
             canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
         } else if (sheet != null) {
@@ -376,10 +376,14 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     }
 
     companion object {
-        /** The rendered blank caps' faces, in the control's radii: round keys', and wide keys' half width and height. */
-        private const val ROUND_FACE = 0.7f
-        private const val WIDE_FACE_W = 0.85f
-        private const val WIDE_FACE_H = 0.7f
+        /**
+         * A rendered keycap's top, in the key's radii: half its height, and what its walls take off each half width
+         * (controls.py: UNIT 0.04, KC_GAP + KC_DRAFT 0.0092, so 0.46 of a unit's half).
+         */
+        private const val CAP_TOP = 0.54f
+        private const val CAP_WALLS = 0.46f
+        /** A key's name, in its top's half heights: a letter as large as the IBM's. */
+        private const val LABEL_HEIGHT = 1.3f
         /** A key's name takes at most this part of its face's width. */
         private const val LABEL_WIDTH = 0.82f
         /** How far a pressed cap's sign goes down with it, in radii. */

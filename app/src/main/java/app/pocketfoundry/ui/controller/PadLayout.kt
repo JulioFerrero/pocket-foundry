@@ -15,17 +15,26 @@ import kotlin.math.hypot
 
 /**
  * The controls and where they sit on this screen: the layout the player saved, in a phone-shaped frame. The pad's
- * controls are one set; Mouse & keys' ([keysMode]) are three, one shown at a time ([set], [KeySet]).
+ * controls are one set; Mouse & keys' ([keysMode]) are three and the player's own, one shown at a time ([set],
+ * KeySets).
  */
 class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     private val prefs = context.getSharedPreferences("controller", Context.MODE_PRIVATE)
 
-    private val sets: Map<KeySet, List<Control>> =
-        if (keysMode) KeySet.KEYS.associateWith { Keys.controls(it) } else mapOf(KeySet.PAD to defaultControls())
-    var set = if (keysMode) KeySet.GAME else KeySet.PAD
+    /** Each set's controls, by its key, in the editor's order: the built-in sets, then the player's. */
+    private val sets = LinkedHashMap<String, MutableList<Control>>()
+    /** The names of the sets the player made. */
+    private val ownTitles = LinkedHashMap<String, String>()
+    var set = if (keysMode) KeySets.GAME else KeySets.PAD
         private set
     /** The set's controls, shown or not. */
-    val allControls get() = sets.getValue(set)
+    val allControls: List<Control> get() = sets.getValue(set)
+    val setKeys get() = sets.keys.toList()
+
+    init {
+        if (keysMode) KeySets.BUILT_IN.keys.forEach { sets[it] = Keys.controls(it).toMutableList() }
+        else sets[KeySets.PAD] = defaultControls().toMutableList()
+    }
     var shownControls = emptyList<Control>()
         private set
     /** The set's keys in its drawer, in the order of the catalog. */
@@ -71,7 +80,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     }
 
     /** The keys for another screen: the inventory's, the map's. */
-    fun switchTo(target: KeySet) {
+    fun switchTo(target: String) {
         if (target == set || target !in sets) return
         set = target
         openDrawer = null
@@ -90,6 +99,61 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
 
     fun closeDrawer() {
         openDrawer = null
+    }
+
+    fun title(set: String) = KeySets.BUILT_IN[set] ?: ownTitles[set] ?: set
+
+    fun isOwnSet(set: String) = set in ownTitles
+
+    /** What's written on [c]: its name; a key that only brings a set, that set's. */
+    fun label(c: Control) = if (c.kind == Kind.Key && c.codes.isEmpty()) c.shows?.let(::title).orEmpty() else c.label
+
+    /** A set of the player's, "Set 4" till it's named, shown at once. Returns its key. */
+    fun newSet(): String {
+        val n = (ownTitles.keys.mapNotNull { it.removePrefix(KeySets.OWN).toIntOrNull() }.maxOrNull() ?: 0) + 1
+        val key = KeySets.OWN + n
+        ownTitles[key] = "Set ${KeySets.BUILT_IN.size + n}"
+        sets[key] = Keys.controls(key).toMutableList()
+        switchTo(key)
+        // Its way back: a key that only brings the game's keys. Esc would open Factorio's menu too.
+        addOwn(IntArray(0), 2f, KeySets.GAME).apply {
+            x = Keys.BACK_X
+            y = Keys.TOP_Y
+        }
+        return key
+    }
+
+    fun rename(set: String, title: String) {
+        if (set in ownTitles && title.isNotBlank()) ownTitles[set] = title.trim()
+    }
+
+    /** One of the player's sets gone, and the keys that brought it with it: those that only did, or bring nothing. */
+    fun removeSet(gone: String) {
+        if (gone !in ownTitles) return
+        if (set == gone) switchTo(KeySets.GAME)
+        sets.remove(gone)
+        ownTitles.remove(gone)
+        for (controls in sets.values) {
+            controls.removeAll { it.own && it.codes.isEmpty() && it.shows == gone }
+            controls.filter { it.shows == gone }.forEach { it.shows = null }
+        }
+        refreshShown()
+    }
+
+    /** A key the player made, at the middle of the screen of the set shown. */
+    fun addOwn(codes: IntArray, units: Float = 1f, shows: String? = null): Control {
+        val n = sets.values.flatten().mapNotNull { if (it.own) it.id.removePrefix(OWN_KEY).toIntOrNull() else null }
+            .maxOrNull() ?: 0
+        val key = Keys.own(OWN_KEY + (n + 1), codes, units, shows)
+        sets.getValue(set) += key
+        refreshShown()
+        return key
+    }
+
+    /** A key the player made goes for good; the others are only hidden, for Add to bring back. */
+    fun remove(c: Control) {
+        if (c.own) sets.getValue(set).remove(c) else c.shown = false
+        refreshShown()
     }
 
     fun isLatched(c: Control) = c.latch && c.id in latched
@@ -146,7 +210,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     fun cx(c: Control) = onScreen(frameLeft(c) + c.x * frameWidth, halfWidth(c), width)
     fun cy(c: Control) = onScreen(frameTop(c) + c.y * frame, radius(c), height)
     fun radius(c: Control) = c.size * c.scale * frame / 2
-    fun halfWidth(c: Control) = if (c.pill) 2 * radius(c) else radius(c)
+    fun halfWidth(c: Control) = radius(c) * c.units
     private fun frameLeft(c: Control) = (width - frameWidth) * c.anchor.across
     private fun frameTop(c: Control) = (height - frame) * c.anchor.down
     private fun onScreen(at: Float, half: Float, size: Int) = at.coerceIn(minOf(half, size / 2f), maxOf(size - half, size / 2f))
@@ -163,14 +227,16 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
             val r = radius(c)
             val dx = abs(x - cx(c))
             val dy = abs(y - cy(c))
-            val hit = if (c.pill) dx <= PILL_REACH_X * r && dy <= PILL_REACH_Y * r else hypot(dx, dy) <= r * c.kind.reach
+            val hit = if (c.units > 1.01f) dx <= (c.units + PILL_REACH_MORE) * r && dy <= PILL_REACH_Y * r
+                      else hypot(dx, dy) <= r * c.kind.reach
             if (hit) return c
         }
         return null
     }
 
-    /** The set shown, as it comes. */
+    /** The set shown, as it comes: the keys the player made in it go. */
     fun reset() {
+        sets.getValue(set).removeAll { it.own }
         allControls.forEach { it.resetPlacement() }
         refreshShown()
         opacity = DEFAULT_OPACITY
@@ -192,9 +258,21 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
             // Read whole before any of it is used.
             val apply = if (keysMode) {
                 val each = json.optJSONObject("sets") ?: JSONObject()
-                val reads = sets.map { (set, controls) -> each.optJSONObject(set.key)?.let { LayoutJson.read(it, controls) } }
-                ({ reads.forEach { it?.invoke() } })
-            } else LayoutJson.read(json, allControls)
+                val own = json.optJSONArray("own sets") ?: JSONArray()
+                val titles = (0 until own.length()).map { own.getJSONObject(it) }
+                    .associate { it.getString("key") to it.getString("title") }
+                require(titles.keys.all { it.startsWith(KeySets.OWN) }) { "own sets: ${titles.keys}" }
+                val lists = sets.keys.associateWith { sets.getValue(it) } +
+                    titles.keys.associateWith { Keys.controls(it).toMutableList() }
+                val reads = lists.map { (key, controls) -> each.optJSONObject(key)?.let { LayoutJson.read(it, controls) } }
+                ({
+                    for ((key, title) in titles) {
+                        ownTitles[key] = title
+                        sets[key] = lists.getValue(key)
+                    }
+                    reads.forEach { it?.invoke() }
+                })
+            } else LayoutJson.read(json, sets.getValue(KeySets.PAD))
             opacity = json.optDouble("opacity", DEFAULT_OPACITY.toDouble()).toFloat()
             hidden = json.optBoolean("hidden", false)
             counter = json.optJSONArray("counter")?.floats()?.takeIf { it.size == 2 }?.let { PointF(it[0], it[1]) }
@@ -224,8 +302,9 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     fun save() {
         val json = if (keysMode) {
             val each = JSONObject()
-            for ((set, controls) in sets) LayoutJson.write(controls).takeIf { it.length() > 0 }?.let { each.put(set.key, it) }
-            JSONObject().put("sets", each)
+            for ((key, controls) in sets) LayoutJson.write(controls).takeIf { it.length() > 0 }?.let { each.put(key, it) }
+            val own = JSONArray(ownTitles.map { (key, title) -> JSONObject().put("key", key).put("title", title) })
+            JSONObject().put("sets", each).apply { if (own.length() > 0) put("own sets", own) }
         } else LayoutJson.write(allControls).apply { if (!has("controls")) put("controls", JSONObject()) }
         json.put("opacity", opacity.toDouble()).put("hidden", hidden)
         counter?.let { json.put("counter", JSONArray(listOf(it.x.toDouble(), it.y.toDouble()))) }
@@ -236,11 +315,13 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     private companion object {
         const val LAYOUT_KEY = "layout-edges"
         const val KEYS_KEY = "layout-keys"
+        /** The ids of the keys the player makes: k1, k2. */
+        const val OWN_KEY = "k"
         const val OLD_LAYOUT_KEY = "layout-hybrid"
         const val DEFAULT_OPACITY = 0.8f
         val OPACITIES = floatArrayOf(0.35f, 0.55f, 0.8f, 1f)
-        /** A pill's touch area, in radii out from its middle. */
-        const val PILL_REACH_X = 2.2f
+        /** A pill's or a wide key's touch area, in radii out from its middle: past its ends, and up and down. */
+        const val PILL_REACH_MORE = 0.2f
         const val PILL_REACH_Y = 1.25f
         /** The phone the layout was made on, sideways: 845 × 384 dp. */
         const val FRAME_ASPECT = 2.2f

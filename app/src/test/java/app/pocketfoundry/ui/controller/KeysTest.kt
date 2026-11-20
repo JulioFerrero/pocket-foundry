@@ -61,52 +61,102 @@ class KeysTest {
         assertEquals(KeyEvent.KEYCODE_D, Keys.stickCode(DpadDir.RIGHT))
     }
 
-    @Test fun `E and M open their sets and close them again, Esc goes back to the game's`() {
-        assertEquals(KeySet.WINDOW, KeySet.GAME.after(Opens.WINDOW))
-        assertEquals(KeySet.GAME, KeySet.WINDOW.after(Opens.WINDOW))
-        assertEquals(KeySet.MAP, KeySet.GAME.after(Opens.MAP))
-        assertEquals(KeySet.GAME, KeySet.MAP.after(Opens.MAP))
-        assertEquals(KeySet.WINDOW, KeySet.MAP.after(Opens.WINDOW))
-        assertEquals(KeySet.GAME, KeySet.WINDOW.after(Opens.GAME))
+    @Test fun `a key brings its set and takes it away again, Esc goes back to the game's`() {
+        assertEquals(KeySets.WINDOW, KeySets.next(KeySets.GAME, KeySets.WINDOW))
+        assertEquals(KeySets.GAME, KeySets.next(KeySets.WINDOW, KeySets.WINDOW))
+        assertEquals(KeySets.MAP, KeySets.next(KeySets.GAME, KeySets.MAP))
+        assertEquals(KeySets.GAME, KeySets.next(KeySets.MAP, KeySets.MAP))
+        assertEquals(KeySets.WINDOW, KeySets.next(KeySets.MAP, KeySets.WINDOW))
+        assertEquals(KeySets.GAME, KeySets.next(KeySets.WINDOW, KeySets.GAME))
+        assertEquals("set-2", KeySets.next(KeySets.GAME, "set-2"))
     }
 
-    @Test fun `every key has its own id and something to send`() {
+    @Test fun `every key has its own id, something to send or a sign, and a name`() {
         assertEquals(Keys.catalog.size, Keys.catalog.map { it.id }.toSet().size)
         for (def in Keys.catalog) {
-            val kind = def.kind
-            if (kind is Kind.Key) assertTrue(def.id, kind.codes.isNotEmpty())
-            assertTrue(def.id, def.label.isNotEmpty() || def.icon != null || kind == Kind.KeyStick)
+            if (def.kind == Kind.Key) assertTrue(def.id, def.codes.isNotEmpty()) else assertNotNull(def.id, def.icon)
+            assertTrue(def.id, def.name.isNotEmpty())
+            assertTrue(def.id, def.units in Keys.WIDTHS.toList())
         }
+    }
+
+    @Test fun `a key is named as on a keyboard, the modifiers first`() {
+        assertEquals("Ctrl+Z", KeyNames.label(intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_Z)))
+        assertEquals("Ctrl+Shift+F", KeyNames.label(KeyNames.withModifiers(
+            listOf(KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_CTRL_LEFT), KeyEvent.KEYCODE_F)))
+        assertEquals("Esc", KeyNames.label(intArrayOf(KeyEvent.KEYCODE_ESCAPE)))
+        assertEquals("F11", KeyNames.label(intArrayOf(KeyEvent.KEYCODE_F11)))
+        assertEquals("Shift", KeyNames.label(KeyNames.withModifiers(listOf(KeyEvent.KEYCODE_SHIFT_LEFT), KeyEvent.KEYCODE_SHIFT_LEFT)))
+        assertEquals("Ctrl+Z", Keys.controls(KeySets.GAME).first { it.id == "undo" }.label)
+    }
+
+    @Test fun `letters have the pale cap, modifiers and combinations the dark one`() {
+        assertTrue(KeyNames.light(intArrayOf(KeyEvent.KEYCODE_E)))
+        assertTrue(KeyNames.light(intArrayOf(KeyEvent.KEYCODE_SPACE)))
+        assertTrue(KeyNames.light(intArrayOf(KeyEvent.KEYCODE_SLASH)))
+        assertFalse(KeyNames.light(intArrayOf(KeyEvent.KEYCODE_SHIFT_LEFT)))
+        assertFalse(KeyNames.light(intArrayOf(KeyEvent.KEYCODE_ESCAPE)))
+        assertFalse(KeyNames.light(intArrayOf(KeyEvent.KEYCODE_F1)))
+        assertFalse(KeyNames.light(intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_Z)))
+    }
+
+    @Test fun `the picker's keyboard names every key it offers`() {
+        val codes = KeyNames.ROWS.flatMap { it.toList() }
+        assertEquals(codes.size, codes.toSet().size)
+        for (code in codes) assertTrue("$code", KeyNames.name(code) != "?")
+    }
+
+    @Test fun `a width is the nearest a keycap has`() {
+        assertEquals(1f, Keys.WIDTHS[Keys.widthIndex(1.1f)])
+        assertEquals(2.25f, Keys.WIDTHS[Keys.widthIndex(2.3f)])
+        assertEquals("6.25", Keys.widthName(Keys.WIDTHS[Keys.widthIndex(9f)]))
+        assertEquals("2", Keys.widthName(2f))
     }
 
     @Test fun `each set shows its keys inside the frame, and the game's and the map's have the editor`() {
-        for (set in KeySet.KEYS) {
+        for (set in KeySets.BUILT_IN.keys) {
             val controls = Keys.controls(set)
-            assertTrue(set.name, controls.any { it.shown })
+            assertTrue(set, controls.any { it.shown })
             for (c in controls.filter { it.shown && !it.inDrawer }) {
-                assertTrue("${set.name} ${c.id}", c.x in 0f..1f && c.y in 0f..1f)
+                assertTrue("$set ${c.id}", c.x in 0f..1f && c.y in 0f..1f)
             }
         }
-        for (set in listOf(KeySet.GAME, KeySet.MAP)) {
+        for (set in listOf(KeySets.GAME, KeySets.MAP, "set-1")) {
             val controls = Keys.controls(set).filter { it.shown }
             assertNotNull(controls.find { it.id == Keys.DRAWER && !it.inDrawer })
             assertTrue(controls.any { (it.kind as? Kind.ToolKey)?.tool == Tool.ADJUST && it.inDrawer })
         }
-        val window = Keys.controls(KeySet.WINDOW).filter { it.shown }.map { it.id }
+        val window = Keys.controls(KeySets.WINDOW).filter { it.shown }.map { it.id }
         assertEquals(listOf("close", "shift", "ctrl"), window)
-        assertTrue(Keys.controls(KeySet.GAME).filter { it.id == "shift" || it.id == "ctrl" }.all { it.latch })
+        assertTrue(Keys.controls(KeySets.GAME).filter { it.id == "shift" || it.id == "ctrl" }.all { it.latch })
     }
 
     @Test fun `a set's changes come back as they were saved`() {
-        val before = Keys.controls(KeySet.GAME)
+        val before = Keys.controls(KeySets.GAME)
         before.first { it.id == "q" }.apply { x = 0.3f; y = 0.4f; scale = 1.2f; latch = true }
         before.first { it.id == "r" }.shown = false
         before.first { it.id == "p" }.shown = true
         before.first { it.id == "f" }.inDrawer = false
-        val json = JSONObject(LayoutJson.write(before).toString())
-        val after = Keys.controls(KeySet.GAME)
+        before.first { it.id == "t" }.apply { codes = intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_T); units = 1.5f; shows = null }
+        val mine = Keys.own("k3", intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_F), 2.25f, "set-1").apply {
+            x = 0.2f; y = 0.3f; latch = true
+        }
+        val all = before + mine
+        val json = JSONObject(LayoutJson.write(all).toString())
+        val after = Keys.controls(KeySets.GAME).toMutableList()
         LayoutJson.read(json, after)()
-        for ((a, b) in before.zip(after)) {
+        assertEquals(all.size, after.size)
+        val back = after.first { it.id == "k3" }
+        assertEquals("Ctrl+F", back.label)
+        assertEquals("Ctrl+F", back.name)
+        assertEquals("set-1", back.shows)
+        assertEquals(2.25f, back.units)
+        assertEquals("Ctrl+T", after.first { it.id == "t" }.label)
+        assertEquals(null, after.first { it.id == "t" }.shows)
+        for ((a, b) in all.zip(after)) {
+            assertTrue(a.id, a.codes.contentEquals(b.codes))
+            assertEquals(a.id, a.units, b.units)
+            assertEquals(a.id, a.shows, b.shows)
             assertEquals(a.id, a.shown, b.shown)
             assertEquals(a.id, a.inDrawer, b.inDrawer)
             assertEquals(a.id, a.latch, b.latch)
@@ -117,12 +167,12 @@ class KeysTest {
     }
 
     @Test fun `an unchanged set saves nothing`() {
-        assertEquals(0, LayoutJson.write(Keys.controls(KeySet.MAP)).length())
+        assertEquals(0, LayoutJson.write(Keys.controls(KeySets.MAP)).length())
     }
 
     @Test fun `the pad's saved layout still reads`() {
         val saved = JSONObject("""{"opacity":0.55,"hidden":false,"controls":{"A":[0.8,0.9,1.3]},"removed":["LB"]}""")
-        val controls = defaultControls()
+        val controls = defaultControls().toMutableList()
         LayoutJson.read(saved, controls)()
         assertFalse(controls.first { it.id == "LB" }.shown)
         assertEquals(1.3f, controls.first { it.id == "A" }.scale, 0.0001f)
@@ -131,6 +181,6 @@ class KeysTest {
 
     @Test(expected = IllegalArgumentException::class)
     fun `a broken place is refused before anything changes`() {
-        LayoutJson.read(JSONObject("""{"controls":{"q":[0.1,0.2]}}"""), Keys.controls(KeySet.GAME))
+        LayoutJson.read(JSONObject("""{"controls":{"q":[0.1,0.2]}}"""), Keys.controls(KeySets.GAME).toMutableList())
     }
 }

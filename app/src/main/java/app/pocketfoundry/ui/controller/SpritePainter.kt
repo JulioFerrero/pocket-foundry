@@ -22,7 +22,8 @@ class SpritePainter(private val layout: PadLayout) {
     private val moves = HashMap<Any, Move>()
 
     /** Null without the sprites; otherwise whether [c] is still moving, so another frame should follow. */
-    fun draw(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, box: Boolean, now: Long): Boolean? {
+    fun draw(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, box: Boolean, now: Long,
+             units: Float = c.units): Boolean? {
         val set = sprites ?: return null
         val size = 2 * r
         return when (val kind = c.kind) {
@@ -54,9 +55,11 @@ class SpritePainter(private val layout: PadLayout) {
                 cap(canvas, c, strip ?: moves[c]?.strip?.takeUnless { it.bitmap.isRecycled } ?: set["dpad-up"] ?: return null,
                     c.dpad != 0, x, y, size, now)
             }
-            // Mouse & keys' keys: a blank cap; PadPainter puts the label or icon on it. Held while latched or open.
+            // Mouse & keys' keys: an IBM keycap of their width, pale for a letter, dark for the rest; PadPainter writes
+            // their name on it. Held while latched or open.
             is Kind.Key, is Kind.ToolKey, Kind.Drawer -> {
-                val strip = set[if (c.pill) "key-wide" else "key-round"] ?: return null
+                val light = c.kind == Kind.Key && KeyNames.light(c.codes)
+                val strip = set[CAPS[if (light) 1 else 0][Keys.widthIndex(units)]] ?: return null
                 strip.base?.let { set[it] }?.let { still(canvas, it, x, y, size) }
                 val held = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
                 cap(canvas, c, strip, held, x, y, size, now)
@@ -207,13 +210,16 @@ class SpritePainter(private val layout: PadLayout) {
         }
     }
 
-    private companion object {
+    companion object {
         /** The press frames that travel down; let go before the bottom and the press runs back up. */
-        const val TRAVEL = 4
-        val STRIPS = mapOf(
+        private const val TRAVEL = 4
+        private val STRIPS = mapOf(
             "A" to "a", "B" to "b", "X" to "x", "Y" to "y", "LB" to "lb", "RB" to "rb", "LT" to "lt", "RT" to "rt",
             "VIEW" to "view", "MENU" to "menu", "L3" to "l3", "R3" to "r3",
         )
-        val TOOL_STRIPS = Tool.entries.associateWith { "tool-" + it.name.lowercase() }
+        // A key's Options wear the sliders of Adjust, the layout's.
+        private val TOOL_STRIPS = Tool.entries.associateWith { "tool-" + (if (it == Tool.OPTIONS) Tool.ADJUST else it).name.lowercase() }
+        /** Mouse & keys' keycaps (art/controls/controls.py, keycap_scene): [light][width]. */
+        val CAPS = arrayOf("slate", "pearl").map { tone -> Keys.WIDTHS.map { "kc-$tone-${Keys.widthName(it)}" } }
     }
 }

@@ -165,7 +165,8 @@ private class GameScreen(activity: MainActivity) {
             gestures.twoFingerTap = view::escape
         }
         takeKeysFirst(activity, pads::key)
-        activity.window.callback = InputRouter(activity.window.callback, view, gestures, pads::key, pads::motion, launcher)
+        activity.window.callback = InputRouter(activity.window.callback, view, gestures, pads::key, pads::motion, launcher,
+                                               panelOpen = { view.panelOpen }, closePanel = view::closePanel)
     }
 
     /** The FPS counter, on or off as Settings has it now: it shows at once, no new game needed. */

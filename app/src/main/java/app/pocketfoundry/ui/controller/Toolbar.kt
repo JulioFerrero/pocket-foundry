@@ -5,7 +5,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import app.pocketfoundry.ui.kit.GuiSheet
 
-enum class Tool { ADJUST, KEYBOARD, HIDE, SHOW, ADD, REMOVE, SMALLER, BIGGER, OPACITY, LATCH, RESET, DONE }
+enum class Tool { ADJUST, KEYBOARD, HIDE, SHOW, ADD, REMOVE, SMALLER, BIGGER, OPACITY, OPTIONS, RESET, DONE }
 
 class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
     private val held = arrayOfNulls<Tool>(ControllerView.POINTER_IDS)
@@ -66,7 +66,7 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
 
     private fun drawIcon(canvas: Canvas, tool: Tool, x: Float, y: Float, s: Float) {
         when (tool) {
-            Tool.ADJUST -> {
+            Tool.ADJUST, Tool.OPTIONS -> {
                 for (i in ADJUST_KNOBS.indices) {
                     val ly = y + (i - 1) * s * 0.75f
                     canvas.drawLine(x - s, ly, x + s, ly, icon)
@@ -123,14 +123,6 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
                 canvas.drawLine(x + s * 0.38f, y - s * 0.65f, x + s * 0.45f, y - s * 1.05f, icon)
                 canvas.drawLine(x + s * 0.38f, y - s * 0.65f, x + s * 0.8f, y - s * 0.55f, icon)
             }
-            Tool.LATCH -> {
-                rect.set(x - s * 0.7f, y - s * 0.1f, x + s * 0.7f, y + s * 0.85f)
-                canvas.drawRoundRect(rect, s * 0.15f, s * 0.15f, icon)
-                rect.set(x - s * 0.45f, y - s * 0.85f, x + s * 0.45f, y + s * 0.05f)
-                canvas.drawArc(rect, 180f, 180f, false, icon)
-                canvas.drawLine(x - s * 0.45f, y - s * 0.4f, x - s * 0.45f, y - s * 0.1f, icon)
-                canvas.drawLine(x + s * 0.45f, y - s * 0.4f, x + s * 0.45f, y - s * 0.1f, icon)
-            }
             Tool.DONE -> {
                 path.reset()
                 path.moveTo(x - s * 0.75f, y + s * 0.05f)
@@ -143,8 +135,8 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
 
     companion object {
         val EDITING = listOf(Tool.ADD, Tool.REMOVE, Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.RESET, Tool.DONE)
-        /** Mouse & keys' editor: the lock makes a key stay held till it's tapped again. */
-        val EDITING_KEYS = listOf(Tool.ADD, Tool.REMOVE, Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.LATCH, Tool.RESET,
+        /** Mouse & keys' editor: Options opens the key picked's (KeyPanels.options). */
+        val EDITING_KEYS = listOf(Tool.ADD, Tool.REMOVE, Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.OPTIONS, Tool.RESET,
                                   Tool.DONE)
         val PLAYING = listOf(Tool.ADJUST, Tool.KEYBOARD, Tool.HIDE)
         val HIDDEN = listOf(Tool.SHOW)

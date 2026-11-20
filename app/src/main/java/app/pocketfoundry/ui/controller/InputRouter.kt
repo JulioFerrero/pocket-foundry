@@ -16,6 +16,9 @@ class InputRouter(
     private val keyFirst: (KeyEvent) -> Boolean,
     private val motionFirst: (MotionEvent) -> Boolean,
     private val onBack: () -> Unit,
+    /** A window over the game is up (the layout editor's): touches and Back are its. */
+    private val panelOpen: () -> Boolean = { false },
+    private val closePanel: () -> Unit = {},
 ) : Window.Callback by target {
 
     // Sets of pointer ids, a bit each (a HashSet would allocate): the fingers on the controller, and the others.
@@ -27,6 +30,12 @@ class InputRouter(
         motionFirst(event) || target.dispatchGenericMotionEvent(event)
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (panelOpen() && event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_UP) closePanel()
+            return true
+        }
+        // Typing a set's name: the phone keyboard's keys are the window's, not the game's.
+        if (panelOpen()) return target.dispatchKeyEvent(event)
         if (keyFirst(event)) return true
         // A mouse's back button stays a right click in the game.
         if (event.keyCode == KeyEvent.KEYCODE_BACK && !event.isFromSource(InputDevice.SOURCE_MOUSE)) {
@@ -37,6 +46,11 @@ class InputRouter(
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (panelOpen()) {
+            // A gesture the window took mid-way: what it held on the keys or the game lets go.
+            if (claimed != 0 || forwarded != 0) onCancel()
+            return target.dispatchTouchEvent(event)
+        }
         // Termux:X11 handles a mouse as a mouse: the gestures would take it for a finger.
         if (event.isFromSource(InputDevice.SOURCE_MOUSE)) return target.dispatchTouchEvent(event)
         controller.getLocationInWindow(location)

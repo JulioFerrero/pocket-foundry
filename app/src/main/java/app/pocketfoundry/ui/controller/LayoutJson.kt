@@ -5,11 +5,18 @@ import org.json.JSONObject
 
 /**
  * A set of controls in the saved layout (PadLayout), only what the player changed: places and sizes, controls removed
- * or added, latches, keys moved into or out of the drawer. The rest follows the defaults when those change.
+ * or added, latches, keys moved into or out of the drawer, what a key sends, its width and the set it brings; and the
+ * keys the player made, whole. The rest follows the defaults when those change.
  */
 internal object LayoutJson {
     fun write(controls: List<Control>): JSONObject {
         val json = JSONObject()
+        val own = JSONArray()
+        for (c in controls.filter { it.own }) {
+            own.put(JSONObject().put("id", c.id).put("codes", JSONArray(c.codes.toList())).put("units", c.units.toDouble())
+                        .apply { c.shows?.let { put("shows", it) } })
+        }
+        if (own.length() > 0) json.put("own", own)
         val placed = JSONObject()
         for (c in controls) {
             if (c.x != c.defaultX || c.y != c.defaultY || c.scale != 1f) {
@@ -23,15 +30,28 @@ internal object LayoutJson {
         if (added.isNotEmpty()) json.put("added", JSONArray(added))
         changes(controls, { it.latch }, { it.defaultLatch })?.let { json.put("latch", it) }
         changes(controls, { it.inDrawer }, { it.defaultInDrawer })?.let { json.put("drawer", it) }
+        val catalog = controls.filter { !it.own }
+        changes(catalog.filter { !it.codes.contentEquals(it.defaultCodes) }) { JSONArray(it.codes.toList()) }
+            ?.let { json.put("codes", it) }
+        changes(catalog.filter { it.units != it.defaultUnits }) { it.units.toDouble() }?.let { json.put("units", it) }
+        // A key that brings nothing where it brought a set: an empty name.
+        changes(catalog.filter { it.shows != it.defaultShows }) { it.shows.orEmpty() }?.let { json.put("shows", it) }
         return json
     }
 
-    /** Reads [json] whole, or throws; the returned step puts it on [controls]. */
-    fun read(json: JSONObject, controls: List<Control>): () -> Unit {
+    /** Reads [json] whole, or throws; the returned step puts it on [controls], the keys the player made added to them. */
+    fun read(json: JSONObject, controls: MutableList<Control>): () -> Unit {
+        val ownJson = json.optJSONArray("own") ?: JSONArray()
+        val own = (0 until ownJson.length()).map { i ->
+            val o = ownJson.getJSONObject(i)
+            Keys.own(o.getString("id"), o.getJSONArray("codes").ints(), o.optDouble("units", 1.0).toFloat(),
+                     o.optString("shows").ifEmpty { null })
+        }
+        val all = controls + own
         val removed = json.optJSONArray("removed").strings()
         val added = json.optJSONArray("added").strings()
         val placed = json.optJSONObject("controls") ?: JSONObject()
-        val placements = controls.associateWith { c ->
+        val placements = all.associateWith { c ->
             placed.optJSONArray(c.id)?.let { a ->
                 require(a.length() == 3) { "${c.id} has ${a.length()} numbers" }
                 FloatArray(3) { a.getDouble(it).toFloat() }
@@ -39,7 +59,12 @@ internal object LayoutJson {
         }
         val latch = json.optJSONObject("latch") ?: JSONObject()
         val drawer = json.optJSONObject("drawer") ?: JSONObject()
+        val codes = json.optJSONObject("codes") ?: JSONObject()
+        val sent = all.associateWith { c -> codes.optJSONArray(c.id)?.ints() }
+        val units = json.optJSONObject("units") ?: JSONObject()
+        val shows = json.optJSONObject("shows") ?: JSONObject()
         return {
+            controls += own
             for ((c, placement) in placements) {
                 c.shown = when (c.id) {
                     in removed -> false
@@ -48,6 +73,9 @@ internal object LayoutJson {
                 }
                 c.latch = latch.optBoolean(c.id, c.defaultLatch)
                 c.inDrawer = drawer.optBoolean(c.id, c.defaultInDrawer)
+                sent[c]?.let { c.codes = it }
+                if (units.has(c.id)) c.units = units.getDouble(c.id).toFloat()
+                if (shows.has(c.id)) c.shows = shows.getString(c.id).ifEmpty { null }
                 placement?.let { (x, y, scale) ->
                     c.x = x
                     c.y = y
@@ -63,5 +91,12 @@ internal object LayoutJson {
         return json.takeIf { it.length() > 0 }
     }
 
+    private fun changes(controls: List<Control>, value: (Control) -> Any): JSONObject? {
+        val json = JSONObject()
+        for (c in controls) json.put(c.id, value(c))
+        return json.takeIf { it.length() > 0 }
+    }
+
     private fun JSONArray?.strings(): Set<String> = if (this == null) emptySet() else (0 until length()).map(::getString).toSet()
+    private fun JSONArray.ints() = IntArray(length()) { getInt(it) }
 }

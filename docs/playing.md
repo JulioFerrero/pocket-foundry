@@ -65,11 +65,22 @@ The keys follow the screen: E (and T, P) brings the inventory's keys, Shift, Ctr
 map's, the stick and the top keys. The same key again, Esc or a two-finger tap brings back the game's. A window
 closed with its own ✕ leaves the inventory's keys up: Esc or a two-finger tap puts them right.
 
-**Edit keys** works as the gamepad's layout editor, its tools at the bottom: drag a key, pinch it, and **Add** lists
-the keys the screen doesn't have, by kind (Windows, Building, Items, Editing, Moving and pointing, Other). The lock
-makes the key picked stay held like Shift. **In game**, **Inventory** and **Map**, top left, pick which keys to edit.
-Picking the drawer opens it: a key dragged off it comes onto the screen, one let go of over it goes in, and Add puts
-the key in it while it's open.
+**Edit keys** works as the gamepad's layout editor, its tools at the bottom: drag a key, pinch it. **Add** lists
+the keys the screen doesn't have, by kind (Windows, Building, Items, Editing, Moving and pointing, Other), and:
+
+- **New key:** a whole keyboard, F keys, arrows and Space included. Ctrl, Shift and Alt switched on first make a
+  combination: Ctrl+F, Shift+R.
+- **Sets:** a key for each other set, with its name on it, that only brings that set.
+
+**Options** (the sliders) is the key picked's: what it sends (Change opens the keyboard), its width as on a keyboard
+(1u for a letter up to 6.25u for Space), whether it stays held like Shift, and which set it brings, if any. E, M and
+the rest bring theirs that way, and can be changed. Letters, numbers and signs get the pale cap, the rest the darker
+one.
+
+**In game**, **Inventory** and **Map**, top left, pick which keys to edit. **+** makes a set of your own, for trains,
+fighting or blueprints, named as you like; picked again, its chip renames or deletes it. It starts with the stick,
+Esc and the drawer. Picking the drawer opens it: a key dragged off it comes onto the screen, one let go of over it
+goes in, and Add puts the key in it while it's open.
 
 ## Controllers
 
