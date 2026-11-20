@@ -37,6 +37,40 @@ The toolbar at the top moves and resizes the buttons (pinch one), removes them a
 them all, and opens the phone's keyboard, for naming a save. Back, or a controller's
 home button, opens the pause menu; the game freezes while it's off screen.
 
+## Mouse & keys
+
+**Settings -> Controls -> Mouse & keys** plays Factorio as on a computer, with its PC menus and keys. The next game
+starts that way; a controller connected at the start still gets the gamepad.
+
+Your finger is the mouse:
+
+| On the game | What it does |
+|---|---|
+| Tap | Click: build, open, pick up a stack. |
+| Long press | Right click: mine, remove, take half a stack. Drag to keep mining. |
+| Drag | Holds the click: belts and pipes in a line, a stack dragged. |
+| Pinch | Zooms, as the mouse wheel. |
+| Two-finger drag | Scrolls lists, recipes and the tech tree. |
+| Two-finger tap | Esc: closes what's open, and brings back the game's keys. |
+
+**Touch -> Trackpad** moves a cursor instead, as with the gamepad.
+
+The keys on screen are Factorio's own: the stick holds W, A, S and D (two at once on a diagonal), Esc, E, M and T are
+at the top, Q (pipette) and R (rotate) on the right, and Shift and Ctrl under them. **Shift and Ctrl stay held** when
+tapped, lit orange, till they're tapped again: Shift or Ctrl, then a tap on a chest, moves a stack or everything of a
+kind. The last key at the top opens a drawer: Alt (details), F (pick up), Z (drop), C (shoot), Undo, Copy, Paste,
+the phone's keyboard, **Edit keys** and **Hide keys**.
+
+The keys follow the screen: E (and T, P) brings the inventory's keys, Shift, Ctrl and one to close it; M brings the
+map's, the stick and the top keys. The same key again, Esc or a two-finger tap brings back the game's. A window
+closed with its own ✕ leaves the inventory's keys up: Esc or a two-finger tap puts them right.
+
+**Edit keys** works as the gamepad's layout editor, its tools at the bottom: drag a key, pinch it, and **Add** lists
+the keys the screen doesn't have, by kind (Windows, Building, Items, Editing, Moving and pointing, Other). The lock
+makes the key picked stay held like Shift. **In game**, **Inventory** and **Map**, top left, pick which keys to edit.
+Picking the drawer opens it: a key dragged off it comes onto the screen, one let go of over it goes in, and Add puts
+the key in it while it's open.
+
 ## Controllers
 
 USB or Bluetooth: Xbox, PlayStation, Switch Pro, 8BitDo, phone clamps.
@@ -75,6 +109,7 @@ still works as the mouse too.
   [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers) on GitHub, outside F-Droid's
   checks. Pocket Foundry asks once, after the import; without them it plays on the phone's own driver or an
   imported one.
+- **Controls:** the gamepad, or [Mouse & keys](#mouse--keys), for the next game.
 - Pausing in the background, and vibration.
 
 ## Updates
