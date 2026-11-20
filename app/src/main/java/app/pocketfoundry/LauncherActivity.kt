@@ -183,7 +183,7 @@ class LauncherActivity : Activity() {
     fun refresh() {
         val version = GameImport.installedVersion(this)
         showScreen(version, Session.inGame)
-        welcome.update(error)
+        welcome.update(error ?: GameImport.installedRefusal(this))
         if (version != null) {
             home.update(busy, error)
             settingsScreen.update(busy == null)

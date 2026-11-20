@@ -9,19 +9,27 @@ import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.Uris
 import app.pocketfoundry.core.system.untarXz
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
 
 /** Installs the player's own Factorio from factorio.com's Linux arm64 .tar.xz. The app never bundles the game. */
 object GameImport {
+    /** The installed game's version, or null when there's none the app can play ([refusal]). */
     fun installedVersion(context: Context): String? {
         val paths = Paths(context)
-        if (!paths.gameBinary.exists() || !paths.gameInfo.exists()) return null
+        if (refusal(paths, paths.game) != null || !paths.gameInfo.exists()) return null
         return try {
             JSONObject(paths.gameInfo.readText()).getString("version")
         } catch (e: Exception) {
             Log.w(TAG, "The game's info.json is unreadable: import it again", e)
             null
         }
+    }
+
+    /** Why the installed game can't be played, for Welcome: null when it can, or when there's none. */
+    fun installedRefusal(context: Context): String? {
+        val paths = Paths(context)
+        return if (paths.game.exists()) refusal(paths, paths.game) else null
     }
 
     /** [onPercent] gets how much of the compressed file has been read. */
@@ -33,13 +41,27 @@ object GameImport {
         val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Can't open the selected file")
         // The archive's top folder is factorio/.
         ProgressInputStream(input, Uris.size(context, uri), onPercent).use { untarXz(it, staging, strip = 1) }
-        val binary = paths.gameBinary.relativeTo(paths.game)
-        if (!staging.resolve(binary).exists()) {
+        refusal(paths, staging)?.let {
             staging.deleteRecursively()
-            throw IOException("That isn't the Linux arm64 build of Factorio ($binary is missing)")
+            throw IOException(it)
         }
         paths.game.deleteRecursively()
         if (!staging.renameTo(paths.game)) throw IOException("Couldn't move the game into place")
         Log.i(TAG, "Imported the game in ${(System.nanoTime() - started) / 1_000_000} ms")
+    }
+
+    /**
+     * Why the unpacked game in [dir] can't be played, or null. Factorio's headless server has the same binary but
+     * none of the graphics, and only says so once started: its entity sprites are most of the full game's 1.4 GB.
+     */
+    fun refusal(paths: Paths, dir: File): String? {
+        val binary = paths.gameBinary.relativeTo(paths.game)
+        val sprites = File(paths.baseGraphics, "entity").relativeTo(paths.game)
+        return when {
+            !dir.resolve(binary).exists() -> "That isn't the Linux arm64 build of Factorio ($binary is missing)"
+            !dir.resolve(sprites).isDirectory -> "That's Factorio's headless server, which has no graphics: import " +
+                "the full game."
+            else -> null
+        }
     }
 }
