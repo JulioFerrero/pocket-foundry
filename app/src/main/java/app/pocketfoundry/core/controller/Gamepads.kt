@@ -18,6 +18,7 @@ import kotlin.math.abs
 class Gamepads(private val context: Context, private val onHome: () -> Unit,
                private val onInUse: (Boolean) -> Unit) : InputManager.InputDeviceListener {
     private val input = context.getSystemService(InputManager::class.java)
+    private val buttons = ButtonMap(context)
     private var inUse = false
     private var hat = 0
 
@@ -29,21 +30,26 @@ class Gamepads(private val context: Context, private val onHome: () -> Unit,
 
     fun key(event: KeyEvent): Boolean {
         val device = event.device?.takeIf(::isGamepad) ?: return false
+        val target = buttons.target(device.descriptor, event.keyCode) ?: return false
         val down = event.action == KeyEvent.ACTION_DOWN
-        if (event.keyCode == KeyEvent.KEYCODE_BUTTON_MODE) {
+        if (target == PadTarget.HOME) {
             if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) onHome()
             return true
         }
-        TRIGGER_KEYS[event.keyCode]?.let { trigger ->
-            val analog = if (trigger == PadAxis.LEFT_TRIGGER) analogLeft(device) else analogRight(device)
-            // Analog triggers also send an axis: the key only stands in when there is none.
+        target.trigger?.let { trigger ->
+            // An analog trigger also sends an axis: its own key only stands in when there is none.
+            val analog = when (event.keyCode) {
+                KeyEvent.KEYCODE_BUTTON_L2 -> analogLeft(device)
+                KeyEvent.KEYCODE_BUTTON_R2 -> analogRight(device)
+                else -> false
+            }
             if (event.repeatCount == 0 && !analog) {
                 if (down) used()
                 VirtualPad.axis(GAMEPAD, trigger, if (down) VirtualPad.AXIS_MAX else 0)
             }
             return true
         }
-        val button = BUTTONS[event.keyCode] ?: return false
+        val button = target.button ?: return false
         if (event.repeatCount > 0) return true
         if (down) used()
         VirtualPad.button(GAMEPAD, button, down)
@@ -104,25 +110,6 @@ class Gamepads(private val context: Context, private val onHome: () -> Unit,
     }
 
     companion object {
-        private val BUTTONS = mapOf(
-            KeyEvent.KEYCODE_BUTTON_A to PadButton.SOUTH,
-            KeyEvent.KEYCODE_BUTTON_B to PadButton.EAST,
-            KeyEvent.KEYCODE_BUTTON_X to PadButton.WEST,
-            KeyEvent.KEYCODE_BUTTON_Y to PadButton.NORTH,
-            KeyEvent.KEYCODE_BUTTON_L1 to PadButton.LEFT_SHOULDER,
-            KeyEvent.KEYCODE_BUTTON_R1 to PadButton.RIGHT_SHOULDER,
-            KeyEvent.KEYCODE_BUTTON_THUMBL to PadButton.LEFT_STICK,
-            KeyEvent.KEYCODE_BUTTON_THUMBR to PadButton.RIGHT_STICK,
-            KeyEvent.KEYCODE_BUTTON_SELECT to PadButton.BACK,
-            KeyEvent.KEYCODE_BUTTON_START to PadButton.START,
-            // Some pads send the D-pad as keys rather than a hat.
-            KeyEvent.KEYCODE_DPAD_UP to PadButton.DPAD_UP,
-            KeyEvent.KEYCODE_DPAD_DOWN to PadButton.DPAD_DOWN,
-            KeyEvent.KEYCODE_DPAD_LEFT to PadButton.DPAD_LEFT,
-            KeyEvent.KEYCODE_DPAD_RIGHT to PadButton.DPAD_RIGHT,
-        )
-        private val TRIGGER_KEYS = mapOf(KeyEvent.KEYCODE_BUTTON_L2 to PadAxis.LEFT_TRIGGER,
-                                         KeyEvent.KEYCODE_BUTTON_R2 to PadAxis.RIGHT_TRIGGER)
         // A pad may report a trigger on either of two axes.
         private fun analogLeft(device: InputDevice) = hasEither(device, MotionEvent.AXIS_LTRIGGER, MotionEvent.AXIS_BRAKE)
         private fun analogRight(device: InputDevice) = hasEither(device, MotionEvent.AXIS_RTRIGGER, MotionEvent.AXIS_GAS)

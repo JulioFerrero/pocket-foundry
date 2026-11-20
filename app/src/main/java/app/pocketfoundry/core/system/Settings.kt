@@ -21,6 +21,8 @@ class Settings(context: Context) {
      * mode with keys on screen (ui/controller/Keys.kt). For the next game: Factorio keeps its mode till it restarts.
      */
     var controls by prefs.string("controls", PAD)
+    /** The controller buttons the player moved, for each controller (ButtonMap). */
+    var controllerButtons by prefs.string("controllerButtons", "{}")
     /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
     var trackpadSpeed by prefs.int("trackpadSpeed", 150)
     var fpsCounter by prefs.bool("fpsCounter", false)

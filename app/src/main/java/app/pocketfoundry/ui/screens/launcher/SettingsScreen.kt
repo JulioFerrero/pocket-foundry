@@ -7,6 +7,7 @@ import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.text.TextUtils
+import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.saves.GameFilesProvider
@@ -85,6 +86,10 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     }
     private val trackpadSpeedRow by lazy { dropdownSetting("Trackpad speed", trackpadSpeed) }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)
+    // The first controller connected: a handheld's own, or the one plugged in.
+    private val controllerButtons = button(launcher, "Change", size = 15f) {
+        gamepads(launcher).firstOrNull()?.let { ButtonsDialog(launcher, it).show() }
+    }
     private val layoutLater = label(launcher, "In a game", 15f, Factorio.FAINT)
     // Up by the title, out of the bar below: on a narrow phone the bar has no room for it.
     private val credit = row(launcher) {
@@ -150,6 +155,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         setting("Touch", touch),
         trackpadSpeedRow,
         checkSetting("Vibration", settings.vibration) { settings.vibration = it },
+        setting("Controller buttons", controllerButtons),
         setting("Layout", FrameLayout(launcher).apply {
             add(editLayout, WRAP, 40, Gravity.END)
             add(layoutLater, WRAP, WRAP, Gravity.END or Gravity.CENTER_VERTICAL)
@@ -226,6 +232,9 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         layoutLater.shown = !Session.live
         importAgain.isEnabled = !Session.inGame && idle
         driverDownloads.isChecked = settings.driverDownloads == Settings.ON
+        val pad = gamepads(launcher).any()
+        controllerButtons.isEnabled = pad
+        controllerButtons.text = if (pad) "Change" else "None connected"
         driver.text = Drivers.find(launcher, Drivers.chosen(launcher))?.name.orEmpty()
     }
 

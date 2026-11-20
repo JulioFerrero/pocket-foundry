@@ -10,9 +10,12 @@ import android.provider.DocumentsContract
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.widget.FrameLayout
 import com.termux.x11.MainActivity
+import app.pocketfoundry.core.controller.ButtonMap
+import app.pocketfoundry.core.controller.isGamepad
 import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
@@ -58,6 +61,9 @@ class LauncherActivity : Activity() {
     private val paths by lazy { Paths(this) }
     private val settings by lazy { Settings(this) }
     val host = DialogHost(this, onClosed = { refresh() })
+    /** While Settings waits for a controller's button to set (ButtonsDialog): it sees the keys first. */
+    var keyCapture: ((KeyEvent) -> Boolean)? = null
+    private val buttons by lazy { ButtonMap(this) }
     // Only while on screen: onStop frees its sprites for the game.
     private var stage: Stage? = null
     private val stageHolder by lazy { FrameLayout(this) }
@@ -140,6 +146,22 @@ class LauncherActivity : Activity() {
         Session.removeListener(sessionChanged)
         stage?.pause()
         super.onPause()
+    }
+
+    /**
+     * A controller's button the player moved does here what it now does in the game, in the launcher's terms: A
+     * selects, B goes back, the D-pad moves. Android's own buttons go Android's way (its A selects, its B goes back).
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (keyCapture?.invoke(event) == true) return true
+        val device = event.device
+        val moved = if (device != null && isGamepad(device)) buttons.moved(device.descriptor, event.keyCode) else null
+        if (moved == null) return super.dispatchKeyEvent(event)
+        if (moved.launcherKey != 0) {
+            super.dispatchKeyEvent(KeyEvent(event.downTime, event.eventTime, event.action, moved.launcherKey, event.repeatCount,
+                                            event.metaState, event.deviceId, event.scanCode, event.flags, event.source))
+        }
+        return true
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

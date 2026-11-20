@@ -103,6 +103,9 @@ USB or Bluetooth: Xbox, PlayStation, Switch Pro, 8BitDo, phone clamps.
 - Touch still moves the cursor, and the game's rumble comes through the controller.
 - The launcher takes it too: the D-pad or stick moves between buttons, A picks and B goes back.
 - The game names the buttons the Xbox way; Factorio's own settings can show PlayStation or Switch symbols instead.
+- **Settings -> Controls -> Controller buttons** moves what Factorio's own settings can't: a button the game never
+  sees (C, Z, paddles, numbered ones) can be any of the pad's, and A and B can swap, in the launcher too. Tap one of
+  the game's buttons, then press the controller's button for it; Reset puts them back. Each controller keeps its own.
 
 ## Keyboards
 
