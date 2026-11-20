@@ -29,6 +29,8 @@ class Paths(val files: File, nativeLibs: File) {
     /** libhybris and its Vulkan layers (runtime/hybris). */
     val hybris = File(lib, "hybris")
     val hybrisIcd = File(hybris, "hybris_icd.json")
+    /** The game's biggest blocks in files while the phone runs short: Android writes them out instead of closing it. */
+    val fileMemory = File(lib, "libpocketfoundry-filemem.so")
 
     fun program(name: String) = File(prefix, "bin/$name")
     val windowManager = program("pocketfoundry-wm")

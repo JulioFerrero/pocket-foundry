@@ -28,6 +28,9 @@ cp -a "$OUT/hybris$PREFIX/lib/hybris" $USR/lib/
 $CC -shared -fPIC -O2 -Wl,-soname,libwayland-client.so.0 -o $USR/lib/libwayland-client.so.0 \
     "$RUNTIME/assemble/wayland-client.c"
 $CC -shared -fPIC -O2 -Wl,-soname,libSPIRV-Tools.so -o $USR/lib/libSPIRV-Tools.so "$RUNTIME/assemble/spirv-tools.c"
+# The game's biggest blocks of memory in files while the phone runs short (filemem.c).
+$CC -shared -fPIC -O2 -Wall -Wextra -Wno-unused-result -o $USR/lib/libpocketfoundry-filemem.so \
+    "$RUNTIME/assemble/filemem.c" -ldl -lpthread
 
 cp -a "$OUT/sdl$PREFIX"/lib/libSDL3.so.* $USR/lib/
 cp "$OUT/sdl$PREFIX/bin/pocketfoundry-padtest" "$OUT/sdl$PREFIX/bin/pocketfoundry-inputtest" $USR/bin/
