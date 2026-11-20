@@ -85,13 +85,15 @@ class ControllerView(context: Context, private val input: Input, private val cou
         invalidate()
     }
 
-    /** With Settings.touch BOX, whether ([x], [y]) is on the trackpad box, where the right stick was. */
+    /** Whether ([x], [y]) is on a trackpad box: Mouse & keys' trackpad, or with Settings.touch BOX the pad's right stick. */
     fun trackpadBoxAt(x: Float, y: Float): Boolean {
-        if (!controlsShown || editor.active || settings.touch != Settings.BOX) return false
+        if (!controlsShown || editor.active) return false
+        if (layout.controlAt(x, y)?.kind == Kind.Trackpad) return true
+        if (settings.touch != Settings.BOX) return false
         val pad = layout.shownControls.firstOrNull { (it.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X } ?: return false
         // The pad is wider than the stick it stands for: all of it is the pad, but a control drawn over it wins.
         val r = layout.radius(pad)
-        val onPad = abs(x - layout.cx(pad)) <= r * TRACKPAD_HALF_WIDTH && abs(y - layout.cy(pad)) <= r
+        val onPad = abs(x - layout.cx(pad)) <= r * Kind.Trackpad.HALF_WIDTH && abs(y - layout.cy(pad)) <= r
         val over = layout.controlAt(x, y)
         return onPad && (over == null || over === pad)
     }
@@ -269,7 +271,5 @@ class ControllerView(context: Context, private val input: Input, private val cou
         val CLICK: VibrationEffect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
         private const val EDITOR_SHADE = 0x55000000
         private val ESC = intArrayOf(KeyEvent.KEYCODE_ESCAPE)
-        /** The rendered trackpad's half width, in the right stick's radii (its picture: 605 x 346). */
-        private const val TRACKPAD_HALF_WIDTH = 1.75f
     }
 }

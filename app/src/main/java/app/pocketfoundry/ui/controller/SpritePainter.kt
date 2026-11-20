@@ -46,6 +46,11 @@ class SpritePainter(private val layout: PadLayout) {
                 val click = if (right) PadButton.RIGHT_STICK else PadButton.LEFT_STICK
                 cap(canvas, c, knob, clicked(click), if (held) c.knobX else x, if (held) c.knobY else y, size, now)
             }
+            // The pad's box, its picture as wide as the box is.
+            Kind.Trackpad -> {
+                still(canvas, set["trackpad"] ?: return null, x, y, size)
+                false
+            }
             Kind.Dpad -> {
                 val base = set["dpad-base"] ?: return null
                 still(canvas, base, x, y, size)

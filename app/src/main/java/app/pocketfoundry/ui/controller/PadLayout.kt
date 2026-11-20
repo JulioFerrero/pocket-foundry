@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.PointF
 import android.graphics.RectF
 import android.util.Log
+import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.floats
 import app.pocketfoundry.ui.kit.dp
@@ -32,7 +33,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     val setKeys get() = sets.keys.toList()
 
     init {
-        if (keysMode) KeySets.BUILT_IN.keys.forEach { sets[it] = Keys.controls(it).toMutableList() }
+        if (keysMode) KeySets.BUILT_IN.keys.forEach { sets[it] = keys(it) }
         else sets[KeySets.PAD] = defaultControls().toMutableList()
     }
     var shownControls = emptyList<Control>()
@@ -81,6 +82,9 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         placeDrawer()
     }
 
+    /** [set]'s keys, the trackpad among them when Settings.touch is BOX, as the pad's right stick is a box then. */
+    private fun keys(set: String) = Keys.controls(set, trackpad = Settings(context).touch == Settings.BOX).toMutableList()
+
     /** The keys for another screen: the inventory's, the map's. */
     fun switchTo(target: String) {
         if (target == set || target !in sets) return
@@ -122,7 +126,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         val n = (ownTitles.keys.mapNotNull { it.removePrefix(KeySets.OWN).toIntOrNull() }.maxOrNull() ?: 0) + 1
         val key = KeySets.OWN + n
         ownTitles[key] = "Set ${KeySets.BUILT_IN.size + n}"
-        sets[key] = Keys.controls(key).toMutableList()
+        sets[key] = keys(key)
         switchTo(key)
         // Its way back: a key that only brings the game's keys. Esc would open Factorio's menu too.
         addOwn(IntArray(0), 2f, KeySets.GAME).apply {
@@ -278,7 +282,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
                     .associate { it.getString("key") to it.getString("title") }
                 require(titles.keys.all { it.startsWith(KeySets.OWN) }) { "own sets: ${titles.keys}" }
                 val lists = sets.keys.associateWith { sets.getValue(it) } +
-                    titles.keys.associateWith { Keys.controls(it).toMutableList() }
+                    titles.keys.associateWith(::keys)
                 val reads = lists.map { (key, controls) -> each.optJSONObject(key)?.let { LayoutJson.read(it, controls) } }
                 ({
                     for ((key, title) in titles) {

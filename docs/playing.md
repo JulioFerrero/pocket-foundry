@@ -53,7 +53,10 @@ Your finger is the mouse:
 | Two-finger drag | Scrolls lists, recipes and the tech tree. |
 | Two-finger tap | Esc: closes what's open, and brings back the game's keys. |
 
-**Touch -> Trackpad** moves a cursor instead, as with the gamepad.
+With **Touch -> Box** (the default) the gamepad's trackpad is there too, over E and F: drag in it and the cursor
+moves by how far you drag, so your finger doesn't hide what it points at, and what it shows when the cursor is over
+it (a machine's recipe, a belt's contents). **Trackpad** makes the whole screen a trackpad, **Direct** leaves it out.
+Edit keys moves it, resizes it or removes it, as any key.
 
 The keys on screen are Factorio's own, as large as a thumb's target and kept where thumbs reach, off the middle of
 the screen (the game's) and off Factorio's own panels:

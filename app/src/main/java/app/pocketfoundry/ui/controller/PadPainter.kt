@@ -108,7 +108,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             return moving
         }
         when {
-            box && (c.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X -> drawTrackpadBox(canvas, x, y, r)
+            c.kind == Kind.Trackpad || box && (c.kind as? Kind.Stick)?.axisX == PadAxis.RIGHT_X -> drawTrackpadBox(canvas, x, y, r)
             c.kind is Kind.Stick || c.kind == Kind.KeyStick -> drawStick(canvas, sheet, c, x, y, r, pressed)
             c.kind == Kind.Dpad && sheet != null -> drawSpriteDpad(canvas, sheet, c, x, y, r)
             c.kind == Kind.Dpad -> drawPlainDpad(canvas, c, x, y, r)
@@ -319,7 +319,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private fun drawSelection(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float) {
         stroke.color = Tone.ORANGE.face
         stroke.strokeWidth = layout.frame * 0.004f
-        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer) {
+        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer || c.kind == Kind.Trackpad) {
             rect.set(x - (c.units + 0.15f) * r, y - 1.15f * r, x + (c.units + 0.15f) * r, y + 1.15f * r)
             canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
         } else if (c.pill) {
@@ -343,9 +343,9 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private fun spriteSlot(canvas: Canvas, sheet: GuiSheet, pressed: Boolean) =
         sheet.slot[if (pressed) GuiSheet.PRESSED else GuiSheet.IDLE].draw(canvas, rect, minOf(rect.width(), rect.height()) / 2, sprite)
 
-    /** A square as wide as the stick's well, rounded like a laptop's trackpad. */
+    /** As tall as the stick's well and as wide as the box it touches (Kind.Trackpad.HALF_WIDTH), rounded like a laptop's trackpad. */
     private fun drawTrackpadBox(canvas: Canvas, x: Float, y: Float, r: Float) {
-        rect.set(x - r, y - r, x + r, y + r)
+        rect.set(x - r * Kind.Trackpad.HALF_WIDTH, y - r, x + r * Kind.Trackpad.HALF_WIDTH, y + r)
         fill.color = Factorio.INSET_DARK
         canvas.drawRoundRect(rect, r * 0.22f, r * 0.22f, fill)
         stroke.color = EDGE

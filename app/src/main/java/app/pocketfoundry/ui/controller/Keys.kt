@@ -267,6 +267,9 @@ object Keys {
         key("c", "Next weapon", KeyEvent.KEYCODE_C),
         Def("stick", Kind.KeyStick, "Stick", icon = KeyIcon.STICK, size = STICK,
             places = at(0.095f, 0.66f, KeySets.GAME, KeySets.MAP, OWN_SETS)),
+        // The pad's box, as large: over E and F, its right edge at F's, for the right thumb.
+        Def("trackpad", Kind.Trackpad, "Trackpad", units = Kind.Trackpad.HALF_WIDTH, size = TRACKPAD,
+            places = at(0.6921f, 0.41f, KeySets.GAME)),
     ) + (1..9).map(::digit) + listOf(
         key("backspace", "Backspace", KeyEvent.KEYCODE_DEL,
             places = inDrawer(NUMBERS, KeySets.GAME, KeySets.WINDOW)),
@@ -290,10 +293,12 @@ object Keys {
 
     /**
      * Every key, for [set]: those the set doesn't have are there unshown, for the editor to add. A set the player
-     * makes starts with the stick and the drawer, to move and to edit it; PadLayout.newSet adds the way back.
+     * makes starts with the stick and the drawer, to move and to edit it; PadLayout.newSet adds the way back. The
+     * trackpad is in its place only with [trackpad] (Settings.touch BOX).
      */
-    fun controls(set: String): List<Control> = catalog.map { def ->
-        val place = def.places[set] ?: def.places[OWN_SETS].takeIf { set.startsWith(KeySets.OWN) }
+    fun controls(set: String, trackpad: Boolean = false): List<Control> = catalog.map { def ->
+        val place = (def.places[set] ?: def.places[OWN_SETS].takeIf { set.startsWith(KeySets.OWN) })
+            ?.takeIf { trackpad || def.kind != Kind.Trackpad }
         Control(def.id, def.kind, place?.takeIf { it.drawer == null }?.x ?: NEW_X,
                 place?.takeIf { it.drawer == null }?.y ?: NEW_Y, def.size, glyph = null, label = def.label, name = def.name,
                 keyIcon = def.icon, defaultShown = place != null, defaultDrawer = place?.drawer,
@@ -345,6 +350,8 @@ object Keys {
      */
     const val KEY = 0.125f
     private const val STICK = 0.27f
+    /** The trackpad's height: the pad's right stick's, which its box stands in for. */
+    private const val TRACKPAD = 0.24f
     /** Where a set the player makes has its way back: on the top row, from Esc's left edge (2u). */
     const val TOP_Y = ROW_Y
     const val BACK_X = 0.2683f

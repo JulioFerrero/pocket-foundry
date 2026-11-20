@@ -21,6 +21,11 @@ sealed class Kind(val reach: Float, val follows: Boolean) {
     class Drawer(val columns: Int = 5) : Kind(1.15f, false)
     /** One of the toolbar's play tools as a key: Mouse & keys keeps them in the drawer. */
     class ToolKey(val tool: Tool) : Kind(1.15f, false)
+    /** Mouse & keys' trackpad box: its fingers go to PointerGestures as the pad's box's do (ControllerView.trackpadBoxAt). */
+    object Trackpad : Kind(1f, false) {
+        /** A trackpad box's half width, in its half heights: the rendered one's (605 x 346), the pad's and the keys'. */
+        const val HALF_WIDTH = 1.75f
+    }
 }
 
 // Where a control's frame sits, as parts of the room it leaves across and down the screen.
@@ -171,6 +176,8 @@ class Control(
             }
             // ControllerView acts on these.
             is Kind.Drawer, is Kind.ToolKey -> true
+            // Its fingers aren't the controls' but on its edge, beside the box: they do nothing.
+            Kind.Trackpad -> false
         }
     }
 
@@ -215,7 +222,7 @@ class Control(
             Kind.KeyStick -> holdKeys(0)
             // A latched key is let go by its next tap, or by the layout (PadLayout.releaseKeys).
             Kind.Key -> if (!latch) out?.release(codes)
-            is Kind.Drawer, is Kind.ToolKey -> {}
+            is Kind.Drawer, is Kind.ToolKey, Kind.Trackpad -> {}
         }
     }
 

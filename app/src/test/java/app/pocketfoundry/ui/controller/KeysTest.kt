@@ -74,10 +74,24 @@ class KeysTest {
     @Test fun `every key has its own id, something to send or a sign, and a name`() {
         assertEquals(Keys.catalog.size, Keys.catalog.map { it.id }.toSet().size)
         for (def in Keys.catalog) {
-            if (def.kind == Kind.Key) assertTrue(def.id, def.codes.isNotEmpty())
-            else assertTrue(def.id, def.icon != null || def.label.isNotEmpty())
+            when (def.kind) {
+                Kind.Key -> assertTrue(def.id, def.codes.isNotEmpty())
+                // The stick and the trackpad are their pictures.
+                Kind.KeyStick, Kind.Trackpad -> {}
+                else -> assertTrue(def.id, def.icon != null || def.label.isNotEmpty())
+            }
             assertTrue(def.id, def.name.isNotEmpty())
-            assertTrue(def.id, def.units in Keys.WIDTHS.toList())
+            if (def.kind != Kind.Trackpad) assertTrue(def.id, def.units in Keys.WIDTHS.toList())
+        }
+    }
+
+    @Test fun `the trackpad is in the game's keys with Touch on Box, as wide as the pad's box, and off them otherwise`() {
+        val with = Keys.controls(KeySets.GAME, trackpad = true).first { it.kind == Kind.Trackpad }
+        assertTrue(with.shown)
+        assertEquals(Kind.Trackpad.HALF_WIDTH, with.units)
+        assertFalse(Keys.controls(KeySets.GAME).first { it.kind == Kind.Trackpad }.shown)
+        for (set in listOf(KeySets.WINDOW, KeySets.MAP)) {
+            assertFalse(set, Keys.controls(set, trackpad = true).first { it.kind == Kind.Trackpad }.shown)
         }
     }
 
