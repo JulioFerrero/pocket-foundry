@@ -1,0 +1,119 @@
+--- a/lorie/src/main/cpp/lorie/lorie.h
++++ b/lorie/src/main/cpp/lorie/lorie.h
+@@ -278,6 +278,9 @@
+     volatile float pinchAnchorSourceX = -1.f, pinchAnchorSourceY = -1.f;
+     volatile float pinchAnchorFracX = 0.5f, pinchAnchorFracY = 0.5f;
+     volatile bool followCursorPan = true;
++    // Screen pixels for each of the cursor's: X's cursors are drawn for a desktop's screen, a phone's has 3 or 4 times
++    // as many pixels to the inch.
++    volatile int cursorScale = 1;
+     float panSourceLeft = 0.f, panSourceTop = 0.f;
+     float hiddenPanSourceTop = -1.f; // the vertical pan of the other keyboard state, negative until there was one
+     bool bottomWasHidden = false;
+@@ -338,6 +341,7 @@
+     void setZoomAnchor(float sourceX, float sourceY, float fracX, float fracY);
+     void clearZoomAnchor();
+     void setFollowCursorPan(bool enabled);
++    void setCursorScale(int scale);
+     void releaseWinAndSurface(ANativeWindow** anw, EGLSurface* esfc);
+     void refreshContext();
+     void redrawLocked(bool* waitingForBuffers);
+@@ -345,7 +349,8 @@
+     void threadLoop();
+     void bindTexture(GLuint id) const;
+     void reportViewport(int dstX, int dstY, int dstW, int dstH, float left, float top, float width, float height);
+-    void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip);
++    void drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip,
++                    GLint filter = 0);
+     void drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY);
+ };
+ #endif
+--- a/lorie/src/main/cpp/lorie/renderer.cpp
++++ b/lorie/src/main/cpp/lorie/renderer.cpp
+@@ -757,6 +757,10 @@
+ 
+ void Renderer::setFollowCursorPan(bool enabled) {
+     withStateLock({ followCursorPan = enabled; });
++}
++
++void Renderer::setCursorScale(int scale) {
++    withStateLock({ cursorScale = scale < 1 ? 1 : scale; });
+ }
+ 
+ void Renderer::refreshContext() {
+@@ -1190,7 +1194,8 @@
+     return 0;
+ }
+ 
+-void Renderer::drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip) {
++void Renderer::drawRegion(GLuint id, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, uint8_t flip,
++                          GLint filter) {
+     float coords[16] = {
+         x0, -y0, u0, v0,
+         x1, -y0, u1, v0,
+@@ -1205,8 +1210,8 @@
+     if (id)
+         glBindTexture(GL_TEXTURE_2D, id);
+ 
+-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering);
+-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering);
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter ? filter : filtering);
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter ? filter : filtering);
+     glVertexAttribPointer(p, 2, GL_FLOAT, GL_FALSE, 16, coords);
+     glVertexAttribPointer(c, 2, GL_FLOAT, GL_FALSE, 16, &coords[2]);
+     glEnableVertexAttribArray(p);
+@@ -1220,12 +1225,15 @@
+     if (!state->cursor.width || !state->cursor.height || !state->cursor.visible)
+         return;
+ 
+-    x = 2.f * (cursorX - sourceLeft - (float) state->cursor.xhot) / displayWidth - 1.f;
+-    y = 2.f * (cursorY - sourceTop - (float) state->cursor.yhot) / displayHeight - 1.f;
+-    w = 2.f * (float) state->cursor.width / displayWidth;
+-    h = 2.f * (float) state->cursor.height / displayHeight;
++    // Larger by cursorScale, round its hot spot, which stays at the pointer.
++    auto scale = (float) cursorScale;
++    x = 2.f * (cursorX - sourceLeft - scale * (float) state->cursor.xhot) / displayWidth - 1.f;
++    y = 2.f * (cursorY - sourceTop - scale * (float) state->cursor.yhot) / displayHeight - 1.f;
++    w = 2.f * scale * (float) state->cursor.width / displayWidth;
++    h = 2.f * scale * (float) state->cursor.height / displayHeight;
+     glEnable(GL_BLEND);
+     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+-    drawRegion(cursor.id, x, y, x + w, y + h, 0.f, 0.f, 1.f, 1.f, false);
++    // Each of its pixels a whole square of the screen's: as sharp as it was drawn.
++    drawRegion(cursor.id, x, y, x + w, y + h, 0.f, 0.f, 1.f, 1.f, false, GL_NEAREST);
+     glDisable(GL_BLEND);
+ }
+--- a/lorie/src/main/cpp/lorie/activity.cpp
++++ b/lorie/src/main/cpp/lorie/activity.cpp
+@@ -546,6 +546,12 @@
+             }},
+             {"markUserActivity", "()V", (void *) +[](__unused JNIEnv* env, __unused jclass clazz) {
+                 lastInputTimestampMs = nowMs();
++            }},
++            // Last: the @CriticalNative methods' indices below stay as they are.
++            {"setCursorScale", "(JI)V", (void *) +[](__unused JNIEnv *env, __unused jobject thiz, jlong ptr, jint scale) {
++                auto* r = (LorieViewResources*) ptr;
++                if (!r || r->destroyed) return;
++                r->renderer.setCursorScale(scale);
+             }},
+     };
+     vm->AttachCurrentThread(&env, nullptr);
+--- a/lorie/src/main/java/com/termux/x11/LorieView.java
++++ b/lorie/src/main/java/com/termux/x11/LorieView.java
+@@ -602,6 +602,8 @@
+         String filtering = p.displayFilteringMode.get();
+         setFiltering(mNativeContext, "nearest".equals(filtering) ? GLES20.GL_NEAREST : GLES20.GL_LINEAR);
+         setFollowCursorPan(mNativeContext, p.zoomFollowsCursor.get());
++        // As large as on a desktop's screen, for the phone's: 4 times on one of 3.75 pixels a dp.
++        setCursorScale(mNativeContext, Math.max(1, Math.round(getResources().getDisplayMetrics().density)));
+         hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
+         clipboardSyncEnabled = p.clipboardEnable.get();
+         setClipboardSyncEnabled(mNativeContext, clipboardSyncEnabled, clipboardSyncEnabled);
+@@ -712,6 +714,7 @@
+     @FastNative private native void setZoomAnchor(long ptr, float sourceX, float sourceY, float fracX, float fracY);
+     @FastNative private native void clearZoomAnchor(long ptr);
+     @FastNative private native void setFollowCursorPan(long ptr, boolean enabled);
++    @FastNative private native void setCursorScale(long ptr, int scale);
+     @FastNative private native long getCursorPosition(long ptr);
+     @FastNative private native void sendSync(long ptr, int serial);
+ 
