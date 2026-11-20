@@ -26,8 +26,8 @@ object KeySets {
 
 /** For the editor's list of keys to add. */
 enum class KeyGroup(val title: String) {
-    WINDOWS("Windows"), BUILDING("Building"), ITEMS("Items"), EDITING("Editing"), MOVING("Moving and pointing"),
-    OTHER("Other"),
+    WINDOWS("Windows"), BUILDING("Building"), ITEMS("Items"), EDITING("Editing"), FIGHTING("Fighting"),
+    MOVING("Moving and pointing"), NUMBERS("Numbers"), OTHER("Other"),
     /** Keys that only bring another set: one for each set there is. */
     SETS("Sets"),
 }
@@ -112,6 +112,9 @@ object KeyNames {
 
     fun name(code: Int) = names[code] ?: "?"
 
+    /** On a key narrower than 1.5u, as keyboards with a small Backspace write it. */
+    fun legend(name: String, units: Float) = if (units < 1.5f && name == "Backspace") "Bksp" else name
+
     /** Ctrl+Shift+Z: the modifiers first, in that order, then the key. */
     fun label(codes: IntArray): String {
         val mods = MODIFIERS.filter { it in codes }
@@ -179,20 +182,21 @@ class KeyOut(private val send: (code: Int, down: Boolean) -> Unit) {
 
 /** The keys there are, and where each set has them by default. */
 object Keys {
-    /** Where a key sits in a set: a position in the layout's frame, or in the drawer. */
-    class Place(val x: Float, val y: Float, val drawer: Boolean = false)
+    /** Where a key sits in a set: a position in the layout's frame, or in a drawer (its id). */
+    class Place(val x: Float, val y: Float, val drawer: String? = null)
 
     class Def(
         val id: String,
         val kind: Kind,
         val group: KeyGroup,
-        /** Under the key in the drawer and the editor's list. */
+        /** Under the key in a drawer and the editor's list. */
         val name: String,
         /** What it sends: Android key codes, pressed in order, so Ctrl+Z is Ctrl then Z. */
         val codes: IntArray = IntArray(0),
-        /** For what isn't a key (the drawer, the tools, the stick): its sign. A key shows its name. */
+        /** For what isn't a key (a drawer, the tools, the stick): its sign, or else its [label]. A key shows its name. */
         val icon: KeyIcon? = null,
-        /** Its width, in a keyboard's units: 1 for a letter, 2.25 for Shift. */
+        val label: String = "",
+        /** Its width, in a keyboard's units: 1 for a letter, 1.5 for Ctrl. */
         val units: Float = 1f,
         /** Height (a key's, 1u) or diameter (the stick's), a fraction of the frame's height. */
         val size: Float = KEY,
@@ -206,50 +210,91 @@ object Keys {
                     latch: Boolean = false, shows: String? = null, places: Map<String, Place> = emptyMap()) =
         Def(id, Kind.Key, group, name, codes, units = units, latch = latch, shows = shows, places = places)
 
-    private fun drawer(vararg sets: String) = sets.associateWith { Place(0f, 0f, drawer = true) }
-    private fun top(x: Float) = mapOf(KeySets.GAME to Place(x, TOP_Y), KeySets.MAP to Place(x, TOP_Y),
-                                      OWN_SETS to Place(x, TOP_Y))
+    private fun inDrawer(drawer: String, vararg sets: String) = sets.associateWith { Place(0f, 0f, drawer) }
+    private fun at(x: Float, y: Float, vararg sets: String) = sets.associateWith { Place(x, y) }
 
+    /** For combinators, trains, any number Factorio asks for. */
+    private fun digit(n: Int) = key("$n", KeyGroup.NUMBERS, "$n", KeyEvent.KEYCODE_0 + n,
+                                    places = inDrawer(NUMBERS, KeySets.GAME, KeySets.WINDOW))
+
+    /**
+     * Where the keys are, for the thumbs of a phone held sideways (docs/playing.md): the middle third is the game's and
+     * the hardest to reach, so the keys keep to the sides and off Factorio's own panels (the minimap at the top right,
+     * the shortcut bar and the quickbar along the bottom, the weapons at the bottom left). The right thumb has E, F, Q
+     * and R left of the minimap, R nearest; the left, the stick and Shift and Ctrl beside it; the keys pressed least
+     * are along the top, left of the middle. In fractions of the frame (3168 × 1440 on a vivo X200 Ultra).
+     */
     private const val OWN_SETS = "*"
+    private const val ROW_Y = 0.0799f
+    private const val LEFT_X = 0.2273f
+    private const val RIGHT_X = 0.6992f
+    private const val RIGHTMOST_X = 0.7592f
+    private const val UPPER_Y = 0.611f
+    private const val LOWER_Y = 0.7465f
+    /** The inventory's keys, along the bottom left, where its window leaves room. */
+    private const val BOTTOM_Y = 0.9278f
 
     val catalog: List<Def> = listOf(
         key("esc", KeyGroup.WINDOWS, "Menu", KeyEvent.KEYCODE_ESCAPE, shows = KeySets.GAME,
-            places = top(0.4053f) - OWN_SETS),
-        key("e", KeyGroup.WINDOWS, "Inventory", KeyEvent.KEYCODE_E, shows = KeySets.WINDOW, places = top(0.4527f) - OWN_SETS),
-        key("m", KeyGroup.WINDOWS, "Map", KeyEvent.KEYCODE_M, shows = KeySets.MAP, places = top(0.5f) - OWN_SETS),
-        key("t", KeyGroup.WINDOWS, "Research", KeyEvent.KEYCODE_T, shows = KeySets.WINDOW, places = top(0.5473f) - OWN_SETS),
+            places = at(0.2399f, ROW_Y, KeySets.GAME, KeySets.MAP)),
+        key("e", KeyGroup.WINDOWS, "Inventory", KeyEvent.KEYCODE_E, shows = KeySets.WINDOW,
+            places = at(RIGHT_X, UPPER_Y, KeySets.GAME, KeySets.MAP)),
+        key("m", KeyGroup.WINDOWS, "Map", KeyEvent.KEYCODE_M, shows = KeySets.MAP,
+            places = at(0.2999f, ROW_Y, KeySets.GAME, KeySets.MAP)),
+        key("t", KeyGroup.WINDOWS, "Research", KeyEvent.KEYCODE_T, shows = KeySets.WINDOW,
+            places = at(0.3598f, ROW_Y, KeySets.GAME, KeySets.MAP)),
         key("p", KeyGroup.WINDOWS, "Production", KeyEvent.KEYCODE_P, shows = KeySets.WINDOW),
+        key("l", KeyGroup.WINDOWS, "Logistics", KeyEvent.KEYCODE_L, shows = KeySets.WINDOW),
+        key("o", KeyGroup.WINDOWS, "Trains", KeyEvent.KEYCODE_O, shows = KeySets.WINDOW),
+        key("b", KeyGroup.WINDOWS, "Blueprints", KeyEvent.KEYCODE_B, shows = KeySets.WINDOW),
         // The inventory's way out: E again.
         key("close", KeyGroup.WINDOWS, "Close", KeyEvent.KEYCODE_E, shows = KeySets.WINDOW,
-            places = mapOf(KeySets.WINDOW to Place(0.1973f, 0.9424f))),
-        key("q", KeyGroup.BUILDING, "Pipette", KeyEvent.KEYCODE_Q, places = mapOf(KeySets.GAME to Place(0.682f, 0.639f))),
-        key("r", KeyGroup.BUILDING, "Rotate", KeyEvent.KEYCODE_R, places = mapOf(KeySets.GAME to Place(0.729f, 0.639f))),
-        key("shift", KeyGroup.BUILDING, "Shift", KeyEvent.KEYCODE_SHIFT_LEFT, units = 2.25f, latch = true,
-            places = mapOf(KeySets.GAME to Place(0.640f, 0.755f), KeySets.WINDOW to Place(0.0535f, 0.9424f))),
+            places = at(0.2109f, BOTTOM_Y, KeySets.WINDOW)),
+        key("q", KeyGroup.BUILDING, "Pipette", KeyEvent.KEYCODE_Q, places = at(RIGHT_X, LOWER_Y, KeySets.GAME)),
+        key("r", KeyGroup.BUILDING, "Rotate", KeyEvent.KEYCODE_R, places = at(RIGHTMOST_X, LOWER_Y, KeySets.GAME)),
+        key("shift", KeyGroup.BUILDING, "Shift", KeyEvent.KEYCODE_SHIFT_LEFT, units = 1.5f, latch = true,
+            places = at(LEFT_X, LOWER_Y, KeySets.GAME) + at(0.047f, BOTTOM_Y, KeySets.WINDOW)),
         key("ctrl", KeyGroup.BUILDING, "Ctrl", KeyEvent.KEYCODE_CTRL_LEFT, units = 1.5f, latch = true,
-            places = mapOf(KeySets.GAME to Place(0.7256f, 0.755f), KeySets.WINDOW to Place(0.139f, 0.9424f))),
-        key("alt", KeyGroup.BUILDING, "Details", KeyEvent.KEYCODE_ALT_LEFT, places = drawer(KeySets.GAME, KeySets.MAP)),
-        key("f", KeyGroup.ITEMS, "Pick up", KeyEvent.KEYCODE_F, places = drawer(KeySets.GAME)),
-        key("z", KeyGroup.ITEMS, "Drop", KeyEvent.KEYCODE_Z, places = drawer(KeySets.GAME)),
-        key("c", KeyGroup.ITEMS, "Shoot", KeyEvent.KEYCODE_C, places = drawer(KeySets.GAME)),
+            places = at(LEFT_X, UPPER_Y, KeySets.GAME) + at(0.136f, BOTTOM_Y, KeySets.WINDOW)),
+        key("alt", KeyGroup.BUILDING, "Details", KeyEvent.KEYCODE_ALT_LEFT,
+            places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP)),
+        key("h", KeyGroup.BUILDING, "Flip across", KeyEvent.KEYCODE_H),
+        key("v", KeyGroup.BUILDING, "Flip down", KeyEvent.KEYCODE_V),
+        key("f", KeyGroup.ITEMS, "Pick up", KeyEvent.KEYCODE_F, places = at(RIGHTMOST_X, UPPER_Y, KeySets.GAME)),
+        key("z", KeyGroup.ITEMS, "Drop", KeyEvent.KEYCODE_Z, places = inDrawer(DRAWER, KeySets.GAME)),
+        key("x", KeyGroup.ITEMS, "Quickbar row", KeyEvent.KEYCODE_X, places = inDrawer(DRAWER, KeySets.GAME)),
         key("undo", KeyGroup.EDITING, "Undo", KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_Z,
-            places = drawer(KeySets.GAME, KeySets.MAP)),
+            places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP)),
         key("redo", KeyGroup.EDITING, "Redo", KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_Y),
         key("cut", KeyGroup.EDITING, "Cut", KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_X),
         key("copy", KeyGroup.EDITING, "Copy", KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_C,
-            places = drawer(KeySets.GAME, KeySets.MAP)),
+            places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP)),
         key("paste", KeyGroup.EDITING, "Paste", KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_V,
-            places = drawer(KeySets.GAME, KeySets.MAP)),
+            places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP)),
+        key("space", KeyGroup.FIGHTING, "Shoot", KeyEvent.KEYCODE_SPACE, units = 2f,
+            places = inDrawer(DRAWER, KeySets.GAME)),
+        key("c", KeyGroup.FIGHTING, "Next weapon", KeyEvent.KEYCODE_C),
         Def("stick", Kind.KeyStick, KeyGroup.MOVING, "Stick", icon = KeyIcon.STICK, size = STICK,
-            places = listOf(KeySets.GAME, KeySets.MAP, OWN_SETS).associateWith { Place(0.0852f, 0.652f) }),
+            places = at(0.095f, 0.66f, KeySets.GAME, KeySets.MAP, OWN_SETS)),
+    ) + (1..9).map(::digit) + listOf(
+        key("backspace", KeyGroup.NUMBERS, "Backspace", KeyEvent.KEYCODE_DEL,
+            places = inDrawer(NUMBERS, KeySets.GAME, KeySets.WINDOW)),
+        digit(0),
+        // What ends a number typed; and in and out of a vehicle.
+        key("enter", KeyGroup.MOVING, "Enter", KeyEvent.KEYCODE_ENTER,
+            places = inDrawer(NUMBERS, KeySets.GAME, KeySets.WINDOW)),
         key("console", KeyGroup.OTHER, "Console", KeyEvent.KEYCODE_GRAVE),
         Def("keyboard", Kind.ToolKey(Tool.KEYBOARD), KeyGroup.OTHER, "Keyboard", icon = KeyIcon.KEYBOARD,
-            places = drawer(KeySets.GAME, KeySets.MAP, OWN_SETS)),
+            places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP, OWN_SETS)),
         Def("edit", Kind.ToolKey(Tool.ADJUST), KeyGroup.OTHER, "Edit keys", icon = KeyIcon.EDIT,
-            places = drawer(KeySets.GAME, KeySets.MAP, OWN_SETS)),
+            places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP, OWN_SETS)),
         Def("hide", Kind.ToolKey(Tool.HIDE), KeyGroup.OTHER, "Hide keys", icon = KeyIcon.HIDE,
-            places = drawer(KeySets.GAME, KeySets.MAP, OWN_SETS)),
-        Def(DRAWER, Kind.Drawer, KeyGroup.OTHER, "More", icon = KeyIcon.DOTS, places = top(0.5947f)),
+            places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP, OWN_SETS)),
+        Def(DRAWER, Kind.Drawer(), KeyGroup.OTHER, "More", icon = KeyIcon.DOTS,
+            places = at(0.4198f, ROW_Y, KeySets.GAME, KeySets.MAP, OWN_SETS)),
+        // A phone's numpad: 1 2 3, 4 5 6, 7 8 9, then Backspace, 0 and Enter.
+        Def(NUMBERS, Kind.Drawer(columns = 3), KeyGroup.NUMBERS, "Numbers", label = "123",
+            places = at(0.4797f, ROW_Y, KeySets.GAME) + at(0.2715f, BOTTOM_Y, KeySets.WINDOW)),
     )
 
     /**
@@ -258,9 +303,9 @@ object Keys {
      */
     fun controls(set: String): List<Control> = catalog.map { def ->
         val place = def.places[set] ?: def.places[OWN_SETS].takeIf { set.startsWith(KeySets.OWN) }
-        Control(def.id, def.kind, place?.takeUnless { it.drawer }?.x ?: NEW_X,
-                place?.takeUnless { it.drawer }?.y ?: NEW_Y, def.size, glyph = null, name = def.name,
-                keyIcon = def.icon, defaultShown = place != null, defaultInDrawer = place?.drawer == true,
+        Control(def.id, def.kind, place?.takeIf { it.drawer == null }?.x ?: NEW_X,
+                place?.takeIf { it.drawer == null }?.y ?: NEW_Y, def.size, glyph = null, label = def.label, name = def.name,
+                keyIcon = def.icon, defaultShown = place != null, defaultDrawer = place?.drawer,
                 defaultLatch = def.latch, group = def.group, defaultCodes = def.codes, defaultShows = def.shows,
                 defaultUnits = def.units)
     }
@@ -298,15 +343,20 @@ object Keys {
     }
 
     const val DRAWER = "more"
+    /** The drawer of numbers, Backspace and Enter. */
+    const val NUMBERS = "123"
     /** Can't be removed: the drawer holds the way into the editor, and the editor's tools are in it. */
     fun kept(c: Control) = c.id == DRAWER || c.kind is Kind.ToolKey
 
-    /** A key's height (1u), of the frame's height: the rendered caps' (art/controls/controls.py UNIT), a little larger. */
-    const val KEY = 0.096f
+    /**
+     * A key's height (1u), of the frame's height: 48 dp on a phone (1440 px, 384 dp tall sideways), what Android and
+     * Apple ask of a thumb's target; the rendered caps' (art/controls/controls.py UNIT).
+     */
+    const val KEY = 0.125f
     private const val STICK = 0.27f
-    /** The top row's middle, of the frame's height; and where a set's own way back sits on it (2u, Esc's left edge). */
-    const val TOP_Y = 0.0576f
-    const val BACK_X = 0.427f
+    /** Where a set the player makes has its way back: on the top row, from Esc's left edge (2u). */
+    const val TOP_Y = ROW_Y
+    const val BACK_X = 0.2683f
     /** Where the editor puts a key it adds: the middle of the screen. */
     private const val NEW_X = 0.5f
     private const val NEW_Y = 0.5f

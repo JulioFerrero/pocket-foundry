@@ -57,10 +57,10 @@ class SpritePainter(private val layout: PadLayout) {
             }
             // Mouse & keys' keys: an IBM keycap of their width, pale for a letter, dark for the rest; PadPainter writes
             // their name on it. Held while latched or open.
-            is Kind.Key, is Kind.ToolKey, Kind.Drawer -> {
+            is Kind.Key, is Kind.ToolKey, is Kind.Drawer -> {
                 val strip = set[CAPS[if (c.light) 1 else 0][Keys.widthIndex(units)]] ?: return null
                 strip.base?.let { set[it] }?.let { still(canvas, it, x, y, size) }
-                val held = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
+                val held = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind is Kind.Drawer && layout.openDrawer === c)
                 cap(canvas, c, strip, held, x, y, size, now)
             }
             else -> {

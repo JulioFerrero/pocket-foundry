@@ -74,7 +74,8 @@ class KeysTest {
     @Test fun `every key has its own id, something to send or a sign, and a name`() {
         assertEquals(Keys.catalog.size, Keys.catalog.map { it.id }.toSet().size)
         for (def in Keys.catalog) {
-            if (def.kind == Kind.Key) assertTrue(def.id, def.codes.isNotEmpty()) else assertNotNull(def.id, def.icon)
+            if (def.kind == Kind.Key) assertTrue(def.id, def.codes.isNotEmpty())
+            else assertTrue(def.id, def.icon != null || def.label.isNotEmpty())
             assertTrue(def.id, def.name.isNotEmpty())
             assertTrue(def.id, def.units in Keys.WIDTHS.toList())
         }
@@ -126,8 +127,8 @@ class KeysTest {
             assertNotNull(controls.find { it.id == Keys.DRAWER && !it.inDrawer })
             assertTrue(controls.any { (it.kind as? Kind.ToolKey)?.tool == Tool.ADJUST && it.inDrawer })
         }
-        val window = Keys.controls(KeySets.WINDOW).filter { it.shown }.map { it.id }
-        assertEquals(listOf("close", "shift", "ctrl"), window)
+        val window = Keys.controls(KeySets.WINDOW).filter { it.shown && !it.inDrawer }.map { it.id }
+        assertEquals(listOf("close", "shift", "ctrl", Keys.NUMBERS), window)
         assertTrue(Keys.controls(KeySets.GAME).filter { it.id == "shift" || it.id == "ctrl" }.all { it.latch })
     }
 
@@ -136,7 +137,8 @@ class KeysTest {
         before.first { it.id == "q" }.apply { x = 0.3f; y = 0.4f; scale = 1.2f; latch = true }
         before.first { it.id == "r" }.shown = false
         before.first { it.id == "p" }.shown = true
-        before.first { it.id == "f" }.inDrawer = false
+        before.first { it.id == "alt" }.drawer = null
+        before.first { it.id == "q" }.drawer = Keys.NUMBERS
         before.first { it.id == "t" }.apply { codes = intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_T); units = 1.5f; shows = null }
         val mine = Keys.own("k3", intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_F), 2.25f, "set-1").apply {
             x = 0.2f; y = 0.3f; latch = true
@@ -158,11 +160,33 @@ class KeysTest {
             assertEquals(a.id, a.units, b.units)
             assertEquals(a.id, a.shows, b.shows)
             assertEquals(a.id, a.shown, b.shown)
-            assertEquals(a.id, a.inDrawer, b.inDrawer)
+            assertEquals(a.id, a.drawer, b.drawer)
             assertEquals(a.id, a.latch, b.latch)
             assertEquals(a.id, a.x, b.x, 0.0001f)
             assertEquals(a.id, a.y, b.y, 0.0001f)
             assertEquals(a.id, a.scale, b.scale, 0.0001f)
+        }
+    }
+
+    @Test fun `the number drawer has the digits, Backspace and Enter, in the game's and the inventory's sets`() {
+        for (set in listOf(KeySets.GAME, KeySets.WINDOW)) {
+            val numbers = Keys.controls(set).filter { it.shown && it.drawer == Keys.NUMBERS }.map { it.label }
+            assertEquals(listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "Backspace", "0", "Enter"), numbers)
+        }
+    }
+
+    @Test fun `C is the next weapon and Space shoots, as Factorio has them`() {
+        val keys = Keys.controls(KeySets.GAME)
+        assertEquals("Next weapon", keys.first { it.label == "C" }.name)
+        assertEquals("Shoot", keys.first { it.label == "Space" }.name)
+    }
+
+    @Test fun `the keys are a thumb's size and keep off the middle third, where the game is`() {
+        assertEquals(0.125f, Keys.KEY)
+        for (set in KeySets.BUILT_IN.keys) {
+            for (c in Keys.controls(set).filter { it.shown && !it.inDrawer && it.kind is Kind.Key }) {
+                assertTrue("$set ${c.id} at ${c.x}", c.x < 0.5f || c.x > 0.64f)
+            }
         }
     }
 

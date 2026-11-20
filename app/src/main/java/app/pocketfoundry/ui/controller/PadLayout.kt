@@ -76,8 +76,8 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
 
     fun refreshShown() {
         shownControls = allControls.filter { it.shown && !it.inDrawer }
-        drawerKeys = allControls.filter { it.shown && it.inDrawer }
         if (openDrawer?.let { it !in shownControls } == true) openDrawer = null
+        drawerKeys = openDrawer?.let { open -> allControls.filter { it.shown && it.drawer == open.id } }.orEmpty()
         placeDrawer()
     }
 
@@ -89,18 +89,16 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         refreshShown()
     }
 
-    fun toggleDrawer(drawer: Control) {
-        openDrawer = if (openDrawer === drawer) null else drawer
-        placeDrawer()
-    }
+    fun toggleDrawer(drawer: Control) = if (openDrawer === drawer) closeDrawer() else showDrawer(drawer)
 
     fun showDrawer(drawer: Control) {
         openDrawer = drawer
-        placeDrawer()
+        refreshShown()
     }
 
     fun closeDrawer() {
         openDrawer = null
+        drawerKeys = emptyList()
     }
 
     fun title(set: String) = KeySets.BUILT_IN[set] ?: ownTitles[set] ?: set
@@ -191,7 +189,7 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
                 drawerPanel.top + pad + (index / columns) * r * DRAWER_CELL_HEIGHT + r)
     }
 
-    private fun drawerColumns() = drawerKeys.size.coerceIn(1, DRAWER_COLUMNS)
+    private fun drawerColumns() = drawerKeys.size.coerceIn(1, (openDrawer?.kind as? Kind.Drawer)?.columns ?: 1)
 
     /** Under the drawer when it's in the top half, over it otherwise; its right edge at the drawer's. */
     private fun placeDrawer() {
@@ -330,11 +328,10 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         /** About a phone's height sideways, so a tablet's controls are a phone's size. */
         const val FRAME_MAX_DP = 480f
         /** A drawer key's diameter, of the frame's height; its cell, in its radii, room for its name under it. */
-        const val DRAWER_KEY = 0.1f
+        const val DRAWER_KEY = 0.115f
         const val DRAWER_CELL_WIDTH = 2.9f
         const val DRAWER_CELL_HEIGHT = 3.1f
         const val DRAWER_PAD = 0.5f
-        const val DRAWER_COLUMNS = 5
         const val DRAWER_REACH = 1.2f
     }
     private val point = PointF()

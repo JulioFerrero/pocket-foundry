@@ -723,14 +723,15 @@ def small(name, kind):
 
 # ---------------------------------------------------------------- keycaps: an IBM keyboard's, any width in units
 
-UNIT = 0.0400        # 1u: a letter's key, as wide as it is deep
-KC_GAP = 0.0018      # between a cap and its socket's edge
-KC_CORNER = 0.0045   # the cap's footprint's corners
-KC_DRAFT = 0.0074    # how far its walls lean in, each side: the top is much smaller than the foot
-KC_HEIGHT = 0.0120   # tall, as an IBM key is
-KC_DISH = 0.0028     # the top's scoop: a cylinder across it, deepest along its middle
-KC_TRAVEL = 0.0035   # a keyboard key's press: short, so its walls still show
-KC_EDGE = 0.0010     # the top's rounded edge
+UNIT = 0.0571        # 1u: a letter's key, as wide as it is deep: 180 px, 48 dp on a 1440 px tall phone (Keys.KEY)
+_K = UNIT / 0.0400   # the cap was drawn at 1u = 0.04 m: its parts keep their share of it
+KC_GAP = 0.0018 * _K      # between a cap and its foot's edge
+KC_CORNER = 0.0045 * _K   # the cap's footprint's corners
+KC_DRAFT = 0.0074 * _K    # how far its walls lean in, each side: the top is much smaller than the foot
+KC_HEIGHT = 0.0120 * _K   # tall, as an IBM key is
+KC_DISH = 0.0028 * _K     # the top's scoop: a cylinder across it, deepest along its middle
+KC_TRAVEL = 0.0035 * _K   # a keyboard key's press: short, so its walls still show
+KC_EDGE = 0.0010 * _K     # the top's rounded edge
 
 
 def keycap_outline(units, tall=1.0):
@@ -788,7 +789,7 @@ def keycap_body(units, tall, tone, glow, count=1024):
 def keycap(units, tall=1.0, tone='pearl'):
     """A keycap that presses as the other caps do, lit orange once it's down."""
     def build(p, glow):
-        with pose(0, 0, TOP + PROUD + 0.0030 - KC_TRAVEL * p):
+        with pose(0, 0, TOP + (PROUD + 0.0030) * _K - KC_TRAVEL * p):
             keycap_body(units, tall, tone, glow)
         if glow > 0.01:
             foot = keycap_outline(units, tall)

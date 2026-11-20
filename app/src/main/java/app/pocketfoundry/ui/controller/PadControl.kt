@@ -17,8 +17,8 @@ sealed class Kind(val reach: Float, val follows: Boolean) {
     object Key : Kind(1.15f, false)
     /** W, A, S and D, from a stick: a diagonal holds two. */
     object KeyStick : Kind(1.3f, true)
-    /** Opens and closes a panel of the keys in it ([Control.inDrawer]). */
-    object Drawer : Kind(1.15f, false)
+    /** Opens and closes a panel of the keys in it ([Control.drawer]), [columns] wide at most. */
+    class Drawer(val columns: Int = 5) : Kind(1.15f, false)
     /** One of the toolbar's play tools as a key: Mouse & keys keeps them in the drawer. */
     class ToolKey(val tool: Tool) : Kind(1.15f, false)
 }
@@ -48,7 +48,8 @@ class Control(
     val keyIcon: KeyIcon? = null,
     /** Mouse & keys has every key in every set, most of them unshown, for the editor to add. */
     val defaultShown: Boolean = true,
-    val defaultInDrawer: Boolean = false,
+    /** The drawer a key is in, by its id: the keys there show only while it's open. */
+    val defaultDrawer: String? = null,
     val defaultLatch: Boolean = false,
     /** Where the editor lists a Mouse & keys key. */
     val group: KeyGroup? = null,
@@ -102,8 +103,9 @@ class Control(
     val pressedGlyph = glyph?.replace("*", "black")
 
     var shown = defaultShown
-    /** In the drawer's panel instead of on the screen. */
-    var inDrawer = defaultInDrawer
+    var drawer = defaultDrawer
+    /** In a drawer's panel instead of on the screen. */
+    val inDrawer get() = drawer != null
     /** A key that stays held when tapped, till it's tapped again: Shift, Ctrl. */
     var latch = defaultLatch
     var x = defaultX
@@ -129,7 +131,7 @@ class Control(
 
     fun resetPlacement() {
         shown = defaultShown
-        inDrawer = defaultInDrawer
+        drawer = defaultDrawer
         latch = defaultLatch
         if (!codes.contentEquals(defaultCodes)) codes = defaultCodes
         shows = defaultShows
@@ -170,7 +172,7 @@ class Control(
                 true
             }
             // ControllerView acts on these.
-            Kind.Drawer, is Kind.ToolKey -> true
+            is Kind.Drawer, is Kind.ToolKey -> true
         }
     }
 
@@ -215,7 +217,7 @@ class Control(
             Kind.KeyStick -> holdKeys(0)
             // A latched key is let go by its next tap, or by the layout (PadLayout.releaseKeys).
             Kind.Key -> if (!latch) out?.release(codes)
-            Kind.Drawer, is Kind.ToolKey -> {}
+            is Kind.Drawer, is Kind.ToolKey -> {}
         }
     }
 

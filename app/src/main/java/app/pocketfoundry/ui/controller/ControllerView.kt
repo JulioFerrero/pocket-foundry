@@ -110,7 +110,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
                     // A tap off the open drawer closes it, and does nothing else unless it's on another key.
                     val onPanel = layout.drawerPanel.contains(x, y)
                     if (!onPanel) layout.closeDrawer()
-                    if (onPanel || control == null || control.kind == Kind.Drawer) {
+                    if (onPanel || control == null || control.kind is Kind.Drawer) {
                         invalidate()
                         return true
                     }
@@ -126,7 +126,7 @@ class ControllerView(context: Context, private val input: Input, private val cou
         pressed[id] = control
         if (control.press(id, x, y, layout)) haptic(if (control.kind == Kind.Dpad) TICK else CLICK)
         when (val k = control.kind) {
-            Kind.Drawer -> layout.toggleDrawer(control)
+            is Kind.Drawer -> layout.toggleDrawer(control)
             is Kind.ToolKey -> {
                 layout.closeDrawer()
                 use(k.tool)

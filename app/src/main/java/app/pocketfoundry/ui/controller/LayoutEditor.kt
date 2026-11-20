@@ -8,6 +8,10 @@ import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.GuiSheet
 import kotlin.math.hypot
 
+
+/** A group of the add list, its keys in lines. */
+private typealias OfferGroup = Pair<KeyGroup, List<List<Control>>>
+
 /** Something over the game that the editor moves with the controls and their layout keeps: the FPS counter. */
 interface Movable {
     /** Its box on screen, empty while it isn't showing. */
@@ -78,7 +82,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
             return
         }
         // The drawer opens as it's picked, for its keys to be picked; picked again, it shuts.
-        if (control.kind == Kind.Drawer) {
+        if (control.kind is Kind.Drawer) {
             if (selected === control && layout.openDrawer === control) layout.closeDrawer() else layout.showDrawer(control)
         }
         val other = drags.indexOfFirst { it === control }
@@ -115,7 +119,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         if (control.inDrawer) {
             // A drawer key stays in its cell till it's dragged off the panel, onto the screen.
             if (layout.drawerPanel.contains(x, y)) return false
-            control.inDrawer = false
+            control.drawer = null
             layout.refreshShown()
             layout.moveCentre(control, x, y)
             last[id].set(x, y)
@@ -151,7 +155,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     private fun intoDrawer(c: Control) {
         if (layout.openDrawer == null || c.inDrawer || c.kind !is Kind.Key && c.kind !is Kind.ToolKey) return
         if (drags.any { it === c } || !layout.drawerPanel.contains(layout.cx(c), layout.cy(c))) return
-        c.inDrawer = true
+        c.drawer = layout.openDrawer?.id
         layout.refreshShown()
     }
 
@@ -217,7 +221,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         c.resetPlacement()
         // A Mouse & keys key the set doesn't have by default comes onto the screen, or into the drawer when it's open.
         c.shown = true
-        c.inDrawer = layout.openDrawer != null && (c.kind is Kind.Key || c.kind is Kind.ToolKey)
+        c.drawer = layout.openDrawer?.id?.takeIf { c.kind is Kind.Key || c.kind is Kind.ToolKey }
         layout.refreshShown()
         select(c)
         adding = false
@@ -225,7 +229,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     }
 
     private fun placeOwn(c: Control) {
-        if (layout.openDrawer != null) c.inDrawer = true
+        c.drawer = layout.openDrawer?.id
         layout.refreshShown()
         select(c)
         haptic(ControllerView.CLICK)
@@ -281,50 +285,83 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         }
     }
 
-    /** Mouse & keys' add list: the keys the set hasn't, a row for each group, over the toolbar. */
+    /**
+     * Mouse & keys' add list: the keys the set hasn't, by group, above the toolbar; a group's keys in lines of
+     * [OFFER_LINE]. In one column or two, whichever lets the keys be larger; as large as a drawer's, or as fits.
+     */
     private fun placeOffers() {
         offers.clear()
         headings.clear()
         val groups = offered().filter { it.group != null }.groupBy { it.group!! }.toSortedMap()
+            .map { (group, keys) -> group to keys.chunked(OFFER_LINE) }
         if (groups.isEmpty()) return addPanel.setEmpty()
-        val r = offerRadius()
-        val cell = r * OFFER_CELL
-        val row = r * OFFER_ROW
-        val pad = r * 0.6f
-        val heads = groups.keys.maxOf { painter.textWidth(it.title, r * HEADING) } + r * 0.8f
-        val w = heads + groups.values.maxOf { it.size } * cell + 2 * pad
-        val h = groups.size * row + 2 * pad
+        // The FPS counter is a view over this one: along the top, the list keeps below it.
+        counter.bounds(counterBox)
+        val margin = layout.frame * 0.02f
+        val ceiling = if (!counterBox.isEmpty && counterBox.top < layout.height / 4f) counterBox.bottom + margin else margin
+        val roomW = layout.width * 0.96f
+        val roomH = toolbar.top - margin - ceiling
+        // Sizes in a key's radius: a heading's measured at 100 radii, as text is measured truer large.
+        fun heads(column: List<OfferGroup>) = column.maxOf { painter.textWidth(it.first.title, 100 * HEADING) } / 100 + 0.8f
+        fun wide(column: List<OfferGroup>) = heads(column) + column.maxOf { g -> g.second.maxOf { it.size } } * OFFER_CELL
+        fun tall(column: List<OfferGroup>) = column.sumOf { it.second.size }
+        // Two columns of as many lines as can be.
+        val lines = tall(groups)
+        var split = 1
+        for (i in 1 until groups.size) {
+            if (maxOf(tall(groups.take(i)), lines - tall(groups.take(i))) < maxOf(tall(groups.take(split)), lines - tall(groups.take(split)))) split = i
+        }
+        var columns = listOf(groups)
+        offerR = 0f
+        for (candidate in listOfNotNull(listOf(groups), if (groups.size > 1) listOf(groups.take(split), groups.drop(split)) else null)) {
+            val w = candidate.sumOf { wide(it).toDouble() }.toFloat() + (candidate.size + 1) * OFFER_PAD
+            val h = candidate.maxOf(::tall) * OFFER_ROW + 2 * OFFER_PAD
+            val r = minOf(layout.drawerKeyRadius() * 0.8f, roomW / w, roomH / h)
+            if (r > offerR) {
+                offerR = r
+                columns = candidate
+            }
+        }
+        val r = offerR
+        val pad = r * OFFER_PAD
+        val w = columns.sumOf { wide(it).toDouble() }.toFloat() * r + (columns.size + 1) * pad
+        val h = columns.maxOf(::tall) * OFFER_ROW * r + 2 * pad
         val left = (layout.width - w) / 2f
-        val top = (toolbar.top - r * 0.5f - h).coerceAtLeast(r * 0.4f)
+        val top = (toolbar.top - r * 0.5f - h).coerceAtLeast(ceiling)
         addPanel.set(left, top, left + w, top + h)
-        var i = 0
-        for ((group, keys) in groups) {
-            val y = top + pad + i++ * row + r * 1.2f
-            headings += group.title to PointF(left + pad + (heads - r * 0.8f) / 2f, y)
-            keys.forEachIndexed { k, c -> offers += Offer(c, left + pad + heads + (k + 0.5f) * cell, y) }
+        var x = left + pad
+        for (column in columns) {
+            val heads = heads(column) * r
+            var line = 0
+            for ((group, keyLines) in column) {
+                headings += group.title to PointF(x + (heads - r * 0.8f) / 2f, top + pad + line * OFFER_ROW * r + r * 1.2f)
+                for (keys in keyLines) {
+                    val y = top + pad + line++ * OFFER_ROW * r + r * 1.2f
+                    keys.forEachIndexed { k, c -> offers += Offer(c, x + heads + (k + 0.5f) * OFFER_CELL * r, y) }
+                }
+            }
+            x += wide(column) * r + pad
         }
     }
 
     private fun offerAt(x: Float, y: Float): Control? {
         placeOffers()
-        val r = offerRadius()
-        return offers.firstOrNull { hypot(x - it.x, y - it.y) <= r * 1.25f }?.control
+        return offers.firstOrNull { hypot(x - it.x, y - it.y) <= offerR * 1.25f }?.control
     }
 
     private fun drawOffers(canvas: Canvas, sheet: GuiSheet?) {
         placeOffers()
         if (addPanel.isEmpty) return
-        val r = offerRadius()
+        val r = offerR
         painter.panel(canvas, sheet, addPanel, r * 0.5f)
         for ((title, at) in headings) painter.letter(canvas, title, at.x, at.y, r * HEADING, Factorio.HEADING)
         for (o in offers) {
             // A wide key is twice as wide as tall: smaller, it keeps to its cell.
             painter.drawKey(canvas, o.control, o.x, o.y, r, false, units = 1f)
-            painter.letter(canvas, o.control.name, o.x, o.y + r * 1.55f, r * 0.42f, PadPainter.LIGHT)
+            painter.caption(canvas, o.control, o.x, o.y + r * 1.55f, r * 0.42f)
         }
     }
 
-    private fun offerRadius() = layout.drawerKeyRadius() * 0.8f
 
     /**
      * Mouse & keys' sets, as chips: the editor works on the one picked; the player's own, picked again, opens its name.
@@ -378,6 +415,8 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     private val offers = ArrayList<Offer>()
     private val headings = ArrayList<Pair<String, PointF>>()
     private val addPanel = RectF()
+    /** The add list's keys' radius, as placed. */
+    private var offerR = 0f
     private val chips = ArrayList<RectF>()
 
     private companion object {
@@ -386,6 +425,8 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         const val OFFER_CELL = 2.9f
         const val OFFER_ROW = 3.3f
         const val HEADING = 0.55f
+        const val OFFER_PAD = 0.6f
+        const val OFFER_LINE = 6
         /** The add list's own entries: New key, and a key that brings a set ("shows:" and the set's key). */
         const val NEW_KEY = "new"
         const val SHOWS = "shows:"

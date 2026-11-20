@@ -68,15 +68,22 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             layout.drawerCentre(i, point)
             // A drawer's cells are one key wide, whatever a key's width on screen.
             if (drawAt(canvas, sheet, keys[i], point.x, point.y, r, keys[i] === selected, now, units = 1f)) moving = true
-            letter(canvas, keys[i].name.ifEmpty { layout.label(keys[i]) }, point.x, point.y + r * 1.55f, r * 0.42f, LIGHT)
+            caption(canvas, keys[i], point.x, point.y + r * 1.55f, r * 0.42f)
         }
         return moving
     }
 
+    /** What a key in a drawer or the editor's list does, under it: only when it says more than the key (not "5"). */
+    fun caption(canvas: Canvas, c: Control, x: Float, y: Float, size: Float) {
+        val label = layout.label(c)
+        val name = c.name.ifEmpty { label }
+        if (name != label) letter(canvas, name, x, y, size, LIGHT)
+    }
+
     private fun drawAt(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float, selected: Boolean,
                        now: Long, units: Float = c.units): Boolean {
-        val pressed = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
-        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind == Kind.Drawer) {
+        val pressed = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind is Kind.Drawer && layout.openDrawer === c)
+        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer) {
             // The rendered keycap, its name written on its top, which is smaller than the key: its walls lean in. Or
             // the drawn one.
             val moving = sprites.draw(canvas, c, x, y, r, box, now, units)
@@ -86,7 +93,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
                 w = r * (units - CAP_WALLS)
                 h = r * CAP_TOP
                 val ink = if (pressed || c.light) INK_ON_LIGHT else INK_ON_DARK
-                keyLabel(canvas, c, x, y + if (pressed) r * PRESS_DROP else 0f, w, h, ink)
+                keyLabel(canvas, c, x, y + if (pressed) r * PRESS_DROP else 0f, w, h, ink, units)
             } else {
                 w = units * r * 0.85f
                 h = r * 0.75f
@@ -169,7 +176,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean, units: Float = c.units) {
         rect.set(x - units * r, y - r, x + units * r, y + r)
         bevelSlot(pressed, rect.top, rect.bottom) { canvas.drawRoundRect(rect, r * 0.25f, r * 0.25f, it) }
-        keyLabel(canvas, c, x, y, units * r * 0.85f, r * 0.75f, glyphColour(pressed))
+        keyLabel(canvas, c, x, y, units * r * 0.85f, r * 0.75f, glyphColour(pressed), units)
     }
 
     /**
@@ -177,10 +184,14 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
      * (Esc, Shift, F11) smaller, a combination its modifiers small over its key; each smaller only to fit. What isn't a
      * key shows its sign; a key that only brings a set, the set's name.
      */
-    private fun keyLabel(canvas: Canvas, c: Control, x: Float, y: Float, w: Float, h: Float, colour: Int) {
+    private fun keyLabel(canvas: Canvas, c: Control, x: Float, y: Float, w: Float, h: Float, colour: Int, units: Float) {
         val sign = c.keyIcon
         if (sign != null) return keyIcon(canvas, sign, x, y, h * 1.2f, colour)
-        val main = if (c.kind == Kind.Key && c.codes.isEmpty()) layout.label(c) else c.legendMain
+        val main = when {
+            c.kind != Kind.Key -> c.label
+            c.codes.isEmpty() -> layout.label(c)
+            else -> KeyNames.legend(c.legendMain, units)
+        }
         if (main.isEmpty()) return
         val room = 2 * w * LABEL_WIDTH
         if (c.legendTop.isEmpty()) return letter(canvas, main, x, y, fitted(main, legendSize(main, h), room), colour)
@@ -190,7 +201,8 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
 
     private fun legendSize(text: String, h: Float) = h * if (text.length == 1) LETTER_SIZE else WORD_SIZE
 
-    private fun fitted(text: String, size: Float, room: Float) = minOf(size, room / textWidth(text, 1f))
+    /** At most [size], or as fits [room]: measured large, as at 1 px Android rounds each letter's width. */
+    private fun fitted(text: String, size: Float, room: Float) = minOf(size, room * 100 / textWidth(text, 100f))
 
     /** [sign] [size] wide, its middle at ([x], [y]). */
     private fun keyIcon(canvas: Canvas, sign: KeyIcon, x: Float, y: Float, size: Float, colour: Int) {
@@ -309,7 +321,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private fun drawSelection(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float) {
         stroke.color = Tone.ORANGE.face
         stroke.strokeWidth = layout.frame * 0.004f
-        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind == Kind.Drawer) {
+        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer) {
             rect.set(x - (c.units + 0.15f) * r, y - 1.15f * r, x + (c.units + 0.15f) * r, y + 1.15f * r)
             canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
         } else if (c.pill) {

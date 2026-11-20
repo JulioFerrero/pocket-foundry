@@ -6,6 +6,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -63,6 +64,11 @@ class DialogHost(private val activity: Activity, private val onClosed: () -> Uni
     }
 
     fun close() {
+        // A field of the dialog's has the keyboard: it goes with the dialog, not on to what's under it (the game's
+        // screen takes typing too).
+        scrim?.findFocus()?.takeIf { it is EditText }?.let {
+            activity.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(it.windowToken, 0)
+        }
         content().descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
         scrim?.let { (it.parent as? ViewGroup)?.removeView(it) }
         scrim = null

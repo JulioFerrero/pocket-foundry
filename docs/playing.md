@@ -55,11 +55,17 @@ Your finger is the mouse:
 
 **Touch -> Trackpad** moves a cursor instead, as with the gamepad.
 
-The keys on screen are Factorio's own: the stick holds W, A, S and D (two at once on a diagonal), Esc, E, M and T are
-at the top, Q (pipette) and R (rotate) on the right, and Shift and Ctrl under them. **Shift and Ctrl stay held** when
-tapped, lit orange, till they're tapped again: Shift or Ctrl, then a tap on a chest, moves a stack or everything of a
-kind. The last key at the top opens a drawer: Alt (details), F (pick up), Z (drop), C (shoot), Undo, Copy, Paste,
-the phone's keyboard, **Edit keys** and **Hide keys**.
+The keys on screen are Factorio's own, as large as a thumb's target and kept where thumbs reach, off the middle of
+the screen (the game's) and off Factorio's own panels:
+
+- **Right thumb**, left of the minimap: E (inventory), F (pick up), Q (pipette) and R (rotate), R nearest.
+- **Left thumb:** the stick (W, A, S and D, two at once on a diagonal), and Shift and Ctrl beside it. **Shift and Ctrl
+  stay held** when tapped, their light on, till they're tapped again: Shift or Ctrl, then a tap on a chest, moves a
+  stack or everything of a kind.
+- **Along the top**, the keys pressed least: Esc, M (map), T (research), the drawer, and **123**: the numbers,
+  Backspace and Enter, for combinators and trains.
+- **The drawer** (the dots): Alt (details), Z (drop), Space (shoot), X (the next quickbar row), Undo, Copy, Paste, the
+  phone's keyboard, **Edit keys** and **Hide keys**.
 
 The keys follow the screen: E (and T, P) brings the inventory's keys, Shift, Ctrl and one to close it; M brings the
 map's, the stick and the top keys. The same key again, Esc or a two-finger tap brings back the game's. A window

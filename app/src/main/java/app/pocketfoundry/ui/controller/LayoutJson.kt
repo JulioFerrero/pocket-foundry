@@ -29,7 +29,8 @@ internal object LayoutJson {
         val added = controls.filter { !it.defaultShown && it.shown }.map { it.id }
         if (added.isNotEmpty()) json.put("added", JSONArray(added))
         changes(controls, { it.latch }, { it.defaultLatch })?.let { json.put("latch", it) }
-        changes(controls, { it.inDrawer }, { it.defaultInDrawer })?.let { json.put("drawer", it) }
+        // The drawer a key is in, by its id; out of the one it was in: an empty id.
+        changes(controls.filter { it.drawer != it.defaultDrawer }) { it.drawer.orEmpty() }?.let { json.put("drawer", it) }
         val catalog = controls.filter { !it.own }
         changes(catalog.filter { !it.codes.contentEquals(it.defaultCodes) }) { JSONArray(it.codes.toList()) }
             ?.let { json.put("codes", it) }
@@ -72,7 +73,7 @@ internal object LayoutJson {
                     else -> c.defaultShown
                 }
                 c.latch = latch.optBoolean(c.id, c.defaultLatch)
-                c.inDrawer = drawer.optBoolean(c.id, c.defaultInDrawer)
+                c.drawer = if (drawer.has(c.id)) drawer.getString(c.id).ifEmpty { null } else c.defaultDrawer
                 sent[c]?.let { c.codes = it }
                 if (units.has(c.id)) c.units = units.getDouble(c.id).toFloat()
                 if (shows.has(c.id)) c.shows = shows.getString(c.id).ifEmpty { null }
