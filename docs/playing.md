@@ -43,6 +43,8 @@ home button, opens the pause menu; the game freezes while it's off screen.
 **Settings -> Controls -> Mouse & keys** plays Factorio as on a computer, with its PC menus and keys. The next game
 starts that way; a controller connected at the start still gets the gamepad.
 
+![Mouse & keys: the stick, Ctrl and Shift on the left, E, F, Q and R and the trackpad on the right](../fastlane/metadata/android/en-US/images/phoneScreenshots/8-mouse-keys.jpg)
+
 Your finger is the mouse:
 
 | On the game | What it does |
