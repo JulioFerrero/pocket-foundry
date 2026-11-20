@@ -723,77 +723,178 @@ def small(name, kind):
 
 # ---------------------------------------------------------------- keycaps: an IBM keyboard's, any width in units
 
-UNIT = 0.0571        # 1u: a letter's key, as wide as it is deep: 180 px, 48 dp on a 1440 px tall phone (Keys.KEY)
-_K = UNIT / 0.0400   # the cap was drawn at 1u = 0.04 m: its parts keep their share of it
-KC_GAP = 0.0018 * _K      # between a cap and its foot's edge
-KC_CORNER = 0.0045 * _K   # the cap's footprint's corners
-KC_DRAFT = 0.0074 * _K    # how far its walls lean in, each side: the top is much smaller than the foot
-KC_HEIGHT = 0.0120 * _K   # tall, as an IBM key is
-KC_DISH = 0.0028 * _K     # the top's scoop: a cylinder across it, deepest along its middle
-KC_TRAVEL = 0.0035 * _K   # a keyboard key's press: short, so its walls still show
-KC_EDGE = 0.0010 * _K     # the top's rounded edge
+UNIT = 0.0571            # 1u: a letter's key, as wide as it is deep: 180 px, 48 dp on a 1440 px tall phone (Keys.KEY)
+KC_GAP = 0.0026          # between a cap's foot and its cell's edge
+KC_SAG = 0.0013          # the foot sits this much below the top's middle: the wall towards you is the widest, as on a desk
+KC_FOOT_R = 0.0028       # the foot's corners: nearly square
+KC_TOP_R = 0.0052        # the top's corners: rounder, so each corner of the cap is a cone that opens upwards
+KC_FACE = 0.0148         # half the top face's depth, inside its rounded edge: what the legend is fitted to
+KC_EDGE = 0.0013         # the top's rounded edge
+KC_HEIGHT = 0.0125       # from the plate up to the scoop's lowest point
+KC_SUNK = 0.0012         # what of the foot is under the plate at rest, so a cap that springs back shows no gap
+KC_DISH = 0.0030         # the top's scoop, a bowl: its rim is this far above its middle, more at the corners
+KC_FLARE = 0.45          # how much the walls bell out towards the foot (0: straight)
+KC_TRAVEL = 0.0050       # a key's press: the plate takes the lower third of its walls
+KEY_PLASTIC = {'pearl': '#CEC8B6', 'slate': '#2D2C2A', 'held': '#E9982F'}   # IBM's pearl, a dark pebble, and a held key
 
 
-def keycap_outline(units, tall=1.0):
-    return outline(rbox(0, 0, units * UNIT / 2 - KC_GAP, tall * UNIT / 2 - KC_GAP, KC_CORNER), reach=units * UNIT)
-
-
-def keycap_body(units, tall, tone, glow, count=1024):
+def keycap_paint(tone, glow):
     """
-    A sculpted keycap, its top's lowest point at height nought: walls that lean in from its foot to a smaller top,
-    a rounded edge, and a top scooped as a cylinder across it, so its left and right edges dip with the scoop.
+    A keycap's plastic, coloured through (nothing rubs off to another colour): a fine grain, satin; its top's edge and
+    the middle of its scoop are polished by fingers, and its walls darken towards the foot. No smudges or scratches:
+    every key of a width is the same picture, and a mark that repeats gives that away. [glow] 0 to 1 turns it into
+    the held key's orange, lit from within: the light stays in the cap.
     """
-    foot = keycap_outline(units, tall)
-    half_h = tall * UNIT / 2 - KC_GAP - KC_DRAFT          # the top's half depth, across which the scoop runs
-    lift = KC_DISH                                        # the top's edges, front and back, are this high
+    material = bpy.data.materials.new(f'keycap {tone}')
+    material.use_nodes = True
+    nodes, links = material.node_tree.nodes, material.node_tree.links
+    bsdf = nodes['Principled BSDF']
+    colour = lerp(linear(KEY_PLASTIC[tone]), linear(KEY_PLASTIC['held']), glow)
 
-    def dish(x, y):
-        f = min(abs(y) / half_h, 1.0)
-        return lift - KC_DISH * (1 - f * f)
+    def attribute(name):
+        n = nodes.new('ShaderNodeAttribute')
+        n.attribute_name = name
+        return n.outputs[2]
 
-    # (inset, height of a point, wear): walls, the rounded edge, then the top in rings towards its middle
-    rings = [(0.0, lambda x, y: -KC_HEIGHT, 0.1), (KC_DRAFT * 0.5, lambda x, y: -KC_HEIGHT * 0.5 + dish(x, y) * 0.5 - KC_EDGE * 0.5, 0.3)]
-    for k in range(0, 7):
-        t = k / 6 * math.pi / 2
-        inset = KC_DRAFT + KC_EDGE * (1 - math.cos(t))
-        rings.append((inset, (lambda e: lambda x, y: dish(x, y) - KC_EDGE + e)(KC_EDGE * math.sin(t)), 1.0 if k < 6 else 0.4))
-    reach_in = min(units * UNIT, tall * UNIT) / 2 - KC_GAP - KC_DRAFT - KC_EDGE
-    for f in (0.12, 0.3, 0.5, 0.7, 0.88, 0.97):
-        rings.append((KC_DRAFT + KC_EDGE + reach_in * f, dish, 0.1))
+    def ramp(value, low, high, to_low, to_high):
+        n = nodes.new('ShaderNodeMapRange')
+        n.interpolation_type = 'SMOOTHSTEP'
+        links.new(value, n.inputs[0])
+        for i, v in enumerate((low, high, to_low, to_high)):
+            n.inputs[i + 1].default_value = v
+        return n.outputs[0]
+
+    shade = nodes.new('ShaderNodeMix')
+    shade.data_type = 'RGBA'
+    links.new(ramp(attribute('rise'), 0.0, 0.75, 0.0, 1.0), shade.inputs[0])
+    shade.inputs[6].default_value = (*(c * KC_GRIME for c in colour), 1)
+    shade.inputs[7].default_value = (*colour, 1)
+    links.new(shade.outputs[2], bsdf.inputs['Base Color'])
+    links.new(ramp(attribute('wear'), 0.0, 1.0, KC_ROUGH, KC_ROUGH - KC_POLISH), bsdf.inputs['Roughness'])
+    bsdf.inputs['Specular IOR Level'].default_value = 0.5
+    if glow > 0:
+        bsdf.inputs['Emission Color'].default_value = (*linear(KEY_PLASTIC['held']), 1)
+        bsdf.inputs['Emission Strength'].default_value = KC_LIT * glow
+    grain = nodes.new('ShaderNodeTexNoise')
+    links.new(nodes.new('ShaderNodeTexCoord').outputs['Object'], grain.inputs['Vector'])
+    grain.inputs['Scale'].default_value = 1500        # two thirds of a millimetre: two pixels on the phone
+    grain.inputs['Detail'].default_value = 2
+    bump = nodes.new('ShaderNodeBump')
+    bump.inputs['Strength'].default_value = KC_GRAIN
+    bump.inputs['Distance'].default_value = 0.00004
+    links.new(grain.outputs[0], bump.inputs['Height'])
+    links.new(bump.outputs[0], bsdf.inputs['Normal'])
+    return material
+
+
+KC_GRIME = 0.74          # the walls' colour at the foot, as a share of the cap's
+KC_ROUGH = 0.50          # satin
+KC_POLISH = 0.18         # and what fingers have taken off that
+KC_GRAIN = 0.80
+KC_LIT = 0.22            # a held key's own light
+
+
+def _round_rect(half_w, half_h, r, cy, nx, ny, corner):
+    """A rounded rectangle's points, anticlockwise from its right side: the same count whatever its size."""
+    r = max(min(r, half_w, half_h), 0.00002)
+    x, y = half_w - r, half_h - r
+
+    def arc(ax, ay, start):
+        return [(ax + r * math.cos(start + k / corner * math.pi / 2), ay + r * math.sin(start + k / corner * math.pi / 2))
+                for k in range(corner + 1)]
+
+    def side(a, b, n):
+        return [(a[0] + (b[0] - a[0]) * k / (n + 1), a[1] + (b[1] - a[1]) * k / (n + 1)) for k in range(1, n + 1)]
+
+    tr, tl, bl, br = arc(x, cy + y, 0), arc(-x, cy + y, math.pi / 2), arc(-x, cy - y, math.pi), arc(x, cy - y, math.pi * 1.5)
+    return side(br[-1], tr[0], ny) + tr + side(tr[-1], tl[0], nx) + tl + side(tl[-1], bl[0], ny) + bl + side(bl[-1], br[0], nx) + br
+
+
+def _keycap_mesh(rings, middle, height, span, material):
+    """
+    The solid through [rings] of (points, heights, wear, rise), bottom up, closed over its spine at [middle] and
+    [height] above the ground, drawn as an eye [LENS] above it sees it (as pose does). A wide key's eye runs along
+    it, [span] each way: every width's ends are a 1u key's and what is between them is straight, so a space bar's
+    top does not overhang its foot.
+    """
     mesh = bpy.data.meshes.new('keycap')
     bm = bmesh.new()
-    worn = bm.verts.layers.float.new('wear')
-    made = []
-    for inset, height, wear in rings:
-        row = []
-        for i in range(count):
-            a = i / count * math.tau
-            r = foot(a, inset)
-            x, y = math.cos(a) * r, math.sin(a) * r
-            v = bm.verts.new((x, y, height(x, y)))
-            v[worn] = wear
-            row.append(v)
-        made.append(row)
+    worn, risen = bm.verts.layers.float.new('wear'), bm.verts.layers.float.new('rise')
+
+    def vertex(x, y, z, wear, rise):
+        s = (LENS - TOP) / (LENS - (height + z))
+        eye = min(max(x, -span), span)
+        v = bm.verts.new((eye + (x - eye) * s, y * s, height + z))
+        v[worn], v[risen] = wear, rise
+        return v
+
+    made = [[vertex(x, y, z, wear, rise) for (x, y), z in zip(points, heights)] for points, heights, wear, rise in rings]
+    count = len(made[0])
     for lower, upper in zip(made, made[1:]):
         for i in range(count):
             bm.faces.new((lower[i], lower[(i + 1) % count], upper[(i + 1) % count], upper[i]))
-    middle = bm.verts.new((0, 0, dish(0, 0)))
+    # the top closes on its spine: a point for a 1u key, a line along a wide one
+    spine = [vertex(min(max(x, -span), span), 0, middle, rings[-1][2], 1.0) for x, y in rings[-1][0]]
     for i in range(count):
-        bm.faces.new((made[-1][i], made[-1][(i + 1) % count], middle))
+        j = (i + 1) % count
+        if (spine[i].co - spine[j].co).length > 1e-9:
+            bm.faces.new((made[-1][i], made[-1][j], spine[j], spine[i]))
+        else:
+            bm.faces.new((made[-1][i], made[-1][j], spine[i]))
+    bmesh.ops.remove_doubles(bm, verts=spine, dist=1e-9)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     bm.to_mesh(mesh)
     bm.free()
-    factory._place(bpy.data.objects.new('keycap', mesh), cap_paint(tone, glow, 0.02), (0, 0, 0), sharp=35)
+    return factory._place(bpy.data.objects.new('keycap', mesh), material, (0, 0, 0), sharp=35)
 
 
-def keycap(units, tall=1.0, tone='pearl'):
-    """A keycap that presses as the other caps do, lit orange once it's down."""
+def keycap_body(units, tone, glow, height, scale=1.0, scoop=KC_DISH):
+    """
+    A sculpted keycap, the lowest point of its top [height] above the ground: a nearly square foot, walls that lean in
+    and bell out a little towards it, a rounded edge, and a top scooped as a bowl. The top is in the middle of the key
+    and the foot a little below it, so the wall nearest the player is the widest. [scale] makes a smaller key of the
+    same shape (the toolbar's), [scoop] a shallower top.
+    """
+    unit, gap, sag, foot_r, top_r, face, edge, deep = (v * scale for v in (UNIT, KC_GAP, KC_SAG, KC_FOOT_R, KC_TOP_R, KC_FACE, KC_EDGE,
+                                                                          KC_HEIGHT + KC_SUNK))
+    span = (units - 1) * unit / 2                         # the eye's run, and half of what a wide key adds
+    nx, ny, corner = 20 + int(28 * (units - 1)), 20, 12
+    foot = (units * unit / 2 - gap, unit / 2 - gap, foot_r, -sag)
+    shoulder = (span + face + edge, face + edge, top_r, 0.0)   # where the walls meet the rounded edge
+
+    def dish(x, y):
+        fx, fy = min(max(abs(x) - span, 0.0) / face, 1.0), min(abs(y) / face, 1.0)
+        return scoop * (fx * fx + fy * fy)
+
+    def ring(half_w, half_h, r, cy):
+        return _round_rect(half_w, half_h, r, cy, nx, ny, corner)
+
+    rim = [dish(x, y) for x, y in ring(span + face, face, top_r - edge, 0.0)]
+    rings = []    # (points, heights, wear, rise): the walls, the rounded edge, then the top towards its middle
+    for t in (0.0, 0.08, 0.18, 0.3, 0.42, 0.55, 0.68, 0.8, 0.9, 1.0):
+        g = t + (1 - (1 - t) ** 2 - t) * KC_FLARE
+        # the rim's ups and downs reach only the top of the walls: lower, a level cut through them is straight
+        rings.append((ring(*(a + (b - a) * g for a, b in zip(foot, shoulder))),
+                      [-deep + (scoop - edge + deep) * t + (z - scoop) * t ** 3 for z in rim], 0.0, t))
+    for k in range(1, 7):
+        a = k / 6 * math.pi / 2
+        inset = edge * (1 - math.cos(a))
+        rings.append((ring(shoulder[0] - inset, shoulder[1] - inset, top_r - inset, 0.0),
+                      [z - edge + edge * math.sin(a) for z in rim], 1.0 if k < 6 else 0.6, 1.0))
+    for f in (0.05, 0.12, 0.21, 0.32, 0.44, 0.56, 0.68, 0.8, 0.9, 0.96):
+        points = ring(span + face * (1 - f), face * (1 - f), (top_r - edge) * (1 - f), 0.0)
+        polish = min(max((f - 0.25) / 0.6, 0.0), 1.0)
+        rings.append((points, [dish(x, y) for x, y in points], 0.55 * polish * polish * (3 - 2 * polish), 1.0))
+    return _keycap_mesh(rings, 0.0, height, span, keycap_paint(tone, glow))
+
+
+def keycap(units, tone='pearl'):
+    """
+    A keycap that goes down as the other caps do and, once down, turns orange. Nothing lights up round it: a held key
+    is an orange one, lower, with less wall showing and a shorter shadow.
+    """
     def build(p, glow):
-        with pose(0, 0, TOP + (PROUD + 0.0030) * _K - KC_TRAVEL * p):
-            keycap_body(units, tall, tone, glow)
-        if glow > 0.01:
-            foot = keycap_outline(units, tall)
-            halo(foot, hole_of(foot), 0, 0, glow, count=1024)
+        keycap_body(units, tone, glow, TOP + KC_HEIGHT - KC_TRAVEL * p)
     return build
 
 
@@ -809,7 +910,114 @@ def keycap_scene(units, tone):
     size = (units * UNIT, UNIT)
     name = f'kc-{tone}-{units:g}'
     return dict(name=name, set='keycaps', size=size, base=(f'kc-{units:g}-plate', lambda: None), private=True, flat=TOP,
-                caps=[(name, keycap(units, 1.0, tone), (0, 0), size)])
+                caps=[(name, keycap(units, tone), (0, 0), size)])
+
+
+# ---------------------------------------------------------------- Mouse & keys' stick and pad: the keys' family
+
+KC_GLASS = 0.0022        # how thick a sheet of smoked glass is: the stick's field, the pad
+KC_GLASS_TONES = ('#34322F', '#100F0E')   # its colour at the top of a sheet and at the bottom, 12 cm lower
+KC_GLASS_ALPHA = (0.38, 0.54)             # and how much of the game it hides there
+KC_GLASS_DENSE = (0.65, 0.74)             # or, a sheet that lies over other things
+KC_KNOB = (0.0240, 0.0188, 0.0090, 0.0034)   # the stick's cap: its foot's and its top's radius, its height, its scoop
+
+
+def keycap_glass(dense=False):
+    """
+    Smoked glass, see-through: what in Mouse & keys is a surface and not a key. Lighter and clearer towards the top
+    of the screen, as a sheet that mirrors a bright sky is; its rounded edge catches the light. [dense] for a sheet
+    that lies over other things (the toolbar): it lets little through.
+    """
+    material = bpy.data.materials.new('keys glass')
+    material.use_nodes = True
+    nodes, links = material.node_tree.nodes, material.node_tree.links
+    bsdf = nodes['Principled BSDF']
+    split = nodes.new('ShaderNodeSeparateXYZ')
+    links.new(nodes.new('ShaderNodeTexCoord').outputs['Object'], split.inputs[0])
+    down = nodes.new('ShaderNodeMapRange')
+    links.new(split.outputs['Y'], down.inputs[0])
+    for i, v in enumerate((0.06, -0.06, 0.0, 1.0)):
+        down.inputs[i + 1].default_value = v
+    shade = nodes.new('ShaderNodeMix')
+    shade.data_type = 'RGBA'
+    links.new(down.outputs[0], shade.inputs[0])
+    shade.inputs[6].default_value = (*linear(KC_GLASS_TONES[0]), 1)
+    shade.inputs[7].default_value = (*linear(KC_GLASS_TONES[1]), 1)
+    links.new(shade.outputs[2], bsdf.inputs['Base Color'])
+    clear_ = nodes.new('ShaderNodeMapRange')
+    links.new(down.outputs[0], clear_.inputs[0])
+    for i, v in enumerate((0.0, 1.0, *(KC_GLASS_DENSE if dense else KC_GLASS_ALPHA))):
+        clear_.inputs[i + 1].default_value = v
+    links.new(clear_.outputs[0], bsdf.inputs['Alpha'])
+    bsdf.inputs['Roughness'].default_value = 0.28
+    bsdf.inputs['Specular IOR Level'].default_value = 0.8
+    return material
+
+
+def glass_sheet(outline_, count=512, dense=False):
+    """A sheet of smoked glass lying on the ground, [outline_] its edge. No frame: the game shows through and round it."""
+    edge = 0.0016
+    return sweep([(outline_, 0, 0), (outline_, 0, KC_GLASS - edge)] + rounded(outline_, KC_GLASS, edge), (0, 0, 0), keycap_glass(dense), count,
+                 bottom=False)
+
+
+def key_stick_base():
+    """Mouse & keys' stick's field: a round sheet of smoked glass, and nothing on it."""
+    glass_sheet(round_(0.0580))
+
+
+def key_stick_knob(p, glow):
+    """Mouse & keys' stick: a round pearl keycap, scooped, with no letter (it is W, A, S and D)."""
+    foot, top, tall, scoop = KC_KNOB
+    turns = [i / 256 * math.tau for i in range(256)]
+
+    def ring(radius):
+        return [(math.cos(a) * radius, math.sin(a) * radius) for a in turns]
+
+    rings = []
+    for t in (0.0, 0.1, 0.22, 0.36, 0.5, 0.64, 0.78, 0.9, 1.0):
+        g = t + (1 - (1 - t) ** 2 - t) * KC_FLARE
+        rings.append((ring(foot + (top + KC_EDGE - foot) * g), [-tall + (scoop - KC_EDGE + tall) * t] * 256, 0.0, t))
+    for k in range(1, 7):
+        a = k / 6 * math.pi / 2
+        rings.append((ring(top + KC_EDGE * math.cos(a)), [scoop - KC_EDGE + KC_EDGE * math.sin(a)] * 256, 1.0 if k < 6 else 0.6, 1.0))
+    for f in (0.05, 0.12, 0.21, 0.32, 0.44, 0.56, 0.68, 0.8, 0.9, 0.96):
+        polish = min(max((f - 0.25) / 0.6, 0.0), 1.0)
+        rings.append((ring(top * (1 - f)), [scoop * (1 - f) ** 2] * 256, 0.55 * polish * polish * (3 - 2 * polish), 1.0))
+    _keycap_mesh(rings, 0.0, 0.0125 - 0.0045 * p, 0.0, keycap_paint('pearl', glow))
+
+
+def key_trackpad():
+    """Mouse & keys' pad: a sheet of smoked glass, a small pale cross in its middle."""
+    glass_sheet(outline(rbox(0, 0, PAD[0] / 2 - 0.0010, PAD[1] / 2 - 0.0010, 0.0060)), count=2048)
+    mark = bpy.data.materials.new('keys mark')
+    mark.use_nodes = True
+    mark.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (*linear('#EDEBE6'), 1)
+    mark.node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = 0.55
+    for bw, bh in ((0.0150, 0.0011), (0.0011, 0.0150)):
+        box((bw, bh, 0.0001), (0, 0, KC_GLASS + 0.0001), mark, bevel=0)
+
+
+# The editor's toolbar, shared with the gamepad's editor, in the keys' family: small slate keycaps on a strip of smoked
+# glass. False brings back the painted panel with a hole for each key.
+TOOLBAR_GLASS = True
+TOOL_SCALE = 0.62        # a toolbar key is a keycap this much smaller, in a cell of 122 px
+
+
+def key_toolbar_panel(keys):
+    """A strip of smoked glass under [keys] toolbar keys: the same from cell to cell, so a slice of it repeats."""
+    glass_sheet(outline(rbox(0, 0, keys * CELL / 2 + END, CELL / 2, 0.0040), reach=0.5), count=2048, dense=True)
+
+
+def key_tool_cap(kind):
+    """A small slate keycap, nearly flat on top, with a pale sign; the sign is dark once the key is orange."""
+    def build(p, glow):
+        height = KC_GLASS + (KC_HEIGHT - KC_TRAVEL * p) * TOOL_SCALE
+        keycap_body(1, 'slate', glow, height, TOOL_SCALE, scoop=0.0003)
+        sign = plastic('sign', lerp(linear('#EDEBE6'), linear('#2A2926'), glow), rough=0.38, grain=0)
+        with pose(0, 0, height):
+            tool_sign(kind, 0.0003, sign, None)
+    return build
 
 
 # ---------------------------------------------------------------- the toolbar: a row of square keys in one panel
@@ -949,10 +1157,11 @@ SCENES = [
     # the right stick's knob, for when the pad is off: the same over the same base
     dict(name='stick-r', size=(0.128, 0.128), base=('stick-base', stick_base), flat=WELL,
          caps=[('stick-knob-r', lambda p, glow: stick_knob(p, glow, 'R'), (0, 0), (0.128, 0.128), (0, 0, 0.0524, 0.0524))]),
-    # Mouse & keys' stick, for W, A, S and D: the same knob with no letter
-    dict(name='stick-k', size=(0.128, 0.128), base=('stick-base', stick_base), flat=WELL,
-         caps=[('stick-knob-k', lambda p, glow: stick_knob(p, glow, None), (0, 0), (0.128, 0.128), (0, 0, 0.0524, 0.0524))]),
+    # Mouse & keys' stick, for W, A, S and D, and its pad: the keys' pearl plastic, on smoked glass
+    dict(name='stick-k', size=(0.128, 0.128), base=('stick-base-k', key_stick_base), flat=KC_GLASS,
+         caps=[('stick-knob-k', key_stick_knob, (0, 0), (0.128, 0.128), (0, 0, 0.0524, 0.0524))]),
     dict(name='trackpad', size=PAD, base=('trackpad', trackpad), caps=[]),
+    dict(name='trackpad-k', size=PAD, base=('trackpad-k', key_trackpad), caps=[]),
 ] + [dict(name=n, size=(FACE, FACE), base=('face-base', face_base), caps=[(n, face_cap(n), (0, 0), (FACE, FACE))]) for n in 'abxy'] + [
     dict(name='dpad', size=(DPAD, DPAD), base=('dpad-base', dpad_base),
          caps=[(f'dpad-{way}', dpad_cross(way), (0, 0), (DPAD, DPAD)) for way in WAYS]),
@@ -961,8 +1170,9 @@ SCENES = [
 ] + [keycap_scene(units, tone) for tone in KEY_TONES for units in KEY_WIDTHS] + [
     # the toolbar's keys: each over a one-key panel that only catches its shadow (the panel's own sprites are the
     # three pieces run_toolbar cuts)
-    dict(name=f'tool-{kind}', set='tools', size=(CELL, CELL), base=('toolbar', lambda: toolbar_panel(1)), private=True,
-         caps=[(f'tool-{kind}', tool_cap(kind), (0, 0), (CELL, CELL))]) for kind in TOOLS
+    dict(name=f'tool-{kind}', set='tools', size=(CELL, CELL), private=True,
+         base=('toolbar', lambda: (key_toolbar_panel if TOOLBAR_GLASS else toolbar_panel)(1)), flat=KC_GLASS if TOOLBAR_GLASS else None,
+         caps=[(f'tool-{kind}', (key_tool_cap if TOOLBAR_GLASS else tool_cap)(kind), (0, 0), (CELL, CELL))]) for kind in TOOLS
 ]
 
 # A press, frame by frame at 60 fps: (how far down, how lit). The thumb drives the cap down in four frames and it
@@ -1099,7 +1309,7 @@ def run_toolbar(places):
     RND.seed(seed)
     base = group('toolbar')
     with inside(base):
-        toolbar_panel(3)
+        (key_toolbar_panel if TOOLBAR_GLASS else toolbar_panel)(3)
     near, far, cut, cell, end = 26, 84, 24, 122, 5
     width, height = near + end + 3 * cell + end + far, near + cell + far
     camera_data.ortho_scale = max(width, height) / PPM

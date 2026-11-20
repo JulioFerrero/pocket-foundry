@@ -237,14 +237,14 @@ class ControllerView(context: Context, private val input: Input, private val cou
             if (faded) canvas.restoreToCount(layer)
         }
         if (controlsShown && painter.drawDrawer(canvas, sheet, editor.selected, now)) moving = true
-        if (editor.active) editor.drawSets(canvas, sheet)
+        if (editor.active) editor.drawSets(canvas)
         if (editor.counterSelected) {
             counter.bounds(counterBox)
             if (!counterBox.isEmpty) painter.drawSelection(canvas, counterBox)
         }
         if (tools.isNotEmpty() && toolbar.draw(canvas, sheet, tools, editor.adding, now)) moving = true
         if (moving) postInvalidateOnAnimation()
-        if (editor.adding) editor.drawAddList(canvas, sheet)
+        if (editor.adding) editor.drawAddList(canvas, sheet, now)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) = layout.resize(w, h)

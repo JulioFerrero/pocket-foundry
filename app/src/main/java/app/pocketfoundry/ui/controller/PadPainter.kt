@@ -34,6 +34,20 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         textAlign = Paint.Align.CENTER
         typeface = Factorio.font(context, 700)
     }
+    /** What an add list's key does, beside it. */
+    private val note = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.LEFT
+        typeface = Factorio.font(context, 600)
+        color = NOTE
+    }
+    private val glassFill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val glassRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val glassShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt() }
+    private val glassPath = Path()
+    // A sheet's shaders, for its height: the drawer's, the add list's and the chips' each stay the same while open.
+    private var glassFor = -1f
+    private var glassFillShader: LinearGradient? = null
+    private var glassRimShader: LinearGradient? = null
     private val sprite = Paint(Paint.FILTER_BITMAP_FLAG)
     private val path = Path()
     private val point = PointF()
@@ -46,6 +60,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private val bevelIdle = LinearGradient(0f, 0f, 0f, 1f, BEVEL_IDLE, BEVEL_STOPS, Shader.TileMode.CLAMP)
     private val bevelPressed = LinearGradient(0f, 0f, 0f, 1f, BEVEL_PRESSED, BEVEL_STOPS, Shader.TileMode.CLAMP)
     private val wellShade = LinearGradient(0f, 0f, 0f, 1f, WELL_SHADE, WELL_STOPS, Shader.TileMode.CLAMP)
+    private val chipShade = LinearGradient(0f, 0f, 0f, 1f, CHIP_TOP, CHIP_BOTTOM, Shader.TileMode.CLAMP)
 
     /** The right stick is a trackpad box (Settings.touch BOX). */
     var box = false
@@ -61,7 +76,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     fun drawDrawer(canvas: Canvas, sheet: GuiSheet?, selected: Control?, now: Long): Boolean {
         if (layout.openDrawer == null) return false
         val r = layout.drawerKeyRadius()
-        if (!layout.keypad) panel(canvas, sheet, layout.drawerPanel, r * 0.5f)
+        if (!layout.keypad) glass(canvas, layout.drawerPanel)
         val keys = layout.drawerKeys
         var moving = false
         for (i in keys.indices) {
@@ -73,18 +88,104 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         return moving
     }
 
-    /** What a key in a drawer does, under it, when that says more than the key (PadLayout.captioned). */
+    /** What a key in a drawer does, under it, when that says more than the key (PadLayout.captioned): lifted off the glass. */
     private fun caption(canvas: Canvas, c: Control, x: Float, y: Float, size: Float) {
-        if (layout.captioned(c)) letter(canvas, c.name, x, y, size, LIGHT)
+        if (!layout.captioned(c)) return
+        text.setShadowLayer(px(2f), px(2f), px(3f), CAPTION_SHADOW)
+        letter(canvas, c.name, x, y, size, INK_ON_DARK)
+        text.clearShadowLayer()
+    }
+
+    /**
+     * Mouse & keys' surfaces (a drawer, the add list, the set chips): a sheet of smoked glass on [box], lit along its
+     * top edge, its shadow on the game below it. The keys are what's solid.
+     */
+    fun glass(canvas: Canvas, box: RectF, radius: Float = context.dp(GLASS_RADIUS_DP)) {
+        glassPath.reset()
+        glassPath.addRoundRect(box, radius, radius, Path.Direction.CW)
+        // The shadow only round the sheet: under it, it would darken the glass.
+        canvas.save()
+        canvas.clipOutPath(glassPath)
+        glassShadow.setShadowLayer(context.dp(7.5f), context.dp(2f), context.dp(3.75f), GLASS_SHADOW)
+        canvas.drawPath(glassPath, glassShadow)
+        canvas.restore()
+        if (glassFor != box.height()) {
+            glassFor = box.height()
+            val h = box.height()
+            val lit = (1.6f * radius / h).coerceAtMost(0.5f)
+            glassFillShader = LinearGradient(0f, 0f, 0f, h, GLASS_TOP, GLASS_BOTTOM, Shader.TileMode.CLAMP)
+            glassRimShader = LinearGradient(0f, 0f, 0f, h, intArrayOf(RIM_LIT, 0, 0, RIM_SHADE),
+                                            floatArrayOf(0f, lit, 1f - lit, 1f), Shader.TileMode.CLAMP)
+        }
+        canvas.save()
+        canvas.translate(box.left, box.top)
+        rect.set(0f, 0f, box.width(), box.height())
+        glassFill.shader = glassFillShader
+        canvas.drawRoundRect(rect, radius, radius, glassFill)
+        val rim = context.dp(0.8f)
+        rect.inset(rim / 2, rim / 2)
+        glassRim.strokeWidth = rim
+        glassRim.shader = glassRimShader
+        canvas.drawRoundRect(rect, radius - rim / 2, radius - rim / 2, glassRim)
+        canvas.restore()
+    }
+
+    /**
+     * [c] in the add list: its cap [r] high and [units] wide ([c]'s own, at most 2), its legend on it; a stick or a
+     * trackpad, a dark cap with its sign. Null till the sprites load.
+     */
+    fun offer(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, units: Float, now: Long): Boolean? {
+        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer) {
+            if (sprites.sprites == null) return null
+            return drawAt(canvas, null, c, x, y, r, false, now, units)
+        }
+        if (!sprites.plainCap(canvas, light = false, units = 1f, x = x, y = y, size = 2 * r)) return null
+        c.keyIcon?.let { keyIcon(canvas, it, x, y, r * CAP_TOP * 1.2f, INK_ON_DARK) }
+        return false
+    }
+
+    /** A set's chip in the editor, [s] high, on the glass: the set shown lit orange, as a held key. */
+    fun chip(canvas: Canvas, box: RectF, on: Boolean, s: Float) {
+        val radius = s * 0.2f
+        if (!on) {
+            fill.color = CHIP
+            canvas.drawRoundRect(box, radius, radius, fill)
+            return
+        }
+        matrix.setScale(1f, box.height())
+        matrix.postTranslate(0f, box.top)
+        chipShade.setLocalMatrix(matrix)
+        // Opaque: a paint's alpha thins its shader too.
+        fill.color = 0xFF000000.toInt()
+        fill.shader = chipShade
+        canvas.drawRoundRect(box, radius, radius, fill)
+        fill.shader = null
+        // Light along its top edge.
+        canvas.save()
+        canvas.clipRect(box.left, box.top, box.right, box.top + px(2f))
+        fill.color = CHIP_LIT
+        canvas.drawRoundRect(box, radius, radius, fill)
+        canvas.restore()
+    }
+
+    /** What an add list's key does, from ([left], [y]): beside its cap. */
+    fun note(canvas: Canvas, words: String, left: Float, y: Float, size: Float) {
+        note.textSize = size
+        canvas.drawText(words, left, y - (note.descent() + note.ascent()) / 2, note)
+    }
+
+    fun noteWidth(words: String, size: Float): Float {
+        note.textSize = size
+        return note.measureText(words)
     }
 
     private fun drawAt(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float, selected: Boolean,
-                       now: Long, units: Float = c.units): Boolean {
-        val pressed = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind is Kind.Drawer && layout.openDrawer === c)
+                       now: Long, units: Float = c.units, held: Boolean = false): Boolean {
+        val pressed = held || c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind is Kind.Drawer && layout.openDrawer === c)
         if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer) {
             // The rendered keycap, its name written on its top, which is smaller than the key: its walls lean in. Or
             // the drawn one.
-            val moving = sprites.draw(canvas, c, x, y, r, box, now, units)
+            val moving = sprites.draw(canvas, c, x, y, r, box, now, units, held)
             val w: Float
             val h: Float
             if (moving != null) {
@@ -99,12 +200,12 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             }
             if (c.kind == Kind.Key && c.latch) led(canvas, x + w, y - h + if (pressed && moving != null) r * PRESS_DROP else 0f, h,
                                                    layout.isLatched(c))
-            if (selected) drawSelection(canvas, null, c, x, y, r)
+            if (selected) drawSelection(canvas, c, x, y, r)
             return moving == true
         }
         val moving = sprites.draw(canvas, c, x, y, r, box, now)
         if (moving != null) {
-            if (selected) drawSelection(canvas, null, c, x, y, r)
+            if (selected) drawSelection(canvas, c, x, y, r)
             return moving
         }
         when {
@@ -115,7 +216,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             sheet != null -> drawSpriteButton(canvas, sheet, c, x, y, r, pressed)
             else -> drawPlainButton(canvas, c, x, y, r, pressed)
         }
-        if (selected) drawSelection(canvas, sheet, c, x, y, r)
+        if (selected) drawSelection(canvas, c, x, y, r)
         return false
     }
 
@@ -150,9 +251,12 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         return text.measureText(label)
     }
 
-    /** [c] drawn as it is on screen, at ([x], [y]), [r] its radius: the editor's window shows the key it edits. */
-    fun preview(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, now: Long) =
-        drawAt(canvas, null, c, x, y, r, false, now)
+    /**
+     * [c] drawn as it is on screen, at ([x], [y]), [r] its radius, [units] wide, [held] or not: the editor's windows show
+     * the key they edit, and the picker its keyboard.
+     */
+    fun preview(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, now: Long, units: Float = c.units,
+                held: Boolean = false) = drawAt(canvas, null, c, x, y, r, false, now, units, held)
 
     /**
      * A key that stays held has a light, as Caps Lock has, at its top's corner ([right], [top]), its top [h] half high:
@@ -161,13 +265,20 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     private fun led(canvas: Canvas, right: Float, top: Float, h: Float, lit: Boolean) {
         val w = h * 0.5f
         val tall = h * 0.2f
-        rect.set(right - h * 0.22f - w, top + h * 0.22f, right - h * 0.22f, top + h * 0.22f + tall)
-        if (lit) {
-            fill.color = LED_GLOW
-            canvas.drawRoundRect(rect.left - tall, rect.top - tall, rect.right + tall, rect.bottom + tall, tall * 1.5f, tall * 1.5f, fill)
-        }
+        val inset = h * 0.26f
+        rect.set(right - inset - w, top + inset, right - inset, top + inset + tall)
         fill.color = if (lit) LED_ON else LED_OFF
         canvas.drawRoundRect(rect, tall / 2, tall / 2, fill)
+        if (lit) {
+            // Its window's rim.
+            stroke.color = LED_RIM
+            stroke.strokeWidth = px(2f)
+            canvas.drawRoundRect(rect, tall / 2, tall / 2, stroke)
+        } else {
+            // Light catching the hole's lower edge.
+            fill.color = LED_EDGE
+            canvas.drawRect(rect.left + tall / 2, rect.bottom, rect.right - tall / 2, rect.bottom + px(1f), fill)
+        }
     }
 
     /** A keyboard key in the drawn look: its cap the control's whole size, its name or sign on it (Keys). */
@@ -183,7 +294,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
      * key shows its sign; a key that only brings a set, the set's name.
      */
     private fun keyLabel(canvas: Canvas, c: Control, x: Float, y: Float, w: Float, h: Float, colour: Int, units: Float) {
-        val sign = c.keyIcon
+        val sign = c.keyIcon ?: if (c.kind == Kind.Key) KeyNames.sign(c.codes) else null
         if (sign != null) return keyIcon(canvas, sign, x, y, h * 1.2f, colour)
         val main = when {
             c.kind != Kind.Key -> c.label
@@ -307,30 +418,45 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         }
     }
 
-    /** The selection's outline around [box]: the FPS counter's, in the editor. */
+    /** The selection round [box]: the FPS counter's, in the editor. */
     fun drawSelection(canvas: Canvas, box: RectF) {
-        stroke.color = Tone.ORANGE.face
-        stroke.strokeWidth = layout.frame * 0.004f
         rect.set(box)
-        rect.inset(-2 * stroke.strokeWidth, -2 * stroke.strokeWidth)
-        canvas.drawRect(rect, stroke)
+        rect.inset(-layout.frame * 0.008f, -layout.frame * 0.008f)
+        brackets(canvas)
     }
 
-    private fun drawSelection(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float) {
-        stroke.color = Tone.ORANGE.face
-        stroke.strokeWidth = layout.frame * 0.004f
-        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer || c.kind == Kind.Trackpad) {
-            rect.set(x - (c.units + 0.15f) * r, y - 1.15f * r, x + (c.units + 0.15f) * r, y + 1.15f * r)
-            canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
-        } else if (c.pill) {
-            rect.set(x - 2.2f * r, y - 1.2f * r, x + 2.2f * r, y + 1.2f * r)
-            canvas.drawRoundRect(rect, 0.3f * r, 0.3f * r, stroke)
-        } else if (sheet != null) {
-            rect.set(x - 1.15f * r, y - 1.15f * r, x + 1.15f * r, y + 1.15f * r)
-            canvas.drawRect(rect, stroke)
-        } else {
-            canvas.drawCircle(x, y, r * 1.12f, stroke)
+    private fun drawSelection(canvas: Canvas, c: Control, x: Float, y: Float, r: Float) {
+        val more = px(20f)
+        when {
+            c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer || c.kind == Kind.Trackpad ->
+                rect.set(x - (c.units + 0.15f) * r, y - 1.15f * r, x + (c.units + 0.15f) * r, y + 1.15f * r)
+            c.pill -> rect.set(x - 2 * r - more, y - r - more, x + 2 * r + more, y + r + more)
+            else -> rect.set(x - r - more, y - r - more, x + r + more, y + r + more)
         }
+        brackets(canvas)
+    }
+
+    /** Four corners round [rect], as Factorio marks what the cursor is on: orange, on a dark line that keeps it seen. */
+    private fun brackets(canvas: Canvas) {
+        val leg = layout.frame * 0.03f
+        path.reset()
+        for ((cx, cy, dx, dy) in listOf(floatArrayOf(rect.left, rect.top, 1f, 1f), floatArrayOf(rect.right, rect.top, -1f, 1f),
+                                         floatArrayOf(rect.left, rect.bottom, 1f, -1f), floatArrayOf(rect.right, rect.bottom, -1f, -1f))) {
+            path.moveTo(cx + dx * leg, cy)
+            path.lineTo(cx, cy)
+            path.lineTo(cx, cy + dy * leg)
+        }
+        val width = layout.frame * 0.0055f
+        stroke.strokeCap = Paint.Cap.ROUND
+        stroke.strokeJoin = Paint.Join.ROUND
+        stroke.color = BRACKET_UNDER
+        stroke.strokeWidth = width + px(6f)
+        canvas.drawPath(path, stroke)
+        stroke.color = BRACKET
+        stroke.strokeWidth = width
+        canvas.drawPath(path, stroke)
+        stroke.strokeCap = Paint.Cap.BUTT
+        stroke.strokeJoin = Paint.Join.MITER
     }
 
     private fun drawGlyph(canvas: Canvas, sheet: GuiSheet, c: Control, pressed: Boolean, x: Float, y: Float, half: Float) {
@@ -380,6 +506,8 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     }
 
     private fun edge() = layout.frame * 0.003f
+    /** [n] pixels of a 1440 pixel tall screen, on this one. */
+    private fun px(n: Float) = n * layout.frame / 1440f
     private fun corner() = context.dp(GuiSheet.CORNER)
     private fun glyphColour(pressed: Boolean) = if (pressed) INK else GLYPH
 
@@ -416,21 +544,40 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     companion object {
         /**
          * A rendered keycap's top, in the key's radii: half its height, and what its walls take off each half width
-         * (controls.py: UNIT 0.04, KC_GAP + KC_DRAFT 0.0092, so 0.46 of a unit's half).
+         * (controls.py's keycap, measured on its render).
          */
-        private const val CAP_TOP = 0.54f
-        private const val CAP_WALLS = 0.46f
+        private const val CAP_TOP = 0.57f
+        private const val CAP_WALLS = 0.43f
         /** A key's legend, in its top's half heights: a letter, a word, a combination's modifiers. */
         private const val LETTER_SIZE = 1.25f
         private const val WORD_SIZE = 1.05f
         private const val MODIFIER_SIZE = 0.62f
         /** A pale cap's legend is dark, a dark cap's pale; on the lit orange of a held key, dark. */
-        private const val INK_ON_LIGHT = 0xFF2A2926.toInt()
-        private const val INK_ON_DARK = 0xFFEDEBE6.toInt()
-        /** A key's light: off, on, and the glow round it on. */
-        private const val LED_OFF = 0xFF34322F.toInt()
-        private const val LED_ON = 0xFFFFC75A.toInt()
-        private const val LED_GLOW = 0x66FFB13B
+        const val INK_ON_LIGHT = 0xFF2A2926.toInt()
+        const val INK_ON_DARK = 0xFFEDEBE6.toInt()
+        /** A set's chip: on the glass, a breath of white; the set shown, orange lit along its top. */
+        private const val CHIP = 0x10FFFFFF
+        private const val CHIP_TOP = 0xFFF3AA42.toInt()
+        private const val CHIP_BOTTOM = 0xFFE08C22.toInt()
+        private const val CHIP_LIT = 0xFFFFE2AA.toInt()
+        /** A key's light: off, with the edge of its hole; on, with its rim. */
+        private const val LED_OFF = 0xFF141312.toInt()
+        private const val LED_EDGE = 0x21FFFFFF
+        private const val LED_ON = 0xFFFFF4D6.toInt()
+        private const val LED_RIM = 0x967A440A.toInt()
+        /** The glass: its tint top and bottom, its rim lit at the top and shaded at the bottom, its shadow. */
+        private const val GLASS_RADIUS_DP = 9f
+        private const val GLASS_TOP = 0xE2363533.toInt()
+        private const val GLASS_BOTTOM = 0xEE2A2928.toInt()
+        private const val RIM_LIT = 0x45FFFFFF
+        private const val RIM_SHADE = 0x6E000000
+        private const val GLASS_SHADOW = 0x59000000
+        private const val CAPTION_SHADOW = 0x96000000.toInt()
+        /** What an add list's key does: pale, a little through. */
+        private const val NOTE = 0xD6EDEBE6.toInt()
+        /** The selection's orange, the held keys', and the dark it's drawn on. */
+        private const val BRACKET = 0xFFE9982F.toInt()
+        private const val BRACKET_UNDER = 0xAB14100A.toInt()
         /** A key's name takes at most this part of its face's width. */
         private const val LABEL_WIDTH = 0.82f
         /** How far a pressed cap's sign goes down with it, in radii. */

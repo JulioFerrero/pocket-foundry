@@ -236,35 +236,37 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
     private fun addable(): List<Control> {
         val missing = layout.allControls.filter { !it.shown }
         if (!layout.keysMode) return missing
-        val list = ArrayList<Control>()
-        list += Control(NEW_KEY, Kind.ToolKey(Tool.ADD), 0f, 0f, Keys.KEY, glyph = null, label = "", name = "New key",
-                        keyIcon = KeyIcon.PLUS)
-        list += missing
-        for (set in layout.setKeys) {
-            if (set != layout.set) {
-                list += Control(SHOWS + set, Kind.Key, 0f, 0f, Keys.KEY, glyph = null, name = layout.title(set),
-                                defaultShows = set)
+        return listOf(newKey) + missing + layout.setKeys.filter { it != layout.set }.map { set ->
+            setKeys.getOrPut(set) {
+                Control(SHOWS + set, Kind.Key, 0f, 0f, Keys.KEY, glyph = null, name = "", defaultShows = set,
+                        defaultUnits = SET_KEY_UNITS)
             }
         }
-        return list
     }
 
-    /** An add list button's words: a pad control's name; a key, then what it does when that says more (Ctrl+Z, Undo). */
-    private fun words(c: Control): Pair<String, String> {
-        if (!layout.keysMode) return c.name to ""
-        val key = layout.label(c).ifEmpty { c.name }
-        return key to c.name.takeIf { layout.captioned(c) && it != key }.orEmpty()
-    }
+    // Made once: the sprites follow a key's press by its object.
+    private val newKey = Control(NEW_KEY, Kind.ToolKey(Tool.ADD), 0f, 0f, Keys.KEY, glyph = null, label = "",
+                                 name = "New key", keyIcon = KeyIcon.PLUS)
+    private val setKeys = HashMap<String, Control>()
 
-    private fun wordsWidth(words: Pair<String, String>, h: Float): Float {
-        val (key, note) = words
-        return painter.textWidth(key, h * KEY_TEXT) + if (note.isEmpty()) 0f else h * 0.25f + painter.textWidth(note, h * NOTE_TEXT)
+    /** In Mouse & keys' list, a key's cap: its own width up to 2u; what isn't a key, one. */
+    private fun capUnits(c: Control) =
+        if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind is Kind.Drawer) c.units.coerceIn(1f, 2f) else 1f
+
+    /** Beside a key in Mouse & keys' list: what it does, when its cap doesn't say (Undo by Ctrl+Z; nothing by 5). */
+    private fun note(c: Control) = c.name.takeIf { layout.captioned(c) }.orEmpty()
+
+    /** A pad control's button, its name on it; a key's cap and what it does. [h]: a toolbar key's size. */
+    private fun itemWidth(c: Control, h: Float): Float {
+        if (!layout.keysMode) return maxOf(h * 1.1f, painter.textWidth(c.name, h * KEY_TEXT) + h * 0.7f)
+        val note = note(c)
+        return 2 * OFFER_CAP * h * capUnits(c) + if (note.isEmpty()) 0f else h * NOTE_GAP + painter.noteWidth(note, h * NOTE_TEXT)
     }
 
     private fun rowRects(controls: List<Control>): List<RectF> {
         val h = toolbar.size
-        val widths = controls.map { maxOf(h * 1.1f, wordsWidth(words(it), h) + h * 0.7f) }
-        val gap = h * 0.12f
+        val widths = controls.map { itemWidth(it, h) }
+        val gap = h * if (layout.keysMode) 0.26f else 0.12f
         val rows = ArrayList<MutableList<Int>>()
         var used = 0f
         widths.forEachIndexed { i, w ->
@@ -282,26 +284,31 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         return rects
     }
 
-    fun drawAddList(canvas: Canvas, sheet: GuiSheet?) {
+    fun drawAddList(canvas: Canvas, sheet: GuiSheet?, now: Long) {
         val controls = addable()
         val rects = rowRects(controls)
         if (rects.isEmpty()) return
         val s = toolbar.size
         bounds.set(rects.minOf { it.left }, rects.first().top, rects.maxOf { it.right }, rects.last().bottom)
+        if (layout.keysMode) {
+            // The keys as they'll be, on the glass.
+            bounds.inset(-s * 0.3f, -s * 0.18f)
+            painter.glass(canvas, bounds)
+            val r = OFFER_CAP * s
+            rects.forEachIndexed { i, box ->
+                val c = controls[i]
+                val units = capUnits(c)
+                painter.offer(canvas, c, box.left + r * units, box.centerY(), r, units, now)
+                val note = note(c)
+                if (note.isNotEmpty()) painter.note(canvas, note, box.left + 2 * r * units + s * NOTE_GAP, box.centerY(), s * NOTE_TEXT)
+            }
+            return
+        }
         painter.panel(canvas, sheet, bounds, s)
         val ink = if (sheet != null) PadPainter.LIGHT else PadPainter.GLYPH
         rects.forEachIndexed { i, box ->
             painter.toolKey(canvas, sheet, box, false, s)
-            val words = words(controls[i])
-            val (key, note) = words
-            val left = box.centerX() - wordsWidth(words, s) / 2f
-            val keyWidth = painter.textWidth(key, s * KEY_TEXT)
-            painter.letter(canvas, key, left + keyWidth / 2f, box.centerY(), s * KEY_TEXT, ink)
-            if (note.isNotEmpty()) {
-                val noteWidth = painter.textWidth(note, s * NOTE_TEXT)
-                painter.letter(canvas, note, left + keyWidth + s * 0.25f + noteWidth / 2f, box.centerY(), s * NOTE_TEXT,
-                               Factorio.MUTED)
-            }
+            painter.letter(canvas, controls[i].name, box.centerX(), box.centerY(), s * KEY_TEXT, ink)
         }
     }
 
@@ -309,18 +316,19 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
      * Mouse & keys' sets, as chips: the editor works on the one picked; the player's own, picked again, opens its name.
      * The last chip, +, makes a new set.
      */
-    fun drawSets(canvas: Canvas, sheet: GuiSheet?) {
+    fun drawSets(canvas: Canvas) {
         if (!layout.keysMode) return
         val sets = layout.setKeys
         placeChips(sets)
         val s = chipHeight()
         bounds.set(chips.first().left, chips.first().top, chips[sets.size].right, chips.first().bottom)
-        painter.panel(canvas, sheet, bounds, s)
+        bounds.inset(-s * 0.14f, -s * 0.14f)
+        painter.glass(canvas, bounds, s * 0.3f)
         for (i in 0..sets.size) {
             val on = i < sets.size && layout.set == sets[i]
-            painter.toolKey(canvas, sheet, chips[i], on, s)
+            painter.chip(canvas, chips[i], on, s)
             painter.letter(canvas, if (i < sets.size) layout.title(sets[i]) else NEW_SET, chips[i].centerX(), chips[i].centerY(),
-                           s * 0.42f, if (on) PadPainter.INK else PadPainter.LIGHT)
+                           s * 0.42f, if (on) PadPainter.INK_ON_LIGHT else PadPainter.INK_ON_DARK)
         }
     }
 
@@ -357,9 +365,12 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
 
     private companion object {
         const val SCALE_STEP = 0.1f
-        /** The add list's words, of a button's height: the key's, and what it does. */
+        /** The add list's words, of a button's height: a pad control's name, and what a key does beside its cap. */
         const val KEY_TEXT = 0.42f
         const val NOTE_TEXT = 0.34f
+        const val NOTE_GAP = 0.1f
+        /** An offered key's cap's half height, of a toolbar key's size. */
+        const val OFFER_CAP = 0.46f
         /** The add list's own entries: New key, and a key that brings a set ("shows:" and the set's key). */
         const val NEW_KEY = "new"
         const val SHOWS = "shows:"

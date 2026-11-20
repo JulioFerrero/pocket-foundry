@@ -36,7 +36,12 @@ enum class KeyIcon(val path: String, val stroke: Float = 2f) {
     /** The stick, in the editor's list: it's drawn as itself on screen. */
     STICK("M10 3a7 7 0 1 0 0 14a7 7 0 1 0 0-14M10 7a3 3 0 1 0 0 6a3 3 0 1 0 0-6"),
     /** The editor's New key. */
-    PLUS("M10 4v12M4 10h12", stroke = 2.4f);
+    PLUS("M10 4v12M4 10h12", stroke = 2.4f),
+    /** The arrow keys, as keyboards mark them. */
+    UP("M10 15.5v-11M5.5 9L10 4.5L14.5 9", stroke = 2.2f),
+    DOWN("M10 4.5v11M5.5 11L10 15.5L14.5 11", stroke = 2.2f),
+    LEFT("M15.5 10h-11M9 5.5L4.5 10L9 14.5", stroke = 2.2f),
+    RIGHT("M4.5 10h11M11 5.5L15.5 10L11 14.5", stroke = 2.2f);
 
     companion object {
         /** The box its path is drawn in. */
@@ -92,8 +97,9 @@ object KeyNames {
         listOf(KeyEvent.KEYCODE_SHIFT_LEFT to 2.25f) + "ZXCVBNM".keys() +
             listOf(KeyEvent.KEYCODE_COMMA to 1f, KeyEvent.KEYCODE_PERIOD to 1f, KeyEvent.KEYCODE_SLASH to 1f,
                    0 to 4.25f, KeyEvent.KEYCODE_DPAD_UP to 1f),
-        listOf(KeyEvent.KEYCODE_CTRL_LEFT to 1.5f, KeyEvent.KEYCODE_ALT_LEFT to 1.5f, KeyEvent.KEYCODE_SPACE to 12f,
-               0 to 0.5f, KeyEvent.KEYCODE_DPAD_LEFT to 1f, KeyEvent.KEYCODE_DPAD_DOWN to 1f, KeyEvent.KEYCODE_DPAD_RIGHT to 1f),
+        // Each width one the keycaps come in (Keys.WIDTHS).
+        listOf(KeyEvent.KEYCODE_CTRL_LEFT to 1.25f, KeyEvent.KEYCODE_ALT_LEFT to 1.25f, KeyEvent.KEYCODE_SPACE to 6.25f,
+               0 to 6.75f, KeyEvent.KEYCODE_DPAD_LEFT to 1f, KeyEvent.KEYCODE_DPAD_DOWN to 1f, KeyEvent.KEYCODE_DPAD_RIGHT to 1f),
     )
 
     /** The picker's keys, a row at a time. */
@@ -105,7 +111,18 @@ object KeyNames {
     fun name(code: Int) = names[code] ?: "?"
 
     /** On a key narrower than 1.5u, as keyboards with a small Backspace write it. */
-    fun legend(name: String, units: Float) = if (units < 1.5f && name == "Backspace") "Bksp" else name
+    fun legend(name: String, units: Float) = if (units < 1.5f) SHORT[name] ?: name else name
+
+    private val SHORT = mapOf("Backspace" to "Bksp", "Delete" to "Del")
+
+    /** An arrow key's sign, which keyboards print instead of its name. */
+    fun sign(codes: IntArray): KeyIcon? = when (codes.singleOrNull()) {
+        KeyEvent.KEYCODE_DPAD_UP -> KeyIcon.UP
+        KeyEvent.KEYCODE_DPAD_DOWN -> KeyIcon.DOWN
+        KeyEvent.KEYCODE_DPAD_LEFT -> KeyIcon.LEFT
+        KeyEvent.KEYCODE_DPAD_RIGHT -> KeyIcon.RIGHT
+        else -> null
+    }
 
     /** Ctrl+Shift+Z: the modifiers first, in that order, then the key. */
     fun label(codes: IntArray): String {

@@ -23,7 +23,7 @@ class SpritePainter(private val layout: PadLayout) {
 
     /** Null without the sprites; otherwise whether [c] is still moving, so another frame should follow. */
     fun draw(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, box: Boolean, now: Long,
-             units: Float = c.units): Boolean? {
+             units: Float = c.units, held: Boolean = false): Boolean? {
         val set = sprites ?: return null
         val size = 2 * r
         return when (val kind = c.kind) {
@@ -33,7 +33,8 @@ class SpritePainter(private val layout: PadLayout) {
                     still(canvas, set["trackpad"] ?: return null, x, y, size)
                     return false
                 }
-                val base = set["stick-base"] ?: return null
+                // Mouse & keys' stands on smoked glass, as its trackpad and panels.
+                val base = (if (kind == Kind.KeyStick) set["stick-base-k"] else null) ?: set["stick-base"] ?: return null
                 // Mouse & keys' stick has no letter: it's W, A, S and D.
                 val own = when {
                     right -> set["stick-knob-r"]
@@ -46,9 +47,9 @@ class SpritePainter(private val layout: PadLayout) {
                 val click = if (right) PadButton.RIGHT_STICK else PadButton.LEFT_STICK
                 cap(canvas, c, knob, clicked(click), if (held) c.knobX else x, if (held) c.knobY else y, size, now)
             }
-            // The pad's box, its picture as wide as the box is.
+            // The pad's box, its picture as wide as the box is: Mouse & keys' smoked glass, as its panels.
             Kind.Trackpad -> {
-                still(canvas, set["trackpad"] ?: return null, x, y, size)
+                still(canvas, set["trackpad-k"] ?: set["trackpad"] ?: return null, x, y, size)
                 false
             }
             Kind.Dpad -> {
@@ -65,8 +66,8 @@ class SpritePainter(private val layout: PadLayout) {
             is Kind.Key, is Kind.ToolKey, is Kind.Drawer -> {
                 val strip = set[CAPS[if (c.light) 1 else 0][Keys.widthIndex(units)]] ?: return null
                 strip.base?.let { set[it] }?.let { still(canvas, it, x, y, size) }
-                val held = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind is Kind.Drawer && layout.openDrawer === c)
-                cap(canvas, c, strip, held, x, y, size, now)
+                val down = held || c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind is Kind.Drawer && layout.openDrawer === c)
+                cap(canvas, c, strip, down, x, y, size, now)
             }
             else -> {
                 val strip = set[STRIPS[c.id] ?: return null] ?: return null
@@ -74,6 +75,16 @@ class SpritePainter(private val layout: PadLayout) {
                 cap(canvas, c, strip, c.pointers.isNotEmpty(), x, y, size, now)
             }
         }
+    }
+
+    /** Whether the keycap [light] or dark, [units] wide, is loaded; asking loads it (ControlSprites.LATER). */
+    fun hasCap(light: Boolean, units: Float) = sprites?.get(CAPS[if (light) 1 else 0][Keys.widthIndex(units)]) != null
+
+    /** A keycap at rest, [light] or dark, [units] wide, [size] high: for what isn't a key, in the editor's list. */
+    fun plainCap(canvas: Canvas, light: Boolean, units: Float, x: Float, y: Float, size: Float): Boolean {
+        val strip = sprites?.get(CAPS[if (light) 1 else 0][Keys.widthIndex(units)]) ?: return false
+        still(canvas, strip, x, y, size)
+        return true
     }
 
     /** Whether the on-screen button that clicks a stick is held. */

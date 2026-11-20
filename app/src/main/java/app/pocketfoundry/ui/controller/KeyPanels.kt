@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -20,11 +21,14 @@ import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.checkBox
+import app.pocketfoundry.ui.kit.dp
 import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.label
 import app.pocketfoundry.ui.kit.pad
 import app.pocketfoundry.ui.kit.row
 import app.pocketfoundry.ui.kit.stack
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * Mouse & keys' editor's dialogs over the game, the launcher's own (DialogHost): a keyboard to pick a key from, a key's
@@ -42,8 +46,8 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
     }
 
     /**
-     * A keyboard, laid out as one. Ctrl, Shift and Alt light up when tapped: the key tapped next comes with them;
-     * Use takes them alone. [onPicked] gets the codes, the modifiers first.
+     * A keyboard, laid out as one, its keys the keycaps on screen. Ctrl, Shift and Alt light up when tapped: the key
+     * tapped next comes with them; Use takes them alone. [onPicked] gets the codes, the modifiers first.
      */
     fun pickKey(title: String, onPicked: (IntArray) -> Unit) {
         close()
@@ -59,39 +63,74 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
             use.isEnabled = held.isNotEmpty()
         }
         update()
-        val unit = activity.dpi(KEY_UNIT_DP)
-        val gap = activity.dpi(KEY_GAP_DP)
+        val keyboard = Keyboard(held) { code ->
+            if (code in KeyNames.MODIFIERS) {
+                if (!held.remove(code)) held += code
+                update()
+            } else {
+                host.close()
+                onPicked(KeyNames.withModifiers(held, code))
+            }
+        }
         host.show(title, PICKER_DP, "Cancel", use, titleEnd = sofar) {
-            add(stack(activity, Frame.DEEP, padding = 6, gap = KEY_GAP_DP) {
-                for (keyRow in KeyNames.KEYBOARD) {
-                    add(row(activity) {
-                        for ((code, units) in keyRow) {
-                            val params = LinearLayout.LayoutParams((units * unit).toInt() - gap, activity.dpi(KEY_HEIGHT_DP))
-                            params.marginEnd = gap
-                            if (code == 0) {
-                                addView(View(activity), params)
-                                continue
-                            }
-                            val name = KeyNames.name(code)
-                            val key = button(activity, name, size = if (name.length > 4 && units < 1.5f) 11f else 13f) {}.apply {
-                                maxLines = 1
-                                setPadding(0, 0, 0, 0)
-                            }
-                            key.setOnClickListener {
-                                if (code in KeyNames.MODIFIERS) {
-                                    if (!held.remove(code)) held += code
-                                    key.tone = if (code in held) Tone.ORANGE else Tone.GREY
-                                    update()
-                                } else {
-                                    host.close()
-                                    onPicked(KeyNames.withModifiers(held, code))
-                                }
-                            }
-                            addView(key, params)
-                        }
-                    })
+            add(stack(activity, Frame.DEEP, padding = 8) { add(keyboard) })
+        }
+    }
+
+    /** A key of the picker's keyboard: [left] and [units] in keyboard units, on [row]. */
+    private class Placed(val control: Control, val left: Float, val row: Int, val units: Float) {
+        val code get() = control.codes[0]
+    }
+
+    // Made once: the sprites follow a key's press by its object.
+    private val pickerKeys = HashMap<Int, Control>()
+
+    /** The picker's keyboard (KeyNames.KEYBOARD): [held]'s keys lit as a held key is; a tap gives [onKey] its code. */
+    private inner class Keyboard(private val held: Set<Int>, private val onKey: (Int) -> Unit) : View(activity) {
+        private val unit = activity.dp(KEY_UNIT_DP)
+        private val keys = KeyNames.KEYBOARD.flatMapIndexed { row, codes ->
+            var x = 0f
+            codes.mapNotNull { (code, units) ->
+                val left = x
+                x += units
+                if (code == 0) null
+                else Placed(pickerKeys.getOrPut(code) { Keys.own("pick-$code", intArrayOf(code), units) }, left, row, units)
+            }
+        }
+        private val wide = KeyNames.KEYBOARD.maxOf { row -> row.sumOf { it.second.toDouble() } }.toFloat()
+        private var down: Placed? = null
+
+        override fun onMeasure(widthSpec: Int, heightSpec: Int) =
+            setMeasuredDimension((wide * unit).roundToInt(), (KeyNames.KEYBOARD.size * unit).roundToInt())
+
+        override fun onDraw(canvas: Canvas) {
+            val now = SystemClock.uptimeMillis()
+            var moving = false
+            for (k in keys) {
+                val x = (k.left + k.units / 2) * unit
+                val y = (k.row + 0.5f) * unit
+                if (painter.preview(canvas, k.control, x, y, unit / 2, now, k.units, held = k.code in held || k === down)) moving = true
+            }
+            if (moving) postInvalidateOnAnimation()
+            // A width not on screen loads now: drawn plain meanwhile, then again as a cap.
+            else if (keys.any { !painter.sprites.hasCap(it.control.light, it.units) }) postInvalidateDelayed(LOADING_MS)
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            val row = floor(event.y / unit).toInt()
+            val under = keys.firstOrNull { it.row == row && event.x >= it.left * unit && event.x < (it.left + it.units) * unit }
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> down = under
+                MotionEvent.ACTION_MOVE -> if (under !== down) down = null
+                MotionEvent.ACTION_UP -> {
+                    val hit = down
+                    down = null
+                    if (hit != null && hit === under) onKey(hit.code)
                 }
-            })
+                MotionEvent.ACTION_CANCEL -> down = null
+            }
+            invalidate()
+            return true
         }
     }
 
@@ -198,10 +237,9 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
     }
 
     private companion object {
-        /** In dp: the keyboard's unit, a key's height and the gap between keys. */
-        const val KEY_UNIT_DP = 41
-        const val KEY_HEIGHT_DP = 32
-        const val KEY_GAP_DP = 2
+        /** In dp: the picker's keyboard unit, a 1u key's width and height; its caps carry their own gaps. */
+        const val KEY_UNIT_DP = 40f
+        const val LOADING_MS = 100L
         /** The dialogs' widths, in dp: the keyboard as wide as the phone, the others narrower. */
         const val PICKER_DP = 820
         const val OPTIONS_DP = 520
