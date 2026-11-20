@@ -389,6 +389,8 @@ WHITE = plastic('white', linear('#F4F4F4'), rough=0.38, grain=0)
 TONES = {  # a cap's paint, and what its edges rub to (the palette's own light tone of it)
     'grey': ('#8E8E8E', '#E3E3E3'), 'green': ('#5EB663', '#95DF99'), 'red': ('#E8605A', '#F5A29E'),
     'orange': ('#E39C40', '#F7CC8F'), 'dark': ('#454445', '#8A8889'),
+    # an IBM keyboard's two greys: the letters' pale one and the modifiers' darker one
+    'pearl': ('#C4C2BC', '#ECEAE5'), 'slate': ('#7E7D7A', '#B2B0AC'),
 }
 
 TOP = 0.0050      # a panel's face
@@ -707,31 +709,6 @@ def small_cap(kind):
 LARGE, LESS = (0.0914, 0.0457), (0.0777, 0.0389)   # the app's two sizes of bumper and trigger
 
 
-def blank_face_cap(p, glow):
-    """A face button's grey cap with nothing on it: Mouse & keys' round keys, their letter or sign drawn by the app."""
-    r = FACE / 2 - 0.0085
-    button(FACE_CAP, p, glow, 'grey', lambda z: None, crown=0.0005, span=r - BEVEL - 0.0023, reach=r * 0.85)
-
-
-KEY_RIM = 0.0058   # a keyboard key's rim, thinner than a bumper's: its face takes most of it, for a word or a sign
-
-
-def key_shape(half_w, half_h):
-    return outline(rbox(0, 0, half_w - KEY_RIM, half_h - KEY_RIM, 0.0020))
-
-
-def key_wide_base():
-    """A wide key's panel, the smaller bumper's size, with a hole for a cap that nearly fills it."""
-    half_w, half_h = LESS[0] / 2, LESS[1] / 2
-    with pose():
-        bezel(outline(rbox(0, 0, half_w - LINE_W, half_h - LINE_W, 0.0030)), hole_of(key_shape(half_w, half_h)), count=1024)
-
-
-def blank_wide_cap(p, glow):
-    """A wide grey cap with nothing on it: Mouse & keys' wide keys, their word or sign drawn by the app."""
-    half_w, half_h = LESS[0] / 2, LESS[1] / 2
-    button(key_shape(half_w, half_h), p, glow, 'grey', lambda z: None, count=1024, reach=half_h * 0.9)
-
 
 def wide(name, size, letter):
     half_w, half_h = size[0] / 2, size[1] / 2
@@ -744,12 +721,106 @@ def small(name, kind):
     return dict(name=name, size=(SMALL, SMALL), base=('small-base', small_base), caps=[(name, small_cap(kind), (0, 0), (SMALL, SMALL))])
 
 
+# ---------------------------------------------------------------- keycaps: an IBM keyboard's, any width in units
+
+UNIT = 0.0400        # 1u: a letter's key, as wide as it is deep
+KC_GAP = 0.0018      # between a cap and its socket's edge
+KC_CORNER = 0.0045   # the cap's footprint's corners
+KC_DRAFT = 0.0074    # how far its walls lean in, each side: the top is much smaller than the foot
+KC_HEIGHT = 0.0120   # tall, as an IBM key is
+KC_DISH = 0.0028     # the top's scoop: a cylinder across it, deepest along its middle
+KC_TRAVEL = 0.0035   # a keyboard key's press: short, so its walls still show
+KC_EDGE = 0.0010     # the top's rounded edge
+
+
+def keycap_outline(units, tall=1.0):
+    return outline(rbox(0, 0, units * UNIT / 2 - KC_GAP, tall * UNIT / 2 - KC_GAP, KC_CORNER), reach=units * UNIT)
+
+
+def keycap_base(units, tall=1.0):
+    """A slim socket round a keycap: a dark rim and the hole it stands in."""
+    with pose():
+        bezel(outline(rbox(0, 0, units * UNIT / 2 - LINE_W, tall * UNIT / 2 - LINE_W, KC_CORNER + 0.0010), reach=units * UNIT),
+              hole_of(keycap_outline(units, tall)), count=1024)
+
+
+def keycap_body(units, tall, tone, glow, count=1024):
+    """
+    A sculpted keycap, its top's lowest point at height nought: walls that lean in from its foot to a smaller top,
+    a rounded edge, and a top scooped as a cylinder across it, so its left and right edges dip with the scoop.
+    """
+    foot = keycap_outline(units, tall)
+    half_h = tall * UNIT / 2 - KC_GAP - KC_DRAFT          # the top's half depth, across which the scoop runs
+    lift = KC_DISH                                        # the top's edges, front and back, are this high
+
+    def dish(x, y):
+        f = min(abs(y) / half_h, 1.0)
+        return lift - KC_DISH * (1 - f * f)
+
+    # (inset, height of a point, wear): walls, the rounded edge, then the top in rings towards its middle
+    rings = [(0.0, lambda x, y: -KC_HEIGHT, 0.1), (KC_DRAFT * 0.5, lambda x, y: -KC_HEIGHT * 0.5 + dish(x, y) * 0.5 - KC_EDGE * 0.5, 0.3)]
+    for k in range(0, 7):
+        t = k / 6 * math.pi / 2
+        inset = KC_DRAFT + KC_EDGE * (1 - math.cos(t))
+        rings.append((inset, (lambda e: lambda x, y: dish(x, y) - KC_EDGE + e)(KC_EDGE * math.sin(t)), 1.0 if k < 6 else 0.4))
+    reach_in = min(units * UNIT, tall * UNIT) / 2 - KC_GAP - KC_DRAFT - KC_EDGE
+    for f in (0.12, 0.3, 0.5, 0.7, 0.88, 0.97):
+        rings.append((KC_DRAFT + KC_EDGE + reach_in * f, dish, 0.1))
+    mesh = bpy.data.meshes.new('keycap')
+    bm = bmesh.new()
+    worn = bm.verts.layers.float.new('wear')
+    made = []
+    for inset, height, wear in rings:
+        row = []
+        for i in range(count):
+            a = i / count * math.tau
+            r = foot(a, inset)
+            x, y = math.cos(a) * r, math.sin(a) * r
+            v = bm.verts.new((x, y, height(x, y)))
+            v[worn] = wear
+            row.append(v)
+        made.append(row)
+    for lower, upper in zip(made, made[1:]):
+        for i in range(count):
+            bm.faces.new((lower[i], lower[(i + 1) % count], upper[(i + 1) % count], upper[i]))
+    middle = bm.verts.new((0, 0, dish(0, 0)))
+    for i in range(count):
+        bm.faces.new((made[-1][i], made[-1][(i + 1) % count], middle))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(mesh)
+    bm.free()
+    factory._place(bpy.data.objects.new('keycap', mesh), cap_paint(tone, glow, 0.02), (0, 0, 0), sharp=35)
+
+
+def keycap(units, tall=1.0, tone='pearl'):
+    """A keycap that presses as the other caps do, lit orange once it's down."""
+    def build(p, glow):
+        with pose(0, 0, TOP + PROUD + 0.0030 - KC_TRAVEL * p):
+            keycap_body(units, tall, tone, glow)
+        if glow > 0.01:
+            foot = keycap_outline(units, tall)
+            halo(foot, hole_of(foot), 0, 0, glow, count=1024)
+    return build
+
+
+KEY_WIDTHS = (1, 1.25, 1.5, 1.75, 2, 2.25, 2.75, 6.25)   # a keyboard's widths, in units
+KEY_TONES = ('pearl', 'slate')                          # letters, and modifiers
+
+
+def keycap_scene(units, tone):
+    """kc-pearl-1.25: Mouse & keys' keys; their sockets, kc-1.25-base, are the same for both greys."""
+    size = (units * UNIT, UNIT)
+    name = f'kc-{tone}-{units:g}'
+    return dict(name=name, set='keycaps', size=size, base=(f'kc-{units:g}-base', lambda: keycap_base(units)),
+                caps=[(name, keycap(units, 1.0, tone), (0, 0), size)])
+
+
 # ---------------------------------------------------------------- the toolbar: a row of square keys in one panel
 
 CELL = 122 / PPM          # a key's cell: 0.085 of the screen's height, a whole number of pixels so the pieces join
 END = 5 / PPM             # what the panel adds beyond the first and the last cell
 TOOL_KEY = outline(rbox(0, 0, CELL / 2 - 0.0080, CELL / 2 - 0.0080, 0.0022))
-TOOLS = ('adjust', 'keyboard', 'hide', 'show', 'add', 'remove', 'smaller', 'bigger', 'opacity', 'latch', 'reset', 'done')
+TOOLS = ('adjust', 'keyboard', 'hide', 'show', 'add', 'remove', 'smaller', 'bigger', 'opacity', 'reset', 'done')
 
 
 def toolbar_panel(keys):
@@ -839,11 +910,6 @@ def tool_sign(kind, z, sign, face):
         tip = arc(0.0058, 50, 50, 1)[0]
         shape([(tip[0] + 0.0040, tip[1] + 0.0012), (tip[0] - 0.0012, tip[1] + 0.0034), (tip[0] - 0.0008, tip[1] - 0.0034)],
               (0, 0, z + 0.00025), sign, normal=(0, 0, 1))
-    elif kind == 'latch':           # a padlock: Mouse & keys' keys that stay held
-        stroke([(-0.0052, 0.0004), (0.0052, 0.0004), (0.0052, -0.0064), (-0.0052, -0.0064)], 0.0015, z, sign, closed=True)
-        shackle = [(x, y + 0.0024) for x, y in arc(0.0032, 0, 180, 18)]
-        stroke([(0.0032, 0.0004)] + shackle + [(-0.0032, 0.0004)], 0.0015, z, sign)
-        dot(0, -0.0030, 0.0011, z + 0.0003, sign)
     elif kind == 'done':            # a check
         stroke([(-0.0064, -0.0004), (-0.0020, -0.0050), (0.0068, 0.0050)], 0.0022, z, sign)
 
@@ -895,11 +961,7 @@ SCENES = [
          caps=[(f'dpad-{way}', dpad_cross(way), (0, 0), (DPAD, DPAD)) for way in WAYS]),
     wide('lb', LARGE, 0.0235), wide('rt', LARGE, 0.0235), wide('lt', LESS, 0.0190), wide('rb', LESS, 0.0190),
     small('view', 'view'), small('menu', 'menu'), small('l3', 'L3'), small('r3', 'R3'),
-    # Mouse & keys' keys: blank caps over the face buttons' and the smaller bumpers' bases
-    dict(name='key-round', size=(FACE, FACE), base=('face-base', face_base), caps=[('key-round', blank_face_cap, (0, 0), (FACE, FACE))]),
-    dict(name='key-wide', size=LESS, base=('key-wide-base', key_wide_base),
-         caps=[('key-wide', blank_wide_cap, (0, 0), LESS)]),
-] + [
+] + [keycap_scene(units, tone) for tone in KEY_TONES for units in KEY_WIDTHS] + [
     # the toolbar's keys: each over a one-key panel that only catches its shadow (the panel's own sprites are the
     # three pieces run_toolbar cuts)
     dict(name=f'tool-{kind}', set='tools', size=(CELL, CELL), base=('toolbar', lambda: toolbar_panel(1)), private=True,
