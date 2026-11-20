@@ -84,9 +84,13 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
 
     /** What a key in a drawer does, under it, when that says more than the key (PadLayout.captioned): lifted off the glass. */
     private fun caption(canvas: Canvas, c: Control, x: Float, y: Float, size: Float) {
-        if (!layout.captioned(c)) return
+        if (layout.captioned(c)) shadowedLetter(canvas, c.name, x, y, size)
+    }
+
+    /** Pale words with a shadow under them: they read on glass or on the game. */
+    fun shadowedLetter(canvas: Canvas, label: String, x: Float, y: Float, size: Float) {
         text.setShadowLayer(px(2f), px(2f), px(3f), CAPTION_SHADOW)
-        letter(canvas, c.name, x, y, size, INK_ON_DARK)
+        letter(canvas, label, x, y, size, INK_ON_DARK)
         text.clearShadowLayer()
     }
 

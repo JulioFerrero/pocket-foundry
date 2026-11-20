@@ -27,6 +27,14 @@ import kotlin.math.abs
 class ControllerView(context: Context, private val input: Input, private val counter: Movable,
                      private val onSprites: (SpriteSet?) -> Unit = {}) : View(context) {
     private val layout = PadLayout(context, keysMode = input == Input.KEYS)
+
+    /** Mouse & keys: whether the inventory's keys are up, for a window that fills the screen (KeySets.WINDOW). */
+    val windowOpen get() = layout.set == KeySets.WINDOW
+
+    /** Mouse & keys: [it] is the set now shown. */
+    var onSetShown: ((String) -> Unit)?
+        get() = layout.onSwitch
+        set(value) { layout.onSwitch = value }
     private val painter = PadPainter(context, layout)
     private val toolbar = Toolbar(layout, painter)
     private val editor = LayoutEditor(layout, painter, toolbar, counter, ::haptic)
@@ -228,13 +236,23 @@ class ControllerView(context: Context, private val input: Input, private val cou
         // The controls at the layout's opacity, the editor's and the drawer's panels over them solid: a layer for
         // them, as the view's own alpha would fade those too.
         if (controlsShown) {
-            val faded = layout.opacity < 1f
-            val layer = if (faded) canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), (layout.opacity * 255).toInt()) else 0
-            // Indexed: an iterator would be made every frame.
+            // Editing, faint ones show enough to find.
+            val opacity = if (editor.active) maxOf(layout.opacity, EDITING_OPACITY) else layout.opacity
+            val faded = opacity < 1f
+            val layer = if (faded) canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), (opacity * 255).toInt()) else 0
+            // Indexed: an iterator would be made every frame. Mouse & keys' drawers over the fade, never faded: the
+            // way to the editor is in one, as the pad's play toolbar is over it.
             for (i in controls.indices) {
+                if (faded && controls[i].kind is Kind.Drawer) continue
                 if (painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected, now)) moving = true
             }
-            if (faded) canvas.restoreToCount(layer)
+            if (faded) {
+                canvas.restoreToCount(layer)
+                for (i in controls.indices) {
+                    if (controls[i].kind !is Kind.Drawer) continue
+                    if (painter.draw(canvas, sheet, controls[i], controls[i] === editor.selected, now)) moving = true
+                }
+            }
         }
         if (controlsShown && painter.drawDrawer(canvas, sheet, editor.selected, now)) moving = true
         if (editor.active) editor.drawSets(canvas)
@@ -264,6 +282,8 @@ class ControllerView(context: Context, private val input: Input, private val cou
     }
 
     companion object {
+        /** The least the controls show while the editor is on: at 0 or 10% they're still there to move. */
+        private const val EDITING_OPACITY = 0.35f
         /** Android numbers a gesture's fingers 0 to 31. */
         const val POINTER_IDS = 32
         // Made once: haptics come with touches.

@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -201,7 +202,8 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
             keys.removeSet(key)
             host.close()
         }
-        host.show("Set", SET_DP, "Close", delete) {
+        // At the top left: a floating keyboard (the vivo's, sideways) sits over the middle and the right.
+        host.show("Set", SET_DP, "Close", delete, gravity = Gravity.TOP or Gravity.START) {
             add(label(activity, "Name", 15f, Factorio.MUTED), bottom = 4)
             add(stack(activity, Frame.SHALLOW, padding = 4) { add(name) })
         }

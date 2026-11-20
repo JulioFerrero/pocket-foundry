@@ -40,6 +40,22 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private val location = IntArray(2)
     /** In place of a two-finger tap's right click: Mouse & keys' Esc (ControllerView.escape). */
     var twoFingerTap: (() -> Unit)? = null
+    /**
+     * Whether, a finger's tap or drag done, the cursor leaves for the screen's corner: Mouse & keys' while a window
+     * fills the screen, where it would keep the tooltip of what it was left on.
+     */
+    var parkAfterTap: (() -> Boolean)? = null
+    private val park = Runnable {
+        lorie.getLocationInWindow(location)
+        moveTo(location[0].toFloat(), location[1].toFloat())
+    }
+
+    /** The cursor to the screen's corner now, as after a tap ([parkAfterTap]); but not a whole-screen trackpad's. */
+    fun parkCursor() {
+        if (settings.touch == Settings.TRACKPAD || fingers.isNotEmpty()) return
+        mainHandler.removeCallbacks(park)
+        park.run()
+    }
     private val mapped = FloatArray(2)
 
     /** The fingers down, oldest first: the two oldest pinch and scroll. [xs] and [ys] say where each is, by id. */
@@ -127,6 +143,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
 
     fun cancel() {
         mainHandler.removeCallbacks(longPress)
+        mainHandler.removeCallbacks(park)
         release()
         pad?.cancel()
         fingers.clear()
@@ -134,6 +151,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     }
 
     private fun firstFingerDown(x: Float, y: Float, box: Boolean) {
+        mainHandler.removeCallbacks(park)
         downX = x
         downY = y
         trackpad = box || settings.touch == Settings.TRACKPAD
@@ -175,6 +193,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
             lastTapX = x
             lastTapY = y
         }
+        // A while after: the game takes the click where it was first.
+        if (!trackpad && parkAfterTap?.invoke() == true) mainHandler.postDelayed(park, PARK_MS)
     }
 
     private fun twoFingerUp() {
@@ -297,6 +317,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
 
     companion object {
         private const val LONG_PRESS_MS = 300L
+        private const val PARK_MS = 150L
         private const val TAP_MS = 300L
         /** Span ratio per notch of zoom. */
         private const val ZOOM_STEP = 1.18f

@@ -68,6 +68,12 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     private var column = 0f
     private val box = RectF()
     private val path = Path()
+    /** Out of the way, unseen: over a window that fills the screen, where it covers its title (Mouse & keys). */
+    var aside = false
+        set(value) {
+            field = value
+            invalidate()
+        }
     /** Mouse & keys' counter: a block of its keys' slate plastic (fps-panel-k), not the pad's panel. */
     var keys = false
         set(value) {
@@ -128,7 +134,7 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
 
     /** The box itself, without the room for its shadow. */
     override fun bounds(out: RectF) {
-        if (isShown && width > 0) {
+        if (isShown && width > 0 && !aside) {
             out.set(left.toFloat() + padLeft, top.toFloat() + padTop, 0f, 0f)
             out.right = out.left + boxWidth
             out.bottom = out.top + boxHeight
@@ -176,6 +182,7 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     }
 
     override fun onDraw(canvas: Canvas) {
+        if (aside) return
         canvas.save()
         canvas.translate(padLeft.toFloat(), padTop.toFloat())
         val suffix = if (keys) "-k" else ""

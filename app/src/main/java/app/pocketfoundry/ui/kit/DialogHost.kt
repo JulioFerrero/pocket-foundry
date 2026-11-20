@@ -24,10 +24,11 @@ class DialogHost(private val activity: Activity, private val onClosed: () -> Uni
     /**
      * Closed by a tap beside it, Back, or [close]. On a screen too short for it, the parts [build] adds with a weight
      * shrink to fit. [titleEnd] sits at the title's far end. [titleLongPress]: a hidden action, on a long press on it.
-     * [onBack]: after [back]'s button closes it, not a tap beside it or Back.
+     * [onBack]: after [back]'s button closes it, not a tap beside it or Back. [gravity]: where on the screen it sits.
      */
     fun show(title: CharSequence, widthDp: Int, back: CharSequence, vararg actions: View, titleEnd: View? = null,
-             titleLongPress: (() -> Unit)? = null, onBack: () -> Unit = {}, build: LinearLayout.() -> Unit) {
+             titleLongPress: (() -> Unit)? = null, onBack: () -> Unit = {}, gravity: Int = Gravity.CENTER,
+             build: LinearLayout.() -> Unit) {
         Dropdown.dismissOpen()
         val heading = heading(activity, title)
         titleLongPress?.let { action -> heading.setOnLongClickListener { action(); true } }
@@ -44,8 +45,8 @@ class DialogHost(private val activity: Activity, private val onClosed: () -> Uni
             setBackgroundColor(0x99000000.toInt())
             setOnClickListener { close() }
             isFocusable = false
-            add(panel.apply { isClickable = true; isFocusable = false }, widthDp, WRAP, Gravity.CENTER,
-                top = SCREEN_MARGIN, bottom = SCREEN_MARGIN)
+            add(panel.apply { isClickable = true; isFocusable = false }, widthDp, WRAP, gravity,
+                start = SCREEN_MARGIN, top = SCREEN_MARGIN, end = SCREEN_MARGIN, bottom = SCREEN_MARGIN)
         }
         // Full screen, Android makes no room for the keyboard: the dialog moves up until the field being typed in
         // clears it. Android 10 doesn't tell full-screen windows where the keyboard is, so there it stays put.

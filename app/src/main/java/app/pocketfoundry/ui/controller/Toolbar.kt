@@ -4,6 +4,7 @@ import android.graphics.Canvas
 import android.graphics.Path
 import android.graphics.RectF
 import app.pocketfoundry.ui.kit.GuiSheet
+import kotlin.math.roundToInt
 
 enum class Tool { ADJUST, KEYBOARD, HIDE, SHOW, ADD, REMOVE, SMALLER, BIGGER, OPACITY, OPTIONS, RESET, DONE }
 
@@ -47,6 +48,19 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
 
     /** Returns whether a key is still moving, so another frame should follow. */
     fun draw(canvas: Canvas, sheet: GuiSheet?, tools: List<Tool>, adding: Boolean, now: Long): Boolean {
+        val moving = drawKeys(canvas, sheet, tools, adding, now)
+        // The layout's opacity by its key, on the side away from the controls: at 0 they don't show, yet work.
+        val opacity = tools.indexOf(Tool.OPACITY)
+        if (opacity >= 0 && !adding) {
+            place(opacity, tools.size)
+            val s = size
+            val y = if (top > layout.height / 2f) box.top - s * 0.28f else box.bottom + s * 0.28f
+            painter.shadowedLetter(canvas, "${(layout.opacity * 100).roundToInt()}%", box.centerX(), y, s * 0.3f)
+        }
+        return moving
+    }
+
+    private fun drawKeys(canvas: Canvas, sheet: GuiSheet?, tools: List<Tool>, adding: Boolean, now: Long): Boolean {
         val s = size
         place(0, tools.size)
         painter.sprites.drawToolbar(canvas, tools, held, adding, box.left, box.top, s, now)?.let { return it }

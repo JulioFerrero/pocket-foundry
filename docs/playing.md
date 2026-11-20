@@ -34,7 +34,8 @@ instead, **Trackpad** makes the whole screen a trackpad, and **Trackpad speed** 
 | The two under the toolbar | Map and game menu. |
 
 The toolbar at the top moves and resizes the buttons (pinch one), removes them and adds them back, fades or hides
-them all, and opens the phone's keyboard, for naming a save. Back, or a controller's
+them all, and opens the phone's keyboard, for naming a save. Faded to 0% they don't show but still work; the editor
+shows them, and the percentage by its fade key. Back, or a controller's
 home button, opens the pause menu; the game freezes while it's off screen.
 
 ## Mouse & keys

@@ -91,7 +91,11 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         set = target
         openDrawer = null
         refreshShown()
+        onSwitch?.invoke(target)
     }
+
+    /** The set shown changed: to [switchTo]'s target. */
+    var onSwitch: ((String) -> Unit)? = null
 
     fun toggleDrawer(drawer: Control) = if (openDrawer === drawer) closeDrawer() else showDrawer(drawer)
 
@@ -338,7 +342,8 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         const val OWN_KEY = "k"
         const val OLD_LAYOUT_KEY = "layout-hybrid"
         const val DEFAULT_OPACITY = 0.8f
-        val OPACITIES = floatArrayOf(0.35f, 0.55f, 0.8f, 1f)
+        /** The opacity tool's steps: down to none, the controls unseen but working. */
+        val OPACITIES = floatArrayOf(0f, 0.1f, 0.35f, 0.55f, 0.8f, 1f)
         /** A pill's or a wide key's touch area, in radii out from its middle: past its ends, and up and down. */
         const val PILL_REACH_MORE = 0.2f
         const val PILL_REACH_Y = 1.25f
