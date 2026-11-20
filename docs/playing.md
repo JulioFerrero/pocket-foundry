@@ -62,8 +62,8 @@ the screen (the game's) and off Factorio's own panels:
 - **Left thumb:** the stick (W, A, S and D, two at once on a diagonal), and Shift and Ctrl beside it. **Shift and Ctrl
   stay held** when tapped, their light on, till they're tapped again: Shift or Ctrl, then a tap on a chest, moves a
   stack or everything of a kind.
-- **Along the top**, the keys pressed least: Esc, M (map), T (research), the drawer, and **123**: the numbers,
-  Backspace and Enter, for combinators and trains.
+- **Along the top**, the keys pressed least: Esc, M (map), T (research), the drawer, and **123**: a number pad
+  (Backspace and Enter too) for combinators and trains.
 - **The drawer** (the dots): Alt (details), Z (drop), Space (shoot), X (the next quickbar row), Undo, Copy, Paste, the
   phone's keyboard, **Edit keys** and **Hide keys**.
 
@@ -71,8 +71,8 @@ The keys follow the screen: E (and T, P) brings the inventory's keys, Shift, Ctr
 map's, the stick and the top keys. The same key again, Esc or a two-finger tap brings back the game's. A window
 closed with its own ✕ leaves the inventory's keys up: Esc or a two-finger tap puts them right.
 
-**Edit keys** works as the gamepad's layout editor, its tools at the bottom: drag a key, pinch it. **Add** lists
-the keys the screen doesn't have, by kind (Windows, Building, Items, Editing, Moving and pointing, Other), and:
+**Edit keys** works as the gamepad's layout editor, its tools at the bottom: drag a key, pinch it. **Add** lists,
+as the gamepad's does, the keys the screen doesn't have, each with what it does (Ctrl+Z Undo), and:
 
 - **New key:** a whole keyboard, F keys, arrows and Space included. Ctrl, Shift and Alt switched on first make a
   combination: Ctrl+F, Shift+R.

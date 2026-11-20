@@ -108,6 +108,15 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     /** What's written on [c]: its name; a key that only brings a set, that set's. */
     fun label(c: Control) = if (c.kind == Kind.Key && c.codes.isEmpty()) c.shows?.let(::title).orEmpty() else c.label
 
+    /** Whether what [c] does says more than what's on it: Undo for Ctrl+Z, a tool's name; not 5's "5". */
+    fun captioned(c: Control) = c.name.isNotEmpty() && c.name != label(c)
+
+    /**
+     * An open drawer whose keys all say what they do (the numbers) is a keypad: no panel and no names under its keys,
+     * which sit as close as a keyboard's. The others are a panel, each key's name under it.
+     */
+    val keypad get() = drawerKeys.none(::captioned)
+
     /** A set of the player's, "Set 4" till it's named, shown at once. Returns its key. */
     fun newSet(): String {
         val n = (ownTitles.keys.mapNotNull { it.removePrefix(KeySets.OWN).toIntOrNull() }.maxOrNull() ?: 0) + 1
@@ -184,10 +193,16 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     fun drawerCentre(index: Int, out: PointF) {
         val r = drawerKeyRadius()
         val columns = drawerColumns()
-        val pad = r * DRAWER_PAD
-        out.set(drawerPanel.left + pad + (index % columns + 0.5f) * r * DRAWER_CELL_WIDTH,
-                drawerPanel.top + pad + (index / columns) * r * DRAWER_CELL_HEIGHT + r)
+        val pad = r * drawerPad()
+        out.set(drawerPanel.left + pad + (index % columns + 0.5f) * r * cellWidth(),
+                // A panel's key at its cell's top, its name under it; a keypad's in its cell's middle.
+                drawerPanel.top + pad + (index / columns) * r * cellHeight() + if (keypad) r * KEYPAD_PITCH / 2 else r)
     }
+
+    // In a key's radii.
+    private fun cellWidth() = if (keypad) KEYPAD_PITCH else DRAWER_CELL_WIDTH
+    private fun cellHeight() = if (keypad) KEYPAD_PITCH else DRAWER_CELL_HEIGHT
+    private fun drawerPad() = if (keypad) 0f else DRAWER_PAD
 
     private fun drawerColumns() = drawerKeys.size.coerceIn(1, (openDrawer?.kind as? Kind.Drawer)?.columns ?: 1)
 
@@ -197,9 +212,9 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         val r = drawerKeyRadius()
         val columns = drawerColumns()
         val rows = ceil(drawerKeys.size / columns.toFloat()).toInt().coerceAtLeast(1)
-        val pad = r * DRAWER_PAD
-        val w = columns * r * DRAWER_CELL_WIDTH + 2 * pad
-        val h = rows * r * DRAWER_CELL_HEIGHT + 2 * pad
+        val pad = r * drawerPad()
+        val w = columns * r * cellWidth() + 2 * pad
+        val h = rows * r * cellHeight() + 2 * pad
         val left = (cx(drawer) + halfWidth(drawer) - w).coerceIn(0f, maxOf(0f, width - w))
         val gap = r * 0.3f
         val top = if (cy(drawer) < height / 2f) cy(drawer) + radius(drawer) + gap else cy(drawer) - radius(drawer) - gap - h
@@ -332,6 +347,8 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         const val DRAWER_CELL_WIDTH = 2.9f
         const val DRAWER_CELL_HEIGHT = 3.1f
         const val DRAWER_PAD = 0.5f
+        /** A keypad's keys, centre to centre, in their radii: a keyboard's gap between them, as on screen (Keys). */
+        const val KEYPAD_PITCH = 2.12f
         const val DRAWER_REACH = 1.2f
     }
     private val point = PointF()

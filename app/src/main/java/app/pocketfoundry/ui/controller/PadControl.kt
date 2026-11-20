@@ -51,8 +51,6 @@ class Control(
     /** The drawer a key is in, by its id: the keys there show only while it's open. */
     val defaultDrawer: String? = null,
     val defaultLatch: Boolean = false,
-    /** Where the editor lists a Mouse & keys key. */
-    val group: KeyGroup? = null,
     /** A key's: what it sends, Android key codes pressed in order. Empty for a key that only shows a set. */
     val defaultCodes: IntArray = IntArray(0),
     /** The set a key brings (KeySets): the inventory's for E. */

@@ -61,7 +61,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     fun drawDrawer(canvas: Canvas, sheet: GuiSheet?, selected: Control?, now: Long): Boolean {
         if (layout.openDrawer == null) return false
         val r = layout.drawerKeyRadius()
-        panel(canvas, sheet, layout.drawerPanel, r * 0.5f)
+        if (!layout.keypad) panel(canvas, sheet, layout.drawerPanel, r * 0.5f)
         val keys = layout.drawerKeys
         var moving = false
         for (i in keys.indices) {
@@ -73,11 +73,9 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         return moving
     }
 
-    /** What a key in a drawer or the editor's list does, under it: only when it says more than the key (not "5"). */
-    fun caption(canvas: Canvas, c: Control, x: Float, y: Float, size: Float) {
-        val label = layout.label(c)
-        val name = c.name.ifEmpty { label }
-        if (name != label) letter(canvas, name, x, y, size, LIGHT)
+    /** What a key in a drawer does, under it, when that says more than the key (PadLayout.captioned). */
+    private fun caption(canvas: Canvas, c: Control, x: Float, y: Float, size: Float) {
+        if (layout.captioned(c)) letter(canvas, c.name, x, y, size, LIGHT)
     }
 
     private fun drawAt(canvas: Canvas, sheet: GuiSheet?, c: Control, x: Float, y: Float, r: Float, selected: Boolean,
