@@ -26,7 +26,6 @@ import app.pocketfoundry.core.controller.Gamepads
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.Session
-import app.pocketfoundry.ui.controller.Glass
 import app.pocketfoundry.ui.controller.InputRouter
 import app.pocketfoundry.ui.controller.PointerGestures
 import app.pocketfoundry.core.system.mainHandler
@@ -145,10 +144,7 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
 private class GameScreen(activity: MainActivity) {
     private val input = Session.input
     private val settings = Settings(activity)
-    // Mouse & keys' counter is on smoked glass, as its keys' panels.
-    private val fps = FpsCounterView(activity, FrameCounter(Paths(activity).frames)).apply {
-        if (input == Input.KEYS) glass = Glass(activity)
-    }
+    private val fps = FpsCounterView(activity, FrameCounter(Paths(activity).frames)).apply { keys = input == Input.KEYS }
     val view = ControllerView(activity, input, fps) { fps.sprites = it }
     private val gestures = PointerGestures(activity, padMode = input == Input.PAD) {
         if (settings.vibration) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)

@@ -10,8 +10,8 @@ import android.graphics.Shader
 import app.pocketfoundry.ui.kit.dp
 
 /**
- * Mouse & keys' surfaces (a drawer, the add list, the set chips, the FPS counter): a sheet of smoked glass, lit along
- * its top edge, its shadow on the game below it. The keys are what's solid.
+ * Mouse & keys' surfaces (a drawer, the add list, the set chips): a sheet of smoked glass, lit along its top edge, its
+ * shadow on the game below it. The keys are what's solid.
  */
 class Glass(private val context: Context) {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -23,12 +23,6 @@ class Glass(private val context: Context) {
     private var shadersFor = -1f
     private var fillShader: LinearGradient? = null
     private var rimShader: LinearGradient? = null
-
-    /** The room its shadow takes round a sheet: left, top, right and bottom, in pixels. */
-    val shadowLeft get() = context.dp(SHADOW_BLUR_DP - SHADOW_X_DP)
-    val shadowTop get() = context.dp(SHADOW_BLUR_DP - SHADOW_Y_DP)
-    val shadowRight get() = context.dp(SHADOW_BLUR_DP + SHADOW_X_DP)
-    val shadowBottom get() = context.dp(SHADOW_BLUR_DP + SHADOW_Y_DP)
 
     fun draw(canvas: Canvas, box: RectF, radius: Float = context.dp(RADIUS_DP)) {
         path.reset()

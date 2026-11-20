@@ -18,7 +18,7 @@ painted-plastic object, in the app's GUI palette), with presses that read as a c
     counter's panel (at twice the size, with a sheet of glass to lay over what the app draws) are made the same way.
 
   blender -b -P controls.py -- [--out DIR] [--only SCENE,SCENE] [--samples N] [--quick]
-SCENE is a control's name, or tools (the toolbar's keys and panel), toolbar (the panel alone), fps.
+SCENE is a control's name, or tools (the toolbar's keys and panel), toolbar (the panel alone), fps, fps-k (the keys' counter alone).
 Writes DIR/<name>.png (a base, or a cap's strip of frames side by side) and DIR/sprites.json.
 One render at a time (two run out of GPU memory); PF_CPU=1 renders on the processor.
 """
@@ -810,10 +810,10 @@ def _round_rect(half_w, half_h, r, cy, nx, ny, corner):
     return side(br[-1], tr[0], ny) + tr + side(tr[-1], tl[0], nx) + tl + side(tl[-1], bl[0], ny) + bl + side(bl[-1], br[0], nx) + br
 
 
-def _keycap_mesh(rings, middle, height, span, material):
+def _keycap_mesh(rings, middle, height, span, material, closed=True):
     """
-    The solid through [rings] of (points, heights, wear, rise), bottom up, closed over its spine at [middle] and
-    [height] above the ground, drawn as an eye [LENS] above it sees it (as pose does). A wide key's eye runs along
+    The solid through [rings] of (points, heights, wear, rise), bottom up, closed over its spine at [middle] (or left
+    open there) and [height] above the ground, drawn as an eye [LENS] above it sees it (as pose does). A wide key's eye runs along
     it, [span] each way: every width's ends are a 1u key's and what is between them is straight, so a space bar's
     top does not overhang its foot.
     """
@@ -834,8 +834,8 @@ def _keycap_mesh(rings, middle, height, span, material):
         for i in range(count):
             bm.faces.new((lower[i], lower[(i + 1) % count], upper[(i + 1) % count], upper[i]))
     # the top closes on its spine: a point for a 1u key, a line along a wide one
-    spine = [vertex(min(max(x, -span), span), 0, middle, rings[-1][2], 1.0) for x, y in rings[-1][0]]
-    for i in range(count):
+    spine = [vertex(min(max(x, -span), span), 0, middle, rings[-1][2], 1.0) for x, y in rings[-1][0]] if closed else []
+    for i in range(count if closed else 0):
         j = (i + 1) % count
         if (spine[i].co - spine[j].co).length > 1e-9:
             bm.faces.new((made[-1][i], made[-1][j], spine[j], spine[i]))
@@ -1147,6 +1147,59 @@ def fps_panel():
     sweep([(well, -0.0002, z)], (0, 0, 0), SCREEN, 2048, bottom=False)
 
 
+# Mouse & keys' counter: in the keys' family. Lower than a key, so its shadow is little longer than the painted panel's.
+FPS_KEY_HEIGHT = 0.0060      # how tall the block is: a keycap's 12.5 mm would throw a shadow three times the room it has
+FPS_KEY_DRAFT = 0.0040       # how far its walls lean in, each side: enough to read as a key's, the display needs the rest
+FPS_KEY_LIP = 0.0012         # the top's plastic round the display
+FPS_KEY_DEPTH = 0.0012       # how far in the display is
+FPS_KEY_FOOT = (FPS_BOX[0] / 2 - 0.0006, FPS_BOX[1] / 2 - 0.0006)
+FPS_KEY_WINDOW = (FPS_KEY_FOOT[0] - FPS_KEY_DRAFT - 0.0010 - FPS_KEY_LIP, FPS_KEY_FOOT[1] - FPS_KEY_DRAFT - 0.0010 - FPS_KEY_LIP)
+
+
+def key_fps_panel():
+    """
+    The FPS counter as a key of the keyboard: a long low block of the keys' slate plastic, the same foot, walls and
+    rounded edge, and let into its flat top a dark display with a rounded lip. The app writes the number and the
+    graph on the display. No socket, nothing lit.
+    """
+    edge, lip, r_window = 0.0010, 0.0004, 0.0026
+    span = FPS_KEY_FOOT[0] - FPS_KEY_FOOT[1]                 # the eye runs along it, as along a space bar
+    grow = (LENS - 0.0) / (LENS - TOP)                       # the eye is level with a panel's face: the foot, lower, is drawn smaller
+    foot = (span + (FPS_KEY_FOOT[1]) * grow, FPS_KEY_FOOT[1] * grow, KC_FOOT_R * 0.8)
+    shoulder = (FPS_KEY_FOOT[0] - FPS_KEY_DRAFT, FPS_KEY_FOOT[1] - FPS_KEY_DRAFT, 0.0040)
+    win_w, win_h = FPS_KEY_WINDOW
+
+    def ring(half_w, half_h, r):
+        return _round_rect(half_w, half_h, r, 0.0, 48, 12, 12)
+
+    count = len(ring(*foot))
+    rings = []
+    for t in (0.0, 0.12, 0.26, 0.42, 0.58, 0.74, 0.88, 1.0):
+        g = t + (1 - (1 - t) ** 2 - t) * KC_FLARE
+        rings.append((ring(*(a + (b - a) * g for a, b in zip(foot, shoulder))), [-FPS_KEY_HEIGHT + (FPS_KEY_HEIGHT - edge) * t] * count, 0.0, t))
+    for k in range(1, 7):
+        a = k / 6 * math.pi / 2
+        inset = edge * (1 - math.cos(a))
+        rings.append((ring(shoulder[0] - inset, shoulder[1] - inset, shoulder[2] - inset), [-edge + edge * math.sin(a)] * count,
+                      1.0 if k < 6 else 0.6, 1.0))
+    rings.append((ring(win_w + lip + 0.0002, win_h + lip + 0.0002, r_window + lip), [0.0] * count, 0.3, 1.0))
+    for k in range(0, 5):       # the display's lip, rounded over, then its short wall down to the glass
+        a = k / 4 * math.pi / 2
+        out = lip * (1 - math.sin(a))
+        rings.append((ring(win_w + out, win_h + out, r_window + out), [-lip * (1 - math.cos(a))] * count, 1.0, 1.0))
+    rings.append((ring(win_w - 0.0002, win_h - 0.0002, r_window - 0.0002), [-FPS_KEY_DEPTH] * count, 0.0, 1.0))
+    _keycap_mesh(rings, 0.0, FPS_KEY_HEIGHT, span, keycap_paint('slate', 0.0), closed=False)
+    _keycap_mesh([(ring(win_w + 0.0001, win_h + 0.0001, r_window), [-FPS_KEY_DEPTH] * count, 0.0, 1.0)], -FPS_KEY_DEPTH, FPS_KEY_HEIGHT,
+                 span, SCREEN)
+
+
+def key_fps_screen():
+    """Half the display's floor as it is drawn, in metres: the eye is above the block's top, the floor a little further."""
+    s = (LENS - TOP) / (LENS - (FPS_KEY_HEIGHT - FPS_KEY_DEPTH))
+    span = FPS_KEY_FOOT[0] - FPS_KEY_FOOT[1]
+    return span + (FPS_KEY_WINDOW[0] - 0.0002 - span) * s, (FPS_KEY_WINDOW[1] - 0.0002) * s
+
+
 # A scene is a control: its base (a sprite's name and how to build it; bases that are alike share one sprite), and its
 # caps: (name, build(press, glow), the cap's centre from the base's, the size of the control it is[, where the cap
 # itself is and how large, if that is not the same]).
@@ -1336,15 +1389,19 @@ def run_toolbar(places):
             'panelLeft': near - int(left), 'panelTop': near - int(height - top), 'panelEnd': end}
 
 
-def run_fps(places):
-    """The FPS counter's panel, at twice the phone's size, and a sheet of glass for over what the app draws on it."""
+def run_fps(places, name='fps-panel', glass_name='fps-glass', build=None, screen=None, shade_by=1.0):
+    """
+    The FPS counter's panel, at twice the phone's size, and a sheet of glass for over what the app draws on it.
+    [build] makes another panel (Mouse & keys'), [screen] is half its display's floor, [shade_by] how much of the
+    painted panel's shade its shallower display has.
+    """
     import numpy
     seed = zlib.crc32(b'fps')
     factory.rng.seed(seed)
     RND.seed(seed)
     base = group('fps')
     with inside(base):
-        fps_panel()
+        (build or fps_panel)()
     ppm = PPM * 2
     w, h = FPS_BOX
     full_w, full_h = w + MARGIN_NEAR + MARGIN_FAR, h + MARGIN_NEAR + MARGIN_FAR
@@ -1363,16 +1420,18 @@ def run_fps(places):
     left, right, bottom, top = bounds([pixels])
     left, top = edge, rows - edge
     part = numpy.ascontiguousarray(pixels[bottom:top, left:right])
-    save('fps-panel', part)
+    save(name, part)
     cx, cy = centre[0] - left, centre[1] - (rows - top)
     slope = FPS_DEPTH * 0.45
     half = ((w / 2 - FPS_RIM - slope) * ppm, (h / 2 - FPS_RIM - slope) * ppm)     # the screen's floor
+    if screen:
+        half = (screen[0] * ppm, screen[1] * ppm)
     display = [round(cx - half[0]) + 1, round(cy - half[1]) + 1, round(half[0] * 2) - 2, round(half[1] * 2) - 2]
     dx, dy, dw, dh = display
     pad = round(dh * 0.11)
     column = round(dw * 0.27)
-    places['fps-panel'] = {
-        'file': 'fps-panel.png', 'w': int(right - left), 'h': int(top - bottom), 'cx': round(cx, 1), 'cy': round(cy, 1),
+    places[name] = {
+        'file': f'{name}.png', 'w': int(right - left), 'h': int(top - bottom), 'cx': round(cx, 1), 'cy': round(cy, 1),
         'controlW': round(w * ppm), 'controlH': round(h * ppm), 'scale': 2,
         'display': {'x': dx, 'y': dy, 'w': dw, 'h': dh},     # the screen, in the sprite's pixels
         # suggested: the number right-aligned at numberRight, its baseline at numberBaseline; FPS under it; the graph's box
@@ -1387,15 +1446,15 @@ def run_fps(places):
     ys = hh - 1 - ys                                           # rows from the top
     u, v = (xs - dx) / dw, (ys - dy) / dh
     inside_ = (u >= 0) & (u <= 1) & (v >= 0) & (v <= 1)
-    shade = 0.34 * numpy.exp(-(ys - dy) / (dh * 0.10)) + 0.10 * numpy.exp(-(xs - dx) / (dh * 0.06))
+    shade = (0.34 * numpy.exp(-(ys - dy) / (dh * 0.10)) + 0.10 * numpy.exp(-(xs - dx) / (dh * 0.06))) * shade_by
     sheen = 0.075 * numpy.exp(-(((u - 0.20) * dw + (v - 0.5) * dh * 0.55) / (dw * 0.075)) ** 2) + 0.035 * numpy.clip(1 - v * 1.6, 0, 1)
     shade, sheen = numpy.where(inside_, shade, 0), numpy.where(inside_, sheen, 0)
     alpha = sheen + shade * (1 - sheen)
     glass = numpy.zeros((hh, ww, 4), dtype=numpy.float32)
     glass[..., :3] = (sheen / numpy.maximum(alpha, 1e-6))[..., None]
     glass[..., 3] = alpha
-    save('fps-glass', glass)
-    places['fps-glass'] = {'file': 'fps-glass.png', 'w': int(ww), 'h': int(hh), 'over': 'fps-panel'}
+    save(glass_name, glass)
+    places[glass_name] = {'file': f'{glass_name}.png', 'w': int(ww), 'h': int(hh), 'over': name}
     clear(base)
 
 
@@ -1421,3 +1480,7 @@ if wanted('fps'):
     run_fps(places)
     json.dump(sheet, open(info, 'w'), indent=1)
     print('RENDERED fps', flush=True)
+if wanted('fps') or wanted('fps-k'):     # Mouse & keys' counter
+    run_fps(places, 'fps-panel-k', 'fps-glass-k', key_fps_panel, key_fps_screen(), shade_by=0.5)
+    json.dump(sheet, open(info, 'w'), indent=1)
+    print('RENDERED fps-k', flush=True)

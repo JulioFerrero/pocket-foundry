@@ -1669,6 +1669,41 @@
    "cy": 198.4,
    "controlW": 605,
    "controlH": 346
+  },
+  "fps-panel-k": {
+   "file": "fps-panel-k.webp",
+   "w": 1007,
+   "h": 315,
+   "cx": 499.4,
+   "cy": 139.4,
+   "controlW": 990,
+   "controlH": 270,
+   "scale": 2,
+   "display": {
+    "x": 50,
+    "y": 50,
+    "w": 900,
+    "h": 180
+   },
+   "text": {
+    "numberRight": 313,
+    "numberBaseline": 158,
+    "unitBaseline": 210,
+    "numberSize": 90,
+    "unitSize": 50
+   },
+   "graph": {
+    "x": 333,
+    "y": 70,
+    "w": 597,
+    "h": 140
+   }
+  },
+  "fps-glass-k": {
+   "file": "fps-glass-k.webp",
+   "w": 1007,
+   "h": 315,
+   "over": "fps-panel-k"
   }
  },
  "toolbar": {
