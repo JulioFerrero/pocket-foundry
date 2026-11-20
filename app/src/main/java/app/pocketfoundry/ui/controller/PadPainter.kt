@@ -78,7 +78,13 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
                        now: Long): Boolean {
         val pressed = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
         if (c.kind is Kind.Key || c.kind is Kind.ToolKey || c.kind == Kind.Drawer) {
-            drawKey(canvas, c, x, y, r, pressed)
+            // The rendered cap, blank (key-round, key-wide), its face less than the control's size; or the drawn one.
+            val moving = sprites.draw(canvas, c, x, y, r, box, now)
+            if (moving != null) {
+                val drop = if (pressed) r * PRESS_DROP else 0f
+                if (c.pill) keyLabel(canvas, c, x, y + drop, 2 * r * WIDE_FACE_W, r * WIDE_FACE_H, INK)
+                else keyLabel(canvas, c, x, y + drop, r * ROUND_FACE, r * ROUND_FACE, INK)
+            } else drawKey(canvas, c, x, y, r, pressed)
             if (editing && c.latch) {
                 val bx = if (c.pill) x + 1.75f * r else x + 0.72f * r
                 val by = y - 0.72f * r
@@ -87,7 +93,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
                 keyIcon(canvas, KeyIcon.LOCK, bx, by, r * 0.42f, INK)
             }
             if (selected) drawSelection(canvas, null, c, x, y, r)
-            return false
+            return moving == true
         }
         val moving = sprites.draw(canvas, c, x, y, r, box, now)
         if (moving != null) {
@@ -137,35 +143,28 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         return text.measureText(label)
     }
 
-    /** A keyboard key: its word, or its icon with its letter small over it (Keys). */
+    /** A keyboard key in the drawn look: its cap the control's whole size, its word or icon on it (Keys). */
     fun drawKey(canvas: Canvas, c: Control, x: Float, y: Float, r: Float, pressed: Boolean) {
-        val colour = glyphColour(pressed)
         if (c.pill) {
             rect.set(x - 2 * r, y - r, x + 2 * r, y + r)
             bevelSlot(pressed, rect.top, rect.bottom) { canvas.drawRoundRect(rect, r * 0.3f, r * 0.3f, it) }
+            keyLabel(canvas, c, x, y, 2 * r, r, glyphColour(pressed))
         } else {
             bevelSlot(pressed, y - r, y + r) { canvas.drawCircle(x, y, r, it) }
+            keyLabel(canvas, c, x, y, r, r, glyphColour(pressed))
         }
+    }
+
+    /**
+     * A key's name (Esc, E, Shift, Ctrl+Z) as large as fits on a cap face [w] by [h] from its middle ([x], [y]), a
+     * round face's equal; or the sign of what isn't a key (the drawer, the tools).
+     */
+    private fun keyLabel(canvas: Canvas, c: Control, x: Float, y: Float, w: Float, h: Float, colour: Int) {
         val sign = c.keyIcon
-        when {
-            sign == null -> letter(canvas, c.label, x, y, r * if (c.label.length > 2) 0.62f else 0.9f, colour)
-            c.pill && c.label.length > 3 -> {
-                // A word and its icon side by side: Shift.
-                val size = r * 0.95f
-                val words = r * 0.62f
-                val gap = r * 0.2f
-                val width = size + gap + textWidth(c.label, words)
-                keyIcon(canvas, sign, x - width / 2 + size / 2, y, size, colour)
-                letter(canvas, c.label, x + width / 2 - textWidth(c.label, words) / 2, y, words, colour)
-            }
-            else -> {
-                val legend = c.label.isNotEmpty()
-                if (legend && c.pill) letter(canvas, c.label, x - 1.45f * r, y - 0.52f * r, r * 0.42f, colour)
-                else if (legend) letter(canvas, c.label, x, y - 0.55f * r, r * 0.36f, colour)
-                val below = if (legend && !c.pill) r * 0.14f else 0f
-                keyIcon(canvas, sign, x, y + below, r * if (c.pill) 1f else 0.85f, colour)
-            }
-        }
+        val round = w <= h * 1.01f
+        if (sign != null) return keyIcon(canvas, sign, x, y, h * if (round) 1.15f else 1.25f, colour)
+        val fit = 2 * w * LABEL_WIDTH / textWidth(c.label, 1f)
+        letter(canvas, c.label, x, y, minOf(h * if (round) 1f else 1.25f, fit), colour)
     }
 
     /** [sign] [size] wide, its middle at ([x], [y]). */
@@ -377,6 +376,14 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     }
 
     companion object {
+        /** The rendered blank caps' faces, in the control's radii: round keys', and wide keys' half width and height. */
+        private const val ROUND_FACE = 0.7f
+        private const val WIDE_FACE_W = 0.85f
+        private const val WIDE_FACE_H = 0.7f
+        /** A key's name takes at most this part of its face's width. */
+        private const val LABEL_WIDTH = 0.82f
+        /** How far a pressed cap's sign goes down with it, in radii. */
+        private const val PRESS_DROP = 0.05f
         /** The blue of the game's controller glyphs (data/core/graphics/icons/controller). */
         const val GLYPH = 0xFF80CEF0.toInt()
         /** Icons on a pressed button's orange. */

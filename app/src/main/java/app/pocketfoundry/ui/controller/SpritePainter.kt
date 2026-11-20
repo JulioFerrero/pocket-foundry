@@ -33,7 +33,13 @@ class SpritePainter(private val layout: PadLayout) {
                     return false
                 }
                 val base = set["stick-base"] ?: return null
-                val knob = (if (right) set["stick-knob-r"] else null) ?: set["stick-knob"] ?: return null
+                // Mouse & keys' stick has no letter: it's W, A, S and D.
+                val own = when {
+                    right -> set["stick-knob-r"]
+                    kind == Kind.KeyStick -> set["stick-knob-k"]
+                    else -> null
+                }
+                val knob = own ?: set["stick-knob"] ?: return null
                 val held = c.pointers.isNotEmpty() && !c.originX.isNaN()
                 still(canvas, base, if (held) c.originX else x, if (held) c.originY else y, size)
                 val click = if (right) PadButton.RIGHT_STICK else PadButton.LEFT_STICK
@@ -48,8 +54,13 @@ class SpritePainter(private val layout: PadLayout) {
                 cap(canvas, c, strip ?: moves[c]?.strip?.takeUnless { it.bitmap.isRecycled } ?: set["dpad-up"] ?: return null,
                     c.dpad != 0, x, y, size, now)
             }
-            // Keys are drawn by PadPainter, their labels and icons at runtime.
-            is Kind.Key, is Kind.ToolKey, Kind.Drawer -> null
+            // Mouse & keys' keys: a blank cap; PadPainter puts the label or icon on it. Held while latched or open.
+            is Kind.Key, is Kind.ToolKey, Kind.Drawer -> {
+                val strip = set[if (c.pill) "key-wide" else "key-round"] ?: return null
+                strip.base?.let { set[it] }?.let { still(canvas, it, x, y, size) }
+                val held = c.pointers.isNotEmpty() || layout.isLatched(c) || (c.kind == Kind.Drawer && layout.openDrawer === c)
+                cap(canvas, c, strip, held, x, y, size, now)
+            }
             else -> {
                 val strip = set[STRIPS[c.id] ?: return null] ?: return null
                 strip.base?.let { set[it] }?.let { still(canvas, it, x, y, size) }

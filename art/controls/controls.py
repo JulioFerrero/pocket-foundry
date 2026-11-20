@@ -585,7 +585,8 @@ def stick_knob(p, glow, letter='L'):
     """A round grey cap, hollowed for the thumb, with its letter; it stands high over the well and clicks down (L3)."""
     with pose(0, 0, 0.0125 - 0.0045 * p):
         z = body(KNOB, 'grey', glow, depth=0.0060, dish=(0.0014, 0.0056, 0.0011), reach=0.020, bottom=True)
-        text(letter, 0, 0, z, 0.0280)
+        if letter:
+            text(letter, 0, 0, z, 0.0280)
     if glow > 0.01:
         foot_ = lambda angle, inset=0.0: KNOB(angle, inset - 0.0018)   # noqa: E731
         halo(foot_, foot_, 0, 0, glow, z=WELL + 0.0003)
@@ -706,6 +707,32 @@ def small_cap(kind):
 LARGE, LESS = (0.0914, 0.0457), (0.0777, 0.0389)   # the app's two sizes of bumper and trigger
 
 
+def blank_face_cap(p, glow):
+    """A face button's grey cap with nothing on it: Mouse & keys' round keys, their letter or sign drawn by the app."""
+    r = FACE / 2 - 0.0085
+    button(FACE_CAP, p, glow, 'grey', lambda z: None, crown=0.0005, span=r - BEVEL - 0.0023, reach=r * 0.85)
+
+
+KEY_RIM = 0.0058   # a keyboard key's rim, thinner than a bumper's: its face takes most of it, for a word or a sign
+
+
+def key_shape(half_w, half_h):
+    return outline(rbox(0, 0, half_w - KEY_RIM, half_h - KEY_RIM, 0.0020))
+
+
+def key_wide_base():
+    """A wide key's panel, the smaller bumper's size, with a hole for a cap that nearly fills it."""
+    half_w, half_h = LESS[0] / 2, LESS[1] / 2
+    with pose():
+        bezel(outline(rbox(0, 0, half_w - LINE_W, half_h - LINE_W, 0.0030)), hole_of(key_shape(half_w, half_h)), count=1024)
+
+
+def blank_wide_cap(p, glow):
+    """A wide grey cap with nothing on it: Mouse & keys' wide keys, their word or sign drawn by the app."""
+    half_w, half_h = LESS[0] / 2, LESS[1] / 2
+    button(key_shape(half_w, half_h), p, glow, 'grey', lambda z: None, count=1024, reach=half_h * 0.9)
+
+
 def wide(name, size, letter):
     half_w, half_h = size[0] / 2, size[1] / 2
     which = 'wide-large-base' if size == LARGE else 'wide-small-base'
@@ -722,7 +749,7 @@ def small(name, kind):
 CELL = 122 / PPM          # a key's cell: 0.085 of the screen's height, a whole number of pixels so the pieces join
 END = 5 / PPM             # what the panel adds beyond the first and the last cell
 TOOL_KEY = outline(rbox(0, 0, CELL / 2 - 0.0080, CELL / 2 - 0.0080, 0.0022))
-TOOLS = ('adjust', 'keyboard', 'hide', 'show', 'add', 'remove', 'smaller', 'bigger', 'opacity', 'reset', 'done')
+TOOLS = ('adjust', 'keyboard', 'hide', 'show', 'add', 'remove', 'smaller', 'bigger', 'opacity', 'latch', 'reset', 'done')
 
 
 def toolbar_panel(keys):
@@ -812,6 +839,11 @@ def tool_sign(kind, z, sign, face):
         tip = arc(0.0058, 50, 50, 1)[0]
         shape([(tip[0] + 0.0040, tip[1] + 0.0012), (tip[0] - 0.0012, tip[1] + 0.0034), (tip[0] - 0.0008, tip[1] - 0.0034)],
               (0, 0, z + 0.00025), sign, normal=(0, 0, 1))
+    elif kind == 'latch':           # a padlock: Mouse & keys' keys that stay held
+        stroke([(-0.0052, 0.0004), (0.0052, 0.0004), (0.0052, -0.0064), (-0.0052, -0.0064)], 0.0015, z, sign, closed=True)
+        shackle = [(x, y + 0.0024) for x, y in arc(0.0032, 0, 180, 18)]
+        stroke([(0.0032, 0.0004)] + shackle + [(-0.0032, 0.0004)], 0.0015, z, sign)
+        dot(0, -0.0030, 0.0011, z + 0.0003, sign)
     elif kind == 'done':            # a check
         stroke([(-0.0064, -0.0004), (-0.0020, -0.0050), (0.0068, 0.0050)], 0.0022, z, sign)
 
@@ -854,12 +886,19 @@ SCENES = [
     # the right stick's knob, for when the pad is off: the same over the same base
     dict(name='stick-r', size=(0.128, 0.128), base=('stick-base', stick_base), flat=WELL,
          caps=[('stick-knob-r', lambda p, glow: stick_knob(p, glow, 'R'), (0, 0), (0.128, 0.128), (0, 0, 0.0524, 0.0524))]),
+    # Mouse & keys' stick, for W, A, S and D: the same knob with no letter
+    dict(name='stick-k', size=(0.128, 0.128), base=('stick-base', stick_base), flat=WELL,
+         caps=[('stick-knob-k', lambda p, glow: stick_knob(p, glow, None), (0, 0), (0.128, 0.128), (0, 0, 0.0524, 0.0524))]),
     dict(name='trackpad', size=PAD, base=('trackpad', trackpad), caps=[]),
 ] + [dict(name=n, size=(FACE, FACE), base=('face-base', face_base), caps=[(n, face_cap(n), (0, 0), (FACE, FACE))]) for n in 'abxy'] + [
     dict(name='dpad', size=(DPAD, DPAD), base=('dpad-base', dpad_base),
          caps=[(f'dpad-{way}', dpad_cross(way), (0, 0), (DPAD, DPAD)) for way in WAYS]),
     wide('lb', LARGE, 0.0235), wide('rt', LARGE, 0.0235), wide('lt', LESS, 0.0190), wide('rb', LESS, 0.0190),
     small('view', 'view'), small('menu', 'menu'), small('l3', 'L3'), small('r3', 'R3'),
+    # Mouse & keys' keys: blank caps over the face buttons' and the smaller bumpers' bases
+    dict(name='key-round', size=(FACE, FACE), base=('face-base', face_base), caps=[('key-round', blank_face_cap, (0, 0), (FACE, FACE))]),
+    dict(name='key-wide', size=LESS, base=('key-wide-base', key_wide_base),
+         caps=[('key-wide', blank_wide_cap, (0, 0), LESS)]),
 ] + [
     # the toolbar's keys: each over a one-key panel that only catches its shadow (the panel's own sprites are the
     # three pieces run_toolbar cuts)

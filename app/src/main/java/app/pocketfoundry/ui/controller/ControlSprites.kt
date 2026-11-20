@@ -60,10 +60,13 @@ object ControlSprites {
     private const val STEP = 0.05f
     /** The frame height the sprites were rendered for: the controls' sizes are fractions of it. */
     private const val DESIGN_FRAME = 1440f
-    /** Loaded when first asked for: the D-pad's diagonals, the layout editor's keys, Show, the right stick's knob. */
+    /**
+     * Loaded when first asked for: the D-pad's diagonals, the layout editor's keys, Show, the right stick's knob, and
+     * Mouse & keys' blank caps, which the pad's players never see.
+     */
     private val LATER = setOf("dpad-up-left", "dpad-up-right", "dpad-down-left", "dpad-down-right",
-                              "tool-add", "tool-remove", "tool-smaller", "tool-bigger", "tool-opacity", "tool-reset",
-                              "tool-done", "tool-show", "stick-knob-r")
+                              "tool-add", "tool-remove", "tool-smaller", "tool-bigger", "tool-opacity", "tool-latch",
+                              "tool-reset", "tool-done", "tool-show", "stick-knob-r", "key-round", "key-wide", "stick-knob-k")
 
     private val worker = Executors.newSingleThreadExecutor()
     // Main thread only, but for [loaded], which the worker's results reach through the main thread too.
