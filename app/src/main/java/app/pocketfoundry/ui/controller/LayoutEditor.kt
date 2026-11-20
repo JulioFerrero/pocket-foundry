@@ -293,7 +293,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         if (layout.keysMode) {
             // The keys as they'll be, on the glass.
             bounds.inset(-s * 0.3f, -s * 0.18f)
-            painter.glass(canvas, bounds)
+            painter.glass.draw(canvas, bounds)
             val r = OFFER_CAP * s
             rects.forEachIndexed { i, box ->
                 val c = controls[i]
@@ -323,7 +323,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
         val s = chipHeight()
         bounds.set(chips.first().left, chips.first().top, chips[sets.size].right, chips.first().bottom)
         bounds.inset(-s * 0.14f, -s * 0.14f)
-        painter.glass(canvas, bounds, s * 0.3f)
+        painter.glass.draw(canvas, bounds, s * 0.3f)
         for (i in 0..sets.size) {
             val on = i < sets.size && layout.set == sets[i]
             painter.chip(canvas, chips[i], on, s)

@@ -40,14 +40,8 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         typeface = Factorio.font(context, 600)
         color = NOTE
     }
-    private val glassFill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val glassRim = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-    private val glassShadow = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF000000.toInt() }
-    private val glassPath = Path()
-    // A sheet's shaders, for its height: the drawer's, the add list's and the chips' each stay the same while open.
-    private var glassFor = -1f
-    private var glassFillShader: LinearGradient? = null
-    private var glassRimShader: LinearGradient? = null
+    /** Mouse & keys' surfaces. */
+    val glass = Glass(context)
     private val sprite = Paint(Paint.FILTER_BITMAP_FLAG)
     private val path = Path()
     private val point = PointF()
@@ -76,7 +70,7 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
     fun drawDrawer(canvas: Canvas, sheet: GuiSheet?, selected: Control?, now: Long): Boolean {
         if (layout.openDrawer == null) return false
         val r = layout.drawerKeyRadius()
-        if (!layout.keypad) glass(canvas, layout.drawerPanel)
+        if (!layout.keypad) glass.draw(canvas, layout.drawerPanel)
         val keys = layout.drawerKeys
         var moving = false
         for (i in keys.indices) {
@@ -94,40 +88,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         text.setShadowLayer(px(2f), px(2f), px(3f), CAPTION_SHADOW)
         letter(canvas, c.name, x, y, size, INK_ON_DARK)
         text.clearShadowLayer()
-    }
-
-    /**
-     * Mouse & keys' surfaces (a drawer, the add list, the set chips): a sheet of smoked glass on [box], lit along its
-     * top edge, its shadow on the game below it. The keys are what's solid.
-     */
-    fun glass(canvas: Canvas, box: RectF, radius: Float = context.dp(GLASS_RADIUS_DP)) {
-        glassPath.reset()
-        glassPath.addRoundRect(box, radius, radius, Path.Direction.CW)
-        // The shadow only round the sheet: under it, it would darken the glass.
-        canvas.save()
-        canvas.clipOutPath(glassPath)
-        glassShadow.setShadowLayer(context.dp(7.5f), context.dp(2f), context.dp(3.75f), GLASS_SHADOW)
-        canvas.drawPath(glassPath, glassShadow)
-        canvas.restore()
-        if (glassFor != box.height()) {
-            glassFor = box.height()
-            val h = box.height()
-            val lit = (1.6f * radius / h).coerceAtMost(0.5f)
-            glassFillShader = LinearGradient(0f, 0f, 0f, h, GLASS_TOP, GLASS_BOTTOM, Shader.TileMode.CLAMP)
-            glassRimShader = LinearGradient(0f, 0f, 0f, h, intArrayOf(RIM_LIT, 0, 0, RIM_SHADE),
-                                            floatArrayOf(0f, lit, 1f - lit, 1f), Shader.TileMode.CLAMP)
-        }
-        canvas.save()
-        canvas.translate(box.left, box.top)
-        rect.set(0f, 0f, box.width(), box.height())
-        glassFill.shader = glassFillShader
-        canvas.drawRoundRect(rect, radius, radius, glassFill)
-        val rim = context.dp(0.8f)
-        rect.inset(rim / 2, rim / 2)
-        glassRim.strokeWidth = rim
-        glassRim.shader = glassRimShader
-        canvas.drawRoundRect(rect, radius - rim / 2, radius - rim / 2, glassRim)
-        canvas.restore()
     }
 
     /**
@@ -565,13 +525,6 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
         private const val LED_EDGE = 0x21FFFFFF
         private const val LED_ON = 0xFFFFF4D6.toInt()
         private const val LED_RIM = 0x967A440A.toInt()
-        /** The glass: its tint top and bottom, its rim lit at the top and shaded at the bottom, its shadow. */
-        private const val GLASS_RADIUS_DP = 9f
-        private const val GLASS_TOP = 0xE2363533.toInt()
-        private const val GLASS_BOTTOM = 0xEE2A2928.toInt()
-        private const val RIM_LIT = 0x45FFFFFF
-        private const val RIM_SHADE = 0x6E000000
-        private const val GLASS_SHADOW = 0x59000000
         private const val CAPTION_SHADOW = 0x96000000.toInt()
         /** What an add list's key does: pale, a little through. */
         private const val NOTE = 0xD6EDEBE6.toInt()

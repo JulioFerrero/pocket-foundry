@@ -13,6 +13,7 @@ import android.view.View
 import android.widget.FrameLayout
 import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.FrameRate
+import app.pocketfoundry.ui.controller.Glass
 import app.pocketfoundry.ui.controller.SpriteSet
 import app.pocketfoundry.ui.controller.Movable
 import app.pocketfoundry.ui.controller.Sprite
@@ -68,6 +69,14 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     private var column = 0f
     private val box = RectF()
     private val path = Path()
+    /** Mouse & keys' look: the counter on smoked glass, as its keys' panels are, not the rendered panel. */
+    var glass: Glass? = null
+        set(value) {
+            field = value
+            pad()
+            requestLayout()
+            invalidate()
+        }
     /** The controls' rendered sprites, while they're loaded: the panel's look, else a plain one. */
     var sprites: SpriteSet? = null
         set(value) {
@@ -99,12 +108,25 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         column = maxOf(number.measureText("00"), unit.measureText("FPS"))
         boxWidth = (WIDTH_DP * unitPx).roundToInt()
         boxHeight = (HEIGHT_DP * unitPx).roundToInt()
+        pad()
+        requestLayout()
+        invalidate()
+    }
+
+    /** Room round the box for its shadow: the rendered panel's, or the glass's. */
+    private fun pad() {
+        val glass = glass
+        if (glass != null) {
+            padLeft = ceil(glass.shadowLeft).toInt()
+            padTop = ceil(glass.shadowTop).toInt()
+            padRight = ceil(glass.shadowRight).toInt()
+            padBottom = ceil(glass.shadowBottom).toInt()
+            return
+        }
         padLeft = (EDGE_DP * unitPx).roundToInt()
         padTop = padLeft
         padRight = (SHADOW_RIGHT_DP * unitPx).roundToInt()
         padBottom = (SHADOW_BOTTOM_DP * unitPx).roundToInt()
-        requestLayout()
-        invalidate()
     }
 
     override fun onAttachedToWindow() {
@@ -172,7 +194,7 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
     override fun onDraw(canvas: Canvas) {
         canvas.save()
         canvas.translate(padLeft.toFloat(), padTop.toFloat())
-        val rendered = sprites?.get("fps-panel")
+        val rendered = if (glass == null) sprites?.get("fps-panel") else null
         if (rendered != null) drawRendered(canvas, rendered, sprites?.get("fps-glass")) else drawPlain(canvas)
         canvas.restore()
     }
@@ -215,7 +237,7 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         number.textSize = 17 * unitPx
         unit.textSize = 10 * unitPx
         box.set(0f, 0f, w, h)
-        canvas.drawRoundRect(box, 4 * unitPx, 4 * unitPx, panel)
+        glass?.draw(canvas, box, GLASS_RADIUS_DP * unitPx) ?: canvas.drawRoundRect(box, 4 * unitPx, 4 * unitPx, panel)
         // The number, right-aligned so it doesn't jump as digits change, "FPS" under it.
         val text = rate.current.roundToInt().toString()
         val textRight = pad + maxOf(column, number.measureText(text))
@@ -251,6 +273,7 @@ class FpsCounterView(context: Context, private val counter: FrameCounter) : View
         const val SHADOW_RIGHT_DP = 5
         const val SHADOW_BOTTOM_DP = 7
         const val PANEL = 0xB0000000.toInt()
+        const val GLASS_RADIUS_DP = 9
         const val GUIDE = 0x40FFFFFF
     }
 }
