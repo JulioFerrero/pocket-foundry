@@ -104,8 +104,8 @@
          String filtering = p.displayFilteringMode.get();
          setFiltering(mNativeContext, "nearest".equals(filtering) ? GLES20.GL_NEAREST : GLES20.GL_LINEAR);
          setFollowCursorPan(mNativeContext, p.zoomFollowsCursor.get());
-+        // As large as on a desktop's screen, for the phone's: 4 times on one of 3.75 pixels a dp.
-+        setCursorScale(mNativeContext, Math.max(1, Math.round(getResources().getDisplayMetrics().density)));
++        // Larger for a phone's dense screen, a whole number of times, so it stays sharp: 3 on one of 3.75 pixels a dp.
++        setCursorScale(mNativeContext, Math.max(1, Math.round(getResources().getDisplayMetrics().density * 0.8f)));
          hardwareKbdScancodesWorkaround = p.hardwareKbdScancodesWorkaround.get();
          clipboardSyncEnabled = p.clipboardEnable.get();
          setClipboardSyncEnabled(mNativeContext, clipboardSyncEnabled, clipboardSyncEnabled);
