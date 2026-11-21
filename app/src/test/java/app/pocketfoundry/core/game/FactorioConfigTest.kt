@@ -10,9 +10,9 @@ import org.junit.Test
 class FactorioConfigTest {
     private fun update(ini: String, keyboard: Boolean = false, compression: Compression = Compression.GPU,
                        textures: String? = null, effects: Boolean? = null, atlasCache: Boolean = true,
-                       noGpuMemory: Boolean = false) =
+                       noGpuMemory: Boolean = false, lowVram: Boolean = false) =
         FactorioConfig.update(ini, "/game/data", "/game/write", keyboard, "normal", compression, textures, effects,
-                              atlasCache, noGpuMemory)
+                              atlasCache, noGpuMemory, lowVram)
 
     /** [key]'s value in [section], or null. */
     private fun value(ini: String, section: String, key: String) = ini.lines()
@@ -95,6 +95,13 @@ class FactorioConfigTest {
     @Test fun `updating twice gives the same file`() {
         val once = update("; version=13\n[general]\nlocale=es\n", effects = false)
         assertEquals(once, update(once, effects = false))
+    }
+
+    @Test fun `low VRAM is turned on when asked, and the player's choice stays otherwise`() {
+        assertEquals("true", value(update("", lowVram = true), "graphics", "optimize-for-low-vram"))
+        val turnedOff = update("", lowVram = true).replace("optimize-for-low-vram=true", "optimize-for-low-vram=false")
+        assertEquals("false", value(update(turnedOff), "graphics", "optimize-for-low-vram"))
+        assertNull(value(update(""), "graphics", "optimize-for-low-vram"))
     }
 
     @Test fun `fast start keeps the atlases on storage, compressed`() {

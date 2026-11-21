@@ -16,6 +16,12 @@ object FactorioConfig {
     /** Whether the config has Light's effects off, so turning Light off can put them back once. */
     private const val LIGHT_APPLIED = "lightApplied"
     /**
+     * Whether the config got Factorio's optimize-for-low-vram, once; after that the game's menu decides. A phone's GPU
+     * memory is its RAM: on a vivo X200 Ultra the atlases took 796 MB instead of 1130, sprites loaded in 15.8 s
+     * instead of 19.8, and a game looked the same at 60 FPS.
+     */
+    private const val LOW_VRAM_APPLIED = "lowVramApplied"
+    /**
      * Whether the config has textures uncompressed for the driver, so another driver can put Factorio's default back
      * once. True at first: 0.8.3 to 0.8.5 left them uncompressed without noting it.
      */
@@ -33,10 +39,12 @@ object FactorioConfig {
         // Factorio derives its paths from its executable (here the loader), so name them.
         val config = update(old, paths.gameReadData.path, paths.gameData.path, keyboard, settings.spriteQuality,
                             compression, textures(uncompressed, prefs.getBoolean(UNCOMPRESSED_APPLIED, true)),
-                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), atlasCache, noGpuMemory)
+                            effects(light, prefs.getBoolean(LIGHT_APPLIED, false)), atlasCache, noGpuMemory,
+                            lowVram = !prefs.getBoolean(LOW_VRAM_APPLIED, false))
         paths.config.parentFile?.mkdirs()
         paths.config.writeText(config)
-        prefs.edit().putBoolean(LIGHT_APPLIED, light).putBoolean(UNCOMPRESSED_APPLIED, uncompressed).apply()
+        prefs.edit().putBoolean(LIGHT_APPLIED, light).putBoolean(UNCOMPRESSED_APPLIED, uncompressed)
+            .putBoolean(LOW_VRAM_APPLIED, true).apply()
     }
 
     /**
@@ -57,7 +65,7 @@ object FactorioConfig {
 
     internal fun update(ini: String, readData: String, writeData: String, keyboard: Boolean, spriteQuality: String,
                         compression: Compression, textures: String?, effects: Boolean?, atlasCache: Boolean,
-                        noGpuMemory: Boolean = false): String {
+                        noGpuMemory: Boolean = false, lowVram: Boolean = false): String {
         var config = if (ini.startsWith("; version=")) ini else VERSION_HEADER
         config = setIni(config, "path", "read-data", readData)
         config = setIni(config, "path", "write-data", writeData)
@@ -77,6 +85,7 @@ object FactorioConfig {
         // their compression or the mods change.
         config = setIni(config, "graphics", "cache-sprite-atlas", atlasCache.toString())
         config = setIni(config, "graphics", "compress-sprite-atlas-cache", "true")
+        if (lowVram) config = setIni(config, "graphics", "optimize-for-low-vram", "true")
         // Finding no GPU memory, Factorio made its atlases as large as the driver allows (16383 on a Mali-G52) and
         // streamed sprites in while playing, each piece kept as ASTC on a Mali by MobileGlues: 7 FPS on a Redmi 12's
         // main menu. What it picks through Zink on the same phones.
