@@ -5,10 +5,13 @@ import app.pocketfoundry.ui.controller.KeySets
 import app.pocketfoundry.core.controller.Input
 import android.app.Activity
 import android.app.Application
+import android.app.GameManager
+import android.app.GameState
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.PorterDuff
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
@@ -107,6 +110,7 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
         resumed = activity
         ScreenLog.add("game screen shown")
         applyRefreshRate(activity)
+        tellGameState(activity, playing = true)
         CpuBoost.start(activity)
         val screen = screens[activity]
         screen?.border?.apply()
@@ -115,6 +119,16 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
             editorRequested = false
             screen?.view?.startEditing()
         }
+    }
+
+    /**
+     * Android 13 and later: whether the game is being played, which the phone maker's game booster may act on, as it
+     * may on the manifest's game category. A Xiaomi 12T's didn't: a heavy map stayed at 18 FPS (2026-11-22).
+     */
+    private fun tellGameState(activity: Activity, playing: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val mode = if (playing) GameState.MODE_GAMEPLAY_INTERRUPTIBLE else GameState.MODE_NONE
+        runCatching { activity.getSystemService(GameManager::class.java)?.setGameState(GameState(false, mode)) }
     }
 
     /** The game's highest frame rate, which the others divide evenly. */
@@ -130,7 +144,10 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
     override fun onActivityPaused(activity: Activity) {
         if (activity is MainActivity) ScreenLog.add("game screen hidden")
         if (resumed === activity) resumed = null
-        if (activity is MainActivity) CpuBoost.stop()
+        if (activity is MainActivity) {
+            CpuBoost.stop()
+            tellGameState(activity, playing = false)
+        }
         screens[activity]?.pause()
     }
 
