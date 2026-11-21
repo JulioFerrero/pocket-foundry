@@ -7,6 +7,7 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import org.json.JSONObject
 import java.io.File
+import java.util.zip.ZipFile
 
 /**
  * Whether the phone has the memory a game is about to take. Short of it, Android closes the app without a word, most
@@ -17,6 +18,10 @@ import java.io.File
  * High; Space Age at Medium didn't with 0.94 GB (closed as its atlases began); Space Age at High took 4.6 GB of a
  * Galaxy Tab S8's 6.1 GB (atlases 2.4 GB on the GPU, which is the same RAM, and up to 1.3 GB the game's own).
  * Fast start's cache skips the decoding: a quarter less.
+ *
+ * A save's map comes on top, about 15 MB a MiB of its level.dat as Factorio unpacks it (2026-11-21): flame_Sla's 86 MiB
+ * took 1.26 GB more than a small save on a Xiaomi 12T; gridlocked's 501 MiB held 7.3 GB on a vivo X200 Ultra, and
+ * Android closed it on the 12T with 3.2 GB in memory and 4.9 GB in swap.
  */
 object MemoryNeed {
     /** MB: base game at Medium and High, Space Age at Medium and High, while Fast start's cache is made. */
@@ -25,18 +30,46 @@ object MemoryNeed {
     private const val SPACE_AGE_MEDIUM = 2200L
     private const val SPACE_AGE_HIGH = 4500L
     private const val CACHED = 0.75
+    private const val MAP_PER_MIB = 15L
+    private const val MIB = 1L shl 20
 
-    /** [freeMb] is null where /proc/meminfo can't be read: then there's nothing to say. */
-    class Check(val freeMb: Long?, val neededMb: Long) {
+    /** [freeMb] is null where /proc/meminfo can't be read: then there's nothing to say. [mapMb]: the save's share. */
+    class Check(val freeMb: Long?, val neededMb: Long, val mapMb: Long = 0) {
         val short get() = freeMb != null && freeMb < neededMb
+        /** Most of it is the map, which lower sprites wouldn't make up for. */
+        val mapHeavy get() = mapMb * 2 > neededMb
     }
 
-    fun check(context: Context): Check {
+    /** Before starting [save], or the main menu when it's null. */
+    fun check(context: Context, save: File?): Check {
         val paths = Paths(context)
         val cached = Settings(context).fastStart && paths.atlasCache.exists()
+        val map = mapMb(save)
         return Check(freeMb(MemoryWatch.read(File("/proc/meminfo"))),
-                     neededMb(spaceAge(paths), Drivers.nextSprites(context) == Settings.HIGH, cached))
+                     neededMb(spaceAge(paths), Drivers.nextSprites(context) == Settings.HIGH, cached) + map, map)
     }
+
+    /**
+     * What [save]'s map takes once loaded. Factorio 2.0 stores level.dat as level.dat0, level.dat1, ... of a MiB each
+     * unpacked; older saves as one level.dat, whose unpacked size the zip records. 0 for no save or an unreadable one.
+     */
+    internal fun mapMb(save: File?): Long {
+        if (save == null) return 0
+        val levelBytes = runCatching {
+            ZipFile(save).use { zip ->
+                var chunks = 0L
+                var single = 0L
+                for (entry in zip.entries()) {
+                    val name = entry.name.substringAfterLast('/')
+                    if (CHUNK.matches(name)) chunks++ else if (name == "level.dat") single = maxOf(0L, entry.size)
+                }
+                if (chunks > 0) chunks * MIB else single
+            }
+        }.getOrDefault(0L)
+        return levelBytes / MIB * MAP_PER_MIB
+    }
+
+    private val CHUNK = Regex("level\\.dat\\d+")
 
     internal fun neededMb(spaceAge: Boolean, high: Boolean, cached: Boolean): Long {
         val building = when {

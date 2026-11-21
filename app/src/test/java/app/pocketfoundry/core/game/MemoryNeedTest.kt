@@ -9,6 +9,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class MemoryNeedTest {
     @get:Rule val folder = TemporaryFolder()
@@ -30,6 +32,33 @@ class MemoryNeedTest {
         val base = MemoryNeed.Check(MemoryNeed.freeMb(mapOf("MemAvailable" to 652L * 1024, "SwapFree" to 508L * 1024)),
                                     MemoryNeed.neededMb(spaceAge = false, high = true, cached = false))
         assertFalse(base.short)
+    }
+
+    private fun save(vararg entries: Pair<String, Int>) = folder.newFile().apply {
+        ZipOutputStream(outputStream()).use { zip ->
+            for ((name, size) in entries) {
+                zip.putNextEntry(ZipEntry(name)); zip.write(ByteArray(size)); zip.closeEntry()
+            }
+        }
+    }
+
+    @Test fun `a 2_0 save's map counts its level chunks, an older one its level_dat, none or a broken one 0`() {
+        val chunks = save("s/level.dat0" to 10, "s/level.dat1" to 10, "s/level.dat2" to 10, "s/control.lua" to 10)
+        assertEquals(45, MemoryNeed.mapMb(chunks))
+        assertEquals(30, MemoryNeed.mapMb(save("old/level.dat" to (2 shl 20) + 5, "old/script.dat" to 10)))
+        assertEquals(0, MemoryNeed.mapMb(null))
+        assertEquals(0, MemoryNeed.mapMb(folder.newFile().apply { writeText("not a zip") }))
+    }
+
+    @Test fun `gridlocked's map is short on the Xiaomi 12T that lost it, flame_Sla's isn't, and the map is to blame`() {
+        // 2026-11-21: 3.15 GB available and 3.98 GB of swap free as gridlocked (501 level chunks) started.
+        val free = MemoryNeed.freeMb(mapOf("MemAvailable" to 3227624L, "SwapFree" to 4080636L))
+        val base = MemoryNeed.neededMb(spaceAge = false, high = false, cached = true)
+        val gridlocked = MemoryNeed.Check(free, base + 501 * 15, 501 * 15)
+        assertTrue(gridlocked.short)
+        assertTrue(gridlocked.mapHeavy)
+        val flame = MemoryNeed.Check(free, base + 86 * 15, 86 * 15)
+        assertFalse(flame.short)
     }
 
     @Test fun `without a readable meminfo there's nothing to warn about`() {

@@ -406,7 +406,7 @@ class LauncherActivity : Activity() {
     /** [memoryChecked]: the player saw the memory warning and chose to start anyway. */
     fun play(save: File?, memoryChecked: Boolean = false) {
         if (askForNotifications(then = { play(save, memoryChecked) })) return
-        if (!memoryChecked && warnShortOfMemory(then = { play(save, memoryChecked = true) })) return
+        if (!memoryChecked && warnShortOfMemory(save, then = { play(save, memoryChecked = true) })) return
         error = null
         busy = "Starting…"
         refresh()
@@ -441,12 +441,12 @@ class LauncherActivity : Activity() {
     }
 
     /**
-     * Short of the memory this load takes (MemoryNeed), or closed for memory last time: says so before starting, as
-     * Android would close the game halfway through loading without a word. Back stays in the launcher. debug.env's
+     * Short of the memory loading [save] takes (MemoryNeed), or closed for memory last time: says so before starting,
+     * as Android would close the game halfway through loading without a word. Back stays in the launcher. debug.env's
      * app.memory_warning=always shows it whatever the numbers, to read them on a phone with room.
      */
-    private fun warnShortOfMemory(then: () -> Unit): Boolean {
-        val check = MemoryNeed.check(this)
+    private fun warnShortOfMemory(save: File?, then: () -> Unit): Boolean {
+        val check = MemoryNeed.check(this, save)
         val closedLastTime = Session.lastGame?.outOfMemory == true
         val always = DebugEnv.read(this, "app")["memory_warning"] == "always"
         if (!check.short && !closedLastTime && !always) return false
@@ -461,8 +461,9 @@ class LauncherActivity : Activity() {
             add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
                 add(label(this@LauncherActivity, "${have}Factorio needs about ${megabytes(check.neededMb)}.", 16f,
                           weight = 600))
-                add(label(this@LauncherActivity, "$why Close other apps to free memory, or lower Sprite quality in " +
-                          "Settings.", 14f, Factorio.MUTED))
+                val help = if (check.mapHeavy) "Most of it is this save's map: lower sprites wouldn't free enough."
+                           else "Close other apps to free memory, or lower Sprite quality in Settings."
+                add(label(this@LauncherActivity, "$why $help", 14f, Factorio.MUTED))
             })
         }
         return true
