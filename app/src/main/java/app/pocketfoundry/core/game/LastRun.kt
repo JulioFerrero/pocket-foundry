@@ -55,7 +55,10 @@ object LastRun {
         val memory = runCatching { paths.lastMemory.readText() }.getOrNull()?.takeIf { it.isNotBlank() }
         ScreenLog.addAfterDeath(paths, exit?.let { (it.timestamp - opened) / 1000.0 },
                            line(exit, Build.VERSION.SDK_INT, memory))
-        return sentence(exit, Build.VERSION.SDK_INT, stage)?.let { Session.Ending(driver, null, false, closedBy = it) }
+        return sentence(exit, Build.VERSION.SDK_INT, stage)?.let {
+            Session.Ending(driver, null, false, closedBy = it,
+                           closedForMemory = exit?.reason == ApplicationExitInfo.REASON_LOW_MEMORY)
+        }
     }
 
     /** What Android kept of the app's last end: none before Android 11. [rssKb]: the app's own memory then. */

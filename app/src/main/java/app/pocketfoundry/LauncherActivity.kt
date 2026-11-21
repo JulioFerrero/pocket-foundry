@@ -20,6 +20,7 @@ import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.GameImport
+import app.pocketfoundry.core.game.MemoryNeed
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
@@ -55,6 +56,7 @@ import app.pocketfoundry.ui.kit.padForCutout
 import app.pocketfoundry.ui.kit.scaleUi
 import app.pocketfoundry.ui.kit.shown
 import java.io.File
+import java.util.Locale
 
 /** Its screens and their dialogs call back into it. In a game, Home is the pause menu. */
 class LauncherActivity : Activity() {
@@ -400,8 +402,10 @@ class LauncherActivity : Activity() {
         }
     }
 
-    fun play(save: File?) {
-        if (askForNotifications(then = { play(save) })) return
+    /** [memoryChecked]: the player saw the memory warning and chose to start anyway. */
+    fun play(save: File?, memoryChecked: Boolean = false) {
+        if (askForNotifications(then = { play(save, memoryChecked) })) return
+        if (!memoryChecked && warnShortOfMemory(then = { play(save, memoryChecked = true) })) return
         error = null
         busy = "Starting…"
         refresh()
@@ -434,6 +438,34 @@ class LauncherActivity : Activity() {
         if (!Runtime.isInstalled(this)) runOnUiThread { busy = "Getting ready…"; refresh() }
         Session.start(this, args, ::progress)
     }
+
+    /**
+     * Short of the memory this load takes (MemoryNeed), or closed for memory last time: says so before starting, as
+     * Android would close the game halfway through loading without a word. Back stays in the launcher.
+     */
+    private fun warnShortOfMemory(then: () -> Unit): Boolean {
+        val check = MemoryNeed.check(this)
+        val closedLastTime = Session.lastGame?.outOfMemory == true
+        if (!check.short && !closedLastTime) return false
+        val start = button(this, "Start anyway") {
+            host.close()
+            then()
+        }
+        val have = check.freeMb?.let { "This phone has ${megabytes(it)} free. " }.orEmpty()
+        val why = if (closedLastTime) "Last time Android closed it for memory while it loaded."
+                  else "Android may close it while it loads."
+        host.show("Short of memory", 520, "Back", start) {
+            add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
+                add(label(this@LauncherActivity, "${have}Factorio needs about ${megabytes(check.neededMb)}.", 16f,
+                          weight = 600))
+                add(label(this@LauncherActivity, "$why Close other apps to free memory, or lower Sprite quality in " +
+                          "Settings.", 14f, Factorio.MUTED))
+            })
+        }
+        return true
+    }
+
+    private fun megabytes(mb: Long) = if (mb < 1024) "$mb MB" else "%.1f GB".format(Locale.ROOT, mb / 1024.0)
 
     /** The session's notification carries Quit, so it's worth asking for. */
     private fun askForNotifications(then: () -> Unit): Boolean {

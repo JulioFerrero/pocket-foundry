@@ -44,7 +44,10 @@ object Session {
      */
     class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean,
                  val failure: GameEnding.Failure? = null, val stage: GameEnding.Stage? = null,
-                 val closedBy: String? = null)
+                 val closedBy: String? = null, private val closedForMemory: Boolean = false) {
+        /** Android, or its low-memory killer, ended the game for memory. */
+        val outOfMemory get() = closedForMemory || failure == GameEnding.Failure.OUT_OF_MEMORY
+    }
 
     /** A files/usr/bin program that DebugPad or debug.env's test.program may run: no paths. */
     private val TOOL_NAME = Regex("[a-z0-9-]+")

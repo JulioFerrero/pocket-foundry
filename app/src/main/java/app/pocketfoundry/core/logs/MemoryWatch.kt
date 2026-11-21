@@ -53,7 +53,7 @@ class MemoryWatch private constructor() {
                 (swapFreeKb?.let { ", swap free ${it / 1024} MB" } ?: "")
 
         /** A /proc file's "Key:   123 kB" lines, in kB. */
-        private fun read(file: File): Map<String, Long> = runCatching {
+        internal fun read(file: File): Map<String, Long> = runCatching {
             file.readLines().mapNotNull { line ->
                 val key = line.substringBefore(':', "").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                 line.substringAfter(':').trim().substringBefore(' ').toLongOrNull()?.let { key to it }
