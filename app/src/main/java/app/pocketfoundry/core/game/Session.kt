@@ -311,16 +311,7 @@ object Session {
 
     private fun gameEnvironment(context: Context, paths: Paths, driver: String): Map<String, String> {
         return Drivers.environment(context, driver) + PerformanceHints.environment(context, paths) + MEMORY +
-               fileMemory(context, paths) + DetailedLogs.environment(context) + Drivers.overrides(context, driver)
-    }
-
-    /**
-     * While the phone runs short, the game's biggest blocks go to files Android can write out instead of closing the
-     * app (runtime/assemble/filemem.c); with room, nothing changes. debug.env's app.filemem=0 leaves it out.
-     */
-    private fun fileMemory(context: Context, paths: Paths): Map<String, String> {
-        if (DebugEnv.read(context, "app")["filemem"] == "0" || !paths.fileMemory.exists()) return emptyMap()
-        return mapOf("LD_PRELOAD" to paths.fileMemory.path, "POCKETFOUNDRY_FILEMEM_DIR" to paths.tmp.path)
+               DetailedLogs.environment(context) + Drivers.overrides(context, driver)
     }
 
     /**
