@@ -8,6 +8,7 @@ extern void SDL_POCKETFOUNDRY_StopInput(void);
 extern void SDL_POCKETFOUNDRY_PaceFrame(void);
 extern void SDL_POCKETFOUNDRY_CountFrame(void);
 extern void SDL_POCKETFOUNDRY_FrameWorked(void);
+extern void SDL_POCKETFOUNDRY_FrameSwapping(void);
 extern void SDL_POCKETFOUNDRY_FrameSwapped(void);
 
 #endif // SDL_pocketfoundry_h_

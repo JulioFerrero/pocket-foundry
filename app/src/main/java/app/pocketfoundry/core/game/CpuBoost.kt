@@ -22,7 +22,9 @@ import kotlin.math.roundToInt
  * cores, changed nothing.
  *
  * Only while the game screen is shown and Fast CPU is on, and not while the phone reports heat (thermal status
- * moderate or worse) or saves battery. [Need] decides from the frame rate.
+ * moderate or worse), saves battery or boosts the game itself: on MediaTek phones our SDL tells their booster, FPSGO,
+ * about the game's frames, which on the 12T gave 57-59 FPS with the fast cores at 1.9 GHz. [Need] decides from the
+ * frame rate.
  */
 object CpuBoost {
     private const val TICKS_A_SECOND = (1000 / FrameRate.TICK_MS).toInt()
@@ -45,15 +47,18 @@ object CpuBoost {
             try {
                 while (true) {
                     Thread.sleep(FrameRate.TICK_MS)
-                    rate.add(frames.sample(), System.nanoTime())
+                    val sample = frames.sample()
+                    rate.add(sample, System.nanoTime())
                     if (++ticks % TICKS_A_SECOND != 0) continue
                     val fps = rate.current.toDouble().takeIf { it > 0 }
                     val hot = power.currentThermalStatus >= PowerManager.THERMAL_STATUS_MODERATE
-                    val wanted = need.second(fps, allowed = !hot && !power.isPowerSaveMode)
+                    val phoneBoosts = sample?.phoneBoosts == true
+                    val wanted = need.second(fps, allowed = !hot && !power.isPowerSaveMode && !phoneBoosts)
                     if (wanted == (busy != 0L)) continue
                     val why = when {
                         hot -> "the phone is hot"
                         power.isPowerSaveMode -> "battery saver"
+                        phoneBoosts -> "the phone's own booster has the game"
                         fps == null -> "no frames"
                         else -> "${fps.roundToInt()} FPS of ${settings.frameRate}"
                     }

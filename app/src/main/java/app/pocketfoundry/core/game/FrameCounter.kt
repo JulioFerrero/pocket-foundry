@@ -9,14 +9,14 @@ import java.nio.channels.FileChannel
 /**
  * The frames the game has handed over, as our SDL counts them at each buffer swap (runtime/sdl/pocketfoundry): every
  * driver's frames pass there, so the FPS counter reads the same whichever one draws. [file] holds [MAGIC], the count
- * (a little-endian uint32 that wraps), the time of the last swap (CLOCK_MONOTONIC nanoseconds, as System.nanoTime) and
- * a sequence that is odd while those two change.
+ * (a little-endian uint32 that wraps), the time of the last swap (CLOCK_MONOTONIC nanoseconds, as System.nanoTime), a
+ * sequence that is odd while those two change, and 1 while MediaTek's FPSGO takes the game's frames.
  */
 class FrameCounter(private val file: File) {
     private var map: ByteBuffer? = null
 
-    /** A count and the time of its last frame. */
-    class Sample(val frames: Long, val swappedNs: Long)
+    /** A count and the time of its last frame. [phoneBoosts]: the phone's own booster takes the game's frames. */
+    class Sample(val frames: Long, val swappedNs: Long, val phoneBoosts: Boolean = false)
 
     /** The frames so far and when the last one was swapped, or null before the game's first frame made the file. */
     fun sample(): Sample? {
@@ -26,7 +26,8 @@ class FrameCounter(private val file: File) {
             if (before and 1 != 0) return@repeat
             val frames = map.getInt(FRAMES).toLong() and 0xFFFF_FFFFL
             val swapped = map.getLong(SWAPPED)
-            if (map.getInt(SEQUENCE) == before) return Sample(frames, swapped)
+            val boosts = map.getInt(PHONE_BOOSTS) == 1
+            if (map.getInt(SEQUENCE) == before) return Sample(frames, swapped, boosts)
         }
         return null
     }
@@ -43,6 +44,7 @@ class FrameCounter(private val file: File) {
         private const val FRAMES = 4
         private const val SWAPPED = 8
         private const val SEQUENCE = 16
+        private const val PHONE_BOOSTS = 20
         private const val SIZE = 24L
         /** A swap takes nanoseconds: a read that keeps overlapping one gives up for this tick. */
         private const val TRIES = 4

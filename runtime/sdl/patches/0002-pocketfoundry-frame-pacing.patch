@@ -10,7 +10,7 @@
  
  #ifdef SDL_VIDEO_OPENGL
  #include <SDL3/SDL_opengl.h>
-@@ -5630,6 +5633,17 @@
+@@ -5630,6 +5633,19 @@
          return SDL_SetError("The specified window has not been made current");
      }
  
@@ -20,7 +20,9 @@
 +    SDL_POCKETFOUNDRY_PaceFrame();
 +    SDL_POCKETFOUNDRY_CountFrame();
 +    {
-+        const bool swapped = _this->GL_SwapWindow(_this, window);
++        bool swapped;
++        SDL_POCKETFOUNDRY_FrameSwapping();
++        swapped = _this->GL_SwapWindow(_this, window);
 +        SDL_POCKETFOUNDRY_FrameSwapped();
 +        return swapped;
 +    }

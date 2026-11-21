@@ -10,15 +10,16 @@
   Input socket: 4-byte messages: a type ('B' button, 'A' axis, 'R' rumble back to the app), an index, then a
   little-endian int16 value.
   Frames file: "PFF2", then the frames the game has swapped (a little-endian uint32 that wraps), the time of the last
-  swap (CLOCK_MONOTONIC nanoseconds, a little-endian int64) and a sequence that is odd while the two change. Every
-  driver's frames pass here, so the app's counter is the same whichever one draws, and the time between frames is
-  exact whenever the app looks.
+  swap (CLOCK_MONOTONIC nanoseconds, a little-endian int64), a sequence that is odd while the two change, and 1 while
+  MediaTek's FPSGO takes the game's frames (a little-endian uint32). Every driver's frames pass here, so the app's
+  counter is the same whichever one draws, and the time between frames is exact whenever the app looks.
   These names and values are the app's too (core/runtime/Sdl.kt, AudioBridge.kt, InputBridge.kt, Settings.kt):
   SourceContractTest checks they agree.
 
   Performance hints: with POCKETFOUNDRY_HINTS naming libhybris-common, Android's own (ADPF, libandroid's
   APerformanceHint, Android 13 and later) get each frame's work against the frame rate's target, for the game's threads:
-  how a game tells Android it needs more of the CPU, the same on every phone.
+  how a game tells Android it needs more of the CPU, the same on every phone. On MediaTek phones, the thread that swaps
+  also tells MediaTek's own booster, FPSGO, that it queues the game's frames.
   Copyright (C) 2026 Pocket Foundry contributors. Released under the zlib licence, like SDL.
 */
 #include "SDL_internal.h"
@@ -33,6 +34,8 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <string.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
@@ -387,8 +390,12 @@ struct FrameStamp
     Uint32 frames;
     Sint64 swapped_ns;
     Uint32 sequence;
-    Uint32 unused;
+    Uint32 phone_boosts; // 1 while MediaTek's FPSGO takes the game's frames (below): the app's Fast CPU steps aside
 };
+
+// MediaTek's FPSGO, below: the device it's told through, -1 before the first swap, FPSGO_NONE without one.
+#define FPSGO_NONE (-2)
+static int fpsgo = -1;
 
 void SDL_POCKETFOUNDRY_CountFrame(void)
 {
@@ -420,6 +427,7 @@ void SDL_POCKETFOUNDRY_CountFrame(void)
         __atomic_add_fetch(&stamp->sequence, 1, __ATOMIC_ACQ_REL);
         __atomic_store_n(&stamp->swapped_ns, (Sint64)now.tv_sec * 1000000000 + now.tv_nsec, __ATOMIC_RELAXED);
         __atomic_add_fetch(&stamp->frames, 1, __ATOMIC_RELAXED);
+        __atomic_store_n(&stamp->phone_boosts, fpsgo >= 0 ? 1 : 0, __ATOMIC_RELAXED);
         __atomic_add_fetch(&stamp->sequence, 1, __ATOMIC_RELEASE);
     }
 }
@@ -574,8 +582,85 @@ void SDL_POCKETFOUNDRY_FrameWorked(void)
     }
 }
 
+/*
+ * MediaTek's FPSGO, the booster MediaTek phones give the thread that queues an app's frames and the threads it waits
+ * on. The game's frames reach the screen through the app's view, in the app's process, and FPSGO doesn't follow a
+ * renderer's waits into another process: so the thread that swaps tells it that it queues frames itself, as Android's
+ * libgui does at each buffer's queue and dequeue on these phones (MediaTek's perfctl.cpp). Every app may (MediaTek's
+ * sepolicy, for appdomain). On a Xiaomi 12T, whose phone ignores performance hints, a heavy map went from 18 to 57-59
+ * FPS with its fast cores at 1.9 GHz. Where there's no such file, or it refuses, nothing is sent; a driver's Options
+ * can turn it off with POCKETFOUNDRY_FPSGO=0. The kernel's layout (drivers/misc/mediatek/performance/perf_ioctl).
+ */
+struct FpsgoPackage
+{
+    Uint32 tid;
+    Uint32 start;          // or the connected API, for a connect
+    Uint64 buffer_queue;
+    Uint64 frame;
+    Sint32 to_compositor;  // the buffers go to SurfaceFlinger
+    Uint64 identifier;
+};
+
+SDL_COMPILE_TIME_ASSERT(fpsgo_package, sizeof(struct FpsgoPackage) == 40);
+
+#define FPSGO_QUEUE _IOW('g', 1, struct FpsgoPackage)
+#define FPSGO_DEQUEUE _IOW('g', 3, struct FpsgoPackage)
+#define FPSGO_QUEUE_CONNECT _IOW('g', 15, struct FpsgoPackage)
+#define FPSGO_BQID _IOW('g', 16, struct FpsgoPackage)
+#define FPSGO_FILE "/proc/perfmgr/perf_ioctl"
+#define FPSGO_API_EGL 1 // NATIVE_WINDOW_API_EGL
+
+static bool POCKETFOUNDRY_Fpsgo(unsigned long request, Uint32 start)
+{
+    struct FpsgoPackage package;
+
+    SDL_zero(package);
+    package.tid = (Uint32)syscall(SYS_gettid);
+    package.start = start;
+    // Any number that's this game's alone: Factorio draws to one window.
+    package.identifier = 0x5046000000000000ULL | (Uint64)getpid();
+    if (request == FPSGO_BQID) {
+        package.buffer_queue = package.identifier;
+        package.to_compositor = 1;
+    }
+    return ioctl(fpsgo, request, &package) == 0;
+}
+
+static void POCKETFOUNDRY_OpenFpsgo(void)
+{
+    const char *off = SDL_getenv("POCKETFOUNDRY_FPSGO");
+
+    fpsgo = (off && SDL_strcmp(off, "0") == 0) ? FPSGO_NONE : open(FPSGO_FILE, O_RDONLY | O_CLOEXEC);
+    if (fpsgo < 0) {
+        fpsgo = FPSGO_NONE;
+        return;
+    }
+    if (POCKETFOUNDRY_Fpsgo(FPSGO_BQID, 1) && POCKETFOUNDRY_Fpsgo(FPSGO_QUEUE_CONNECT, FPSGO_API_EGL)) {
+        fprintf(stderr, "Pocket Foundry FPSGO: on\n");
+        return;
+    }
+    fprintf(stderr, "Pocket Foundry FPSGO: refused (%s)\n", strerror(errno));
+    close(fpsgo);
+    fpsgo = FPSGO_NONE;
+}
+
+void SDL_POCKETFOUNDRY_FrameSwapping(void)
+{
+    if (fpsgo == -1) {
+        POCKETFOUNDRY_OpenFpsgo();
+    }
+    if (fpsgo >= 0) {
+        POCKETFOUNDRY_Fpsgo(FPSGO_QUEUE, 1);
+    }
+}
+
 void SDL_POCKETFOUNDRY_FrameSwapped(void)
 {
+    if (fpsgo >= 0) {
+        POCKETFOUNDRY_Fpsgo(FPSGO_QUEUE, 0);
+        POCKETFOUNDRY_Fpsgo(FPSGO_DEQUEUE, 1);
+        POCKETFOUNDRY_Fpsgo(FPSGO_DEQUEUE, 0);
+    }
     if (hints.session) {
         hints.work_started_ns = POCKETFOUNDRY_Now();
     }
