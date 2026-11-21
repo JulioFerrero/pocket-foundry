@@ -1,8 +1,8 @@
 package app.pocketfoundry.core.game
 
 import android.content.Context
+import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.logs.MemoryWatch
-import app.pocketfoundry.core.runtime.DebugEnv
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import org.json.JSONObject
@@ -31,14 +31,11 @@ object MemoryNeed {
         val short get() = freeMb != null && freeMb < neededMb
     }
 
-    /** debug.env's app.memory_need_mb stands in for the estimate, to see the warning on a phone with room. */
     fun check(context: Context): Check {
         val paths = Paths(context)
-        val settings = Settings(context)
-        val cached = settings.fastStart && paths.atlasCache.exists()
-        val needed = DebugEnv.read(context, "app")["memory_need_mb"]?.toLongOrNull()
-            ?: neededMb(spaceAge(paths), settings.spriteQuality == Settings.HIGH, cached)
-        return Check(freeMb(MemoryWatch.read(File("/proc/meminfo"))), needed)
+        val cached = Settings(context).fastStart && paths.atlasCache.exists()
+        return Check(freeMb(MemoryWatch.read(File("/proc/meminfo"))),
+                     neededMb(spaceAge(paths), Drivers.nextSprites(context) == Settings.HIGH, cached))
     }
 
     internal fun neededMb(spaceAge: Boolean, high: Boolean, cached: Boolean): Long {

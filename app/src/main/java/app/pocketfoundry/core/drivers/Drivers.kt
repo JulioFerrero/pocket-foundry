@@ -266,12 +266,27 @@ object Drivers {
         val settings = Settings(context)
         val driver = chosen(context)
         val fit = if (cpu) null else SpeedTest.fit(context, DriverCheck.speed(context, driver), settings.frameRate)
-        val gles = Route.of(Paths(context), driver, Catalog.get(context).find(driver)) == Route.MOBILEGLUES
-        val room = highSpritesFit(DriverCheck.freeMemory(context, driver), DriverCheck.textureCost(context, driver))
-        settings.setGraphicsDefaults(if (cpu || gles || !room) Settings.MEDIUM else Settings.HIGH,
-                                     cpu || fit?.light == true, onlyUnset)
+        settings.setGraphicsDefaults(defaultSprites(context, driver, cpu), cpu || fit?.light == true, onlyUnset)
         val x11 = X11Prefs(context)
         if (!onlyUnset || !x11.hasResolutionScale) x11.resolutionScale = fit?.scale ?: x11.startingResolutionScale(cpu)
+    }
+
+    private fun defaultSprites(context: Context, driver: String, cpu: Boolean): String {
+        val gles = Route.of(Paths(context), driver, Catalog.get(context).find(driver)) == Route.MOBILEGLUES
+        val room = highSpritesFit(DriverCheck.freeMemory(context, driver), DriverCheck.textureCost(context, driver))
+        return if (cpu || gles || !room) Settings.MEDIUM else Settings.HIGH
+    }
+
+    /**
+     * The sprites the next game loads: the player's, or before its driver's first game what useSpeedTest sets then,
+     * which the memory warning (MemoryNeed) has to count. A driver not checked yet may well get High: counted as High.
+     */
+    fun nextSprites(context: Context): String {
+        val settings = Settings(context)
+        val driver = chosen(context)
+        if (settings.graphicsChosen || settings.graphicsDriver == driver) return settings.spriteQuality
+        if (driver != CPU && DriverCheck.brief(context, driver) == null) return Settings.HIGH
+        return defaultSprites(context, driver, driver == CPU)
     }
 
     /**

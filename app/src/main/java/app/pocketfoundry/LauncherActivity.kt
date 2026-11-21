@@ -23,6 +23,7 @@ import app.pocketfoundry.core.game.GameImport
 import app.pocketfoundry.core.game.MemoryNeed
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.runtime.DebugEnv
 import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.saves.OldApp
 import app.pocketfoundry.core.system.GITHUB
@@ -441,12 +442,14 @@ class LauncherActivity : Activity() {
 
     /**
      * Short of the memory this load takes (MemoryNeed), or closed for memory last time: says so before starting, as
-     * Android would close the game halfway through loading without a word. Back stays in the launcher.
+     * Android would close the game halfway through loading without a word. Back stays in the launcher. debug.env's
+     * app.memory_warning=always shows it whatever the numbers, to read them on a phone with room.
      */
     private fun warnShortOfMemory(then: () -> Unit): Boolean {
         val check = MemoryNeed.check(this)
         val closedLastTime = Session.lastGame?.outOfMemory == true
-        if (!check.short && !closedLastTime) return false
+        val always = DebugEnv.read(this, "app")["memory_warning"] == "always"
+        if (!check.short && !closedLastTime && !always) return false
         val start = button(this, "Start anyway") {
             host.close()
             then()
