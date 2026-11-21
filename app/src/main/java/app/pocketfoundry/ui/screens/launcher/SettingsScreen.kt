@@ -167,6 +167,8 @@ class SettingsScreen(private val launcher: LauncherActivity) {
             if (!it) paths.atlasCache.delete()
             showFastStart()
         }, controlHeight = CONTROL_HEIGHT),
+        setting(label(launcher, "", 15f).apply { text = withNote("Fast CPU", "warmer, more battery", Factorio.FAINT) },
+                checkBox(launcher, settings.fastCpu) { settings.fastCpu = it }, controlHeight = CONTROL_HEIGHT),
         checkSetting("Detailed logs", settings.detailedLogs) { settings.detailedLogs = it },
         setting(label(launcher, "", 15f).apply {
             text = withNote("Driver downloads", "from GitHub, outside F-Droid's checks", Factorio.FAINT)

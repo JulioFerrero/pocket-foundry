@@ -25,6 +25,7 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.ui.controller.ControllerView
 import app.pocketfoundry.core.controller.Gamepads
 import app.pocketfoundry.core.logs.ScreenLog
+import app.pocketfoundry.core.game.CpuBoost
 import app.pocketfoundry.core.game.FrameCounter
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.ui.controller.InputRouter
@@ -106,6 +107,7 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
         resumed = activity
         ScreenLog.add("game screen shown")
         applyRefreshRate(activity)
+        CpuBoost.start(activity)
         val screen = screens[activity]
         screen?.border?.apply()
         screen?.showFps(activity)
@@ -128,6 +130,7 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
     override fun onActivityPaused(activity: Activity) {
         if (activity is MainActivity) ScreenLog.add("game screen hidden")
         if (resumed === activity) resumed = null
+        if (activity is MainActivity) CpuBoost.stop()
         screens[activity]?.pause()
     }
 

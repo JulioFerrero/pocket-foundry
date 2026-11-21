@@ -128,6 +128,10 @@ still works as the mouse too.
   with Medium sprites, shown next to it), so every start after the first loads in seconds and with a third less
   memory. It builds them again when the sprites, the mods or the driver's texture compression change. Off, it frees
   the room.
+- **Fast CPU:** while the game falls behind its frame rate, Pocket Foundry keeps the phone's fast cores looking busy
+  at the lowest priority, which takes no time from the game but keeps their clocks up: a heavy map on a Xiaomi 12T
+  went from 18 to 54 FPS. The phone gets warmer and the battery goes faster. It stops when the game keeps up without it, when
+  the phone reports heat and with battery saver on.
 - **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen and every
   graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.

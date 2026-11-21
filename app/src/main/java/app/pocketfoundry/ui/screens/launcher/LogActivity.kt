@@ -177,7 +177,8 @@ class LogActivity : Activity() {
                             "FPS counter ${onOff(settings.fpsCounter)}",
                             "pause in background ${onOff(settings.pauseInBackground)}",
                             "detailed logs ${onOff(settings.detailedLogs)}",
-                            "fast start ${onOff(settings.fastStart)}")
+                            "fast start ${onOff(settings.fastStart)}",
+                            "fast CPU ${onOff(settings.fastCpu)}")
         "── phone ──\n" + facts.joinToString(" · ") + "\n" +
             (lastGame?.let { "Last game: $it\n" } ?: "") +
             "Settings: ${chosen.joinToString(" · ")}\n" +

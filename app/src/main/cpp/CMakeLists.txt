@@ -19,6 +19,6 @@ if(NOT xz_POPULATED)
     add_subdirectory(${xz_SOURCE_DIR} ${xz_BINARY_DIR} EXCLUDE_FROM_ALL)
 endif()
 
-add_library(pocketfoundry SHARED xz_jni.c)
+add_library(pocketfoundry SHARED xz_jni.c busy_cores.c)
 target_include_directories(pocketfoundry PRIVATE ${xz_SOURCE_DIR}/src/liblzma/api)
 target_link_libraries(pocketfoundry PRIVATE liblzma)
