@@ -50,6 +50,13 @@ class DriversTest {
         assertEquals("cpu", Drivers.recommend(emptyList(), vulkan = false, emptyList()) { false })
     }
 
+    @Test fun `where the GPU's own Vulkan plays worse, MobileGlues comes before it, after the catalog's own`() {
+        assertEquals("mobileglues", Drivers.recommend(emptyList(), vulkan = true, gles, glesFirst = true) { false })
+        assertEquals("phone",
+                     Drivers.recommend(emptyList(), vulkan = true, gles, glesFirst = true) { it == "mobileglues" })
+        assertEquals("panvk", Drivers.recommend(listOf("panvk"), vulkan = true, gles, glesFirst = true) { false })
+    }
+
     @Test fun `a driver that didn't start is passed over`() {
         assertEquals("freedreno",
                      Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true, gles) { it == "turnip" })
