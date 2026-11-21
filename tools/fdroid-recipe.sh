@@ -52,6 +52,7 @@ Builds:
     sudo:
       - dpkg --add-architecture arm64
       - echo 'APT::Snapshot "$snapshot";' > /etc/apt/apt.conf.d/50snapshot
+      - echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/51snapshot-valid
       - 'printf "Package: *\nPin: origin snapshot.debian.org\nPin-Priority: 1001\n" > /etc/apt/preferences.d/snapshot'
       - apt-get update
       - apt-get install -y --no-install-recommends --allow-downgrades $packages

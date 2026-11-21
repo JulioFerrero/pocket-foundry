@@ -53,6 +53,8 @@ if ! [ -f /etc/ssl/certs/ca-certificates.crt ]; then
     apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates > /dev/null
 fi
 echo "APT::Snapshot \"$SNAPSHOT\";" > /etc/apt/apt.conf.d/50snapshot
+# A snapshot's updates, backports and security lists say they expire a week on; the snapshot itself never changes.
+echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/51snapshot-valid
 # Its versions win even over newer ones already installed, so the image's age doesn't matter.
 printf 'Package: *\nPin: origin snapshot.debian.org\nPin-Priority: 1001\n' > /etc/apt/preferences.d/snapshot
 apt-get update -qq
