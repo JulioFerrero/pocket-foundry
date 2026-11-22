@@ -34,10 +34,12 @@ class Paths(val files: File, nativeLibs: File) {
     val windowManager = program("pocketfoundry-wm")
     val driverCheck = program("pocketfoundry-drivercheck")
     val speedTest = program("pocketfoundry-speedtest")
+    /** The speed test through SDL, for a driver without GLX (MobileGlues). */
+    val speedTestSdl = program("pocketfoundry-speedtest-sdl")
 
     /** What the app reads from the runtime, beside the libraries it loads: RuntimeContractTest finds each in it. */
     val shipped get() = listOf(xkb, xLocales, gconv, sdl, eglVendors, drirc, hybris, hybrisIcd, windowManager,
-                                    driverCheck, speedTest)
+                                    driverCheck, speedTest, speedTestSdl)
 
     /** No /tmp on Android: the X server's socket and lock live in [tmp], and DISPLAY names the socket itself. */
     val xSocket = File(tmp, ".X11-unix/X$DISPLAY")

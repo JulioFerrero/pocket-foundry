@@ -58,6 +58,23 @@ class DriversTest {
                      Drivers.recommend(listOf("panvk", "mobileglues"), vulkan = true, gles) { it == "panvk" })
     }
 
+    @Test fun `where the speed test drew MobileGlues faster, it comes before the phone's own Vulkan`() {
+        assertEquals("mobileglues", Drivers.recommend(emptyList(), vulkan = true, gles, glesFaster = true) { false })
+        assertEquals("phone",
+                     Drivers.recommend(emptyList(), vulkan = true, gles, glesFaster = true) { it == "mobileglues" })
+        assertEquals("turnip", Drivers.recommend(listOf("turnip"), vulkan = true, gles, glesFaster = true) { false })
+    }
+
+    private fun speed(vararg ms: Pair<Int, Double>) = ms.map { (width, ms) -> SpeedTest.Measured(width, width / 2, ms) }
+
+    @Test fun `faster is fewer ms a frame at the finest size both measured`() {
+        assertTrue(Drivers.faster(speed(1600 to 3.5, 800 to 2.0), speed(1600 to 5.0, 800 to 1.0)))
+        assertFalse(Drivers.faster(speed(1600 to 5.0, 800 to 1.0), speed(1600 to 3.5, 800 to 2.0)))
+        assertFalse(Drivers.faster(speed(1600 to 3.5), speed(1200 to 5.0)))
+        assertFalse(Drivers.faster(emptyList(), speed(1600 to 5.0)))
+        assertFalse(Drivers.faster(speed(1600 to 3.5), emptyList()))
+    }
+
     @Test fun `a driver that didn't start is passed over`() {
         assertEquals("freedreno",
                      Drivers.recommend(listOf("turnip", "freedreno"), vulkan = true, gles) { it == "turnip" })

@@ -34,11 +34,19 @@ object Drivers {
     private const val OLD_TURNIP = "zink"
 
     fun all(context: Context): List<Driver> {
-        val paths = Paths(context)
-        val listed = Catalog.get(context).drivers
-        val gone = DriverImport.downloaded(paths).filter { installed -> listed.none { it.id == installed.id } }
         val testing = Settings(context).testDrivers
-        return app() + (listed + gone).filter { testing || !it.testing }.map(::fromCatalog) + DriverImport.all(paths)
+        return app() + listed(context).filter { testing || !it.testing }.map(::fromCatalog) +
+            DriverImport.all(Paths(context))
+    }
+
+    /**
+     * The catalog's drivers, then those installed that it doesn't list (gone from it, or the app's own), then the
+     * app's own not installed yet: without a catalog, all there is.
+     */
+    private fun listed(context: Context): List<Catalog.Entry> {
+        val catalog = Catalog.get(context).drivers
+        val rest = DriverImport.downloaded(Paths(context)) + BundledDrivers.entries(context)
+        return catalog + rest.filter { entry -> catalog.none { it.id == entry.id } }.distinctBy { it.id }
     }
 
     private fun app() = listOf(
@@ -115,20 +123,57 @@ object Drivers {
     /**
      * A driver that didn't start, or that this version's check found draws wrong or can't draw (DriverCheck), is
      * passed over for the next in line, and one that failed in a game for MobileGlues. With downloads off, only the
-     * drivers already here count.
+     * drivers already here count, the app's own among them.
      */
     fun recommended(context: Context): String {
-        val online = downloads(context)
-        val paths = Paths(context)
-        val listed = Catalog.get(context).drivers
-            .filter { !it.testing && (online || DriverImport.downloaded(paths, it.id) != null) }
-            .sortedBy { it.priority }
-        val fitting = listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id }
-        val gles = listed.filter { it.kind == Catalog.Kind.GLES }.map { it.id }
-        return recommend(fitting, Gpu.hasVulkan(context), gles,
+        val (fitting, gles) = line(context)
+        val phoneSpeed = DriverCheck.speed(context, PHONE)
+        val glesFaster = gles.firstOrNull()?.let { faster(DriverCheck.speed(context, it), phoneSpeed) } == true
+        return recommend(fitting, Gpu.hasVulkan(context), gles, glesFaster,
                          failedInGame = { DriverRecords.outcome(context, it) == Outcome.FAILED }) {
             DriverRecords.outcome(context, it) == Outcome.DIDNT_START || DriverCheck.passed(context, it) == false
         }
+    }
+
+    /** The catalog's drivers for this GPU, best first, and its ones on the phone's own OpenGL ES: those that count. */
+    private fun line(context: Context): Pair<List<String>, List<String>> {
+        val online = downloads(context)
+        val paths = Paths(context)
+        val listed = listed(context)
+            .filter { !it.testing && (online || DriverImport.downloaded(paths, it.id) != null ||
+                                      BundledDrivers.find(context, it.id) != null) }
+            .sortedBy { it.priority }
+        return listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id } to
+            listed.filter { it.kind == Catalog.Kind.GLES }.map { it.id }
+    }
+
+    /**
+     * [a] drew the speed test faster than [b] at the finest size both measured. MobileGlues, as [a], is timed through
+     * SDL, which drew the phone's Vulkan at half its GLX speed on a Xiaomi 12T: it has to be clearly faster.
+     */
+    internal fun faster(a: List<SpeedTest.Measured>, b: List<SpeedTest.Measured>): Boolean {
+        val fine = a.maxByOrNull { it.pixels } ?: return false
+        val other = b.firstOrNull { it.pixels == fine.pixels } ?: return false
+        return fine.ms < other.ms
+    }
+
+    /**
+     * At a start, before a game: Phone's Vulkan or Phone's OpenGL ES, the two every phone has, if the pick comes down
+     * to them and it still needs its speed test to put the faster first. Not where the player chose, where the
+     * catalog lists MobileGlues for this GPU (its players' games decided that), where either can't play here, nor
+     * once both are timed.
+     */
+    fun toTime(context: Context): String? {
+        if (DriverRecords.choice(context) != null || !Gpu.hasVulkan(context)) return null
+        val (fitting, glesLine) = line(context)
+        val gles = glesLine.firstOrNull()?.takeIf { it !in fitting } ?: return null
+        val both = listOf(PHONE, gles)
+        if (chosen(context) !in both) return null
+        val cantPlay = listOf(Outcome.DIDNT_START, Outcome.FAILED)
+        if (both.any { DriverCheck.passed(context, it) == false || DriverRecords.outcome(context, it) in cantPlay }) {
+            return null
+        }
+        return both.firstOrNull { !DriverCheck.timed(context, it) }
     }
 
     /**
@@ -136,12 +181,13 @@ object Drivers {
      * where it played better than the phone's own Vulkan. [gles]: the catalog's on the phone's own OpenGL ES, for any
      * GPU, which play where the CPU would crawl. One of the others that failed in a game sends the choice straight to
      * those: the rest go through the same Mesa and Vulkan and would likely fail the same way (#76: PanVK lost the GPU,
-     * the phone's driver drew black textures, MobileGlues played).
+     * the phone's driver drew black textures, MobileGlues played). [glesFaster]: the speed test drew the first of
+     * those faster than the phone's own Vulkan ([toTime]), so it comes before it.
      */
-    internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>,
+    internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>, glesFaster: Boolean = false,
                            failedInGame: (String) -> Boolean = { false }, passedOver: (String) -> Boolean): String {
         val phone = listOfNotNull(PHONE.takeIf { vulkan })
-        val line = (fitting + phone + gles).distinct()
+        val line = (fitting + if (glesFaster) gles + phone else phone + gles).distinct()
         val usable = if (line.any { it !in gles && failedInGame(it) }) gles else line
         return usable.firstOrNull { !passedOver(it) && !failedInGame(it) } ?: CPU
     }
@@ -161,12 +207,14 @@ object Drivers {
     }
 
     /**
-     * Off the main thread, before a game: the chosen driver's package if it's [pending]. A newer build that can't be
+     * Off the main thread, before a game: the app's own drivers where they aren't installed (BundledDrivers), then the
+     * chosen driver's package if it's [pending]. A newer build that can't be
      * downloaded waits for the next game; a driver that isn't there at all can't play. Neither can the CPU before the
      * app has the catalog that lists it, on a first start without a connection.
      */
     @Synchronized
     fun prepare(context: Context, onPercent: (name: String, percent: Int) -> Unit) {
+        BundledDrivers.installMissing(context)
         val id = chosen(context)
         val online = downloads(context)
         if (find(context, id) == null) throw IOException(

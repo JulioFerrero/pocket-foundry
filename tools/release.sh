@@ -95,7 +95,7 @@ publish)
         fi
         echo "Play your own copy of Factorio on Android: the official Linux ARM64 build, run without emulation on the phone's GPU."
         echo
-        echo "**Install:** open \`$name\` on the phone (Android 10 or later) and import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). Pocket Foundry then asks before downloading a driver for your GPU from pocket-foundry-drivers: Turnip on Adreno 6xx or newer, experimental builds on some Mali and Xclipse GPUs, Phone's OpenGL ES (MobileGlues) or the CPU elsewhere. Without downloads it plays through Phone's Vulkan (experimental) or an imported one. The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves; from 0.8, 0.9 installs as a new app next to the old one and brings its saves, mods and config over."
+        echo "**Install:** open \`$name\` on the phone (Android 10 or later) and import the Linux (arm64) .tar.xz from [factorio.com/download](https://factorio.com/download). Pocket Foundry then asks before downloading a driver for your GPU from pocket-foundry-drivers: Turnip on Adreno 6xx or newer, experimental builds on some Mali and Xclipse GPUs, Phone's OpenGL ES (MobileGlues) or the CPU elsewhere. Without downloads it plays through Phone's OpenGL ES (MobileGlues), which comes with the app, Phone's Vulkan (experimental) or an imported one. The app holds no part of Factorio: you bring your own copy. A new version installs over the last and keeps the game and saves; from 0.8, 0.9 installs as a new app next to the old one and brings its saves, mods and config over."
         echo
         echo "**Updates:** Pocket Foundry doesn't check for them itself. Add it to [Obtainium](https://github.com/ImranR98/Obtainium) with this repository's link, and Obtainium installs each new version. Coming from 0.8, remove the old Pocket Foundry in Obtainium and add it again: 0.9 is a new app."
         echo
@@ -104,7 +104,7 @@ publish)
         echo "**Since $previous:**"
         git log --reverse --no-merges --format='- %s' "$previous..$tag" -- app runtime third_party
         echo
-        echo "**Built on GitHub** from [$tag]($repo/tree/$tag), GPL-3.0, in [this run]($run): the APK and the runtime inside it (glibc, Mesa, libhybris, SDL, Termux:X11's X server), from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. To check a download came from that build: \`gh attestation verify $name -R $GITHUB_REPOSITORY\`. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/SHA256SUMS")\`"
+        echo "**Built on GitHub** from [$tag]($repo/tree/$tag), GPL-3.0, in [this run]($run): the APK and the runtime inside it (glibc, Mesa, libhybris, SDL, MobileGlues, Termux:X11's X server), from the sources and build scripts in \`runtime/\` and \`third_party/\` at that tag. To check a download came from that build: \`gh attestation verify $name -R $GITHUB_REPOSITORY\`. SHA-256 of the APK: \`$(cut -d' ' -f1 "$out/SHA256SUMS")\`"
     } > "$notes"
     gh release create "$tag" --verify-tag ${prerelease:+--prerelease} --title "Pocket Foundry $version" \
         --notes-file "$notes" "$out/$name" "$out/SHA256SUMS"

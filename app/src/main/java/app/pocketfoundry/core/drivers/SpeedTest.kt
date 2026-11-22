@@ -12,6 +12,8 @@ import org.json.JSONObject
  * default resolution and at the coarsest, as fast as it can. Between the two, a frame's time splits into what the
  * driver costs whatever the size and what each pixel costs, which tells how fast every resolution would go. It runs
  * with the driver check, which keeps what it measured; a new driver build, runtime or Options measure again.
+ * MobileGlues, without GLX, takes the program's SDL build, slower: on a Xiaomi 12T the phone's Vulkan drew 9.7 ms a
+ * frame through it against 5.0 straight on GLX. Its numbers only say a lower bound beside the others'.
  */
 object SpeedTest {
     private const val TIMEOUT_S = 40L
@@ -52,7 +54,8 @@ object SpeedTest {
         val x11 = X11Prefs(context)
         val sizes = scales(x11).let { listOf(it.first(), it.last()).distinct() }.map(x11::gameSize)
         paths.driverCheckLog.appendText("── speed test\n")
-        val command = listOf(paths.speedTest.path) + sizes.map { (width, height) -> "${width}x$height" }
+        val test = if (Route.of(paths, driver) == Route.MOBILEGLUES) paths.speedTestSdl else paths.speedTest
+        val command = listOf(test.path) + sizes.map { (width, height) -> "${width}x$height" }
         // No waiting for the display.
         val program = Program.start(paths, command, paths.driverCheckLog, environment + ("vblank_mode" to "0"),
                                     Route.of(paths, driver).libraryPath(paths, driver), appendLog = true)

@@ -21,6 +21,9 @@ phones need nothing from you. **Settings -> Driver** shows the one in use and le
 If the first one can't play, the app moves on by itself: the next one for your GPU, then Phone's Vulkan, then
 Phone's OpenGL ES (the other way round on the Malis above that get it first), then the CPU.
 
+Where it comes down to Phone's Vulkan and Phone's OpenGL ES, the first start times both, in about 15 seconds, and
+the one that drew faster plays.
+
 ## The check
 
 Before the first game on a driver, and after each update, Pocket Foundry draws test pictures and the game's textures
@@ -46,16 +49,16 @@ with it. From what it sees, not from which GPU it is, it:
   fixes for Mali. Malis from the G52 to the G925 and the Pixel 10's PowerVR play on it.
 - **Phone's OpenGL ES:** the OpenGL ES driver your phone already has.
   [MobileGlues](https://github.com/MobileGL-Dev/MobileGlues) turns the game's OpenGL into it, without Zink or Vulkan.
-  It needs nothing more than that, so every phone falls back on it before the CPU. It plays on Malis from the G52 to
-  the G710, many at 60 FPS, and on Adreno. **Wait for each frame** in its settings can look smoother on a phone that
-  already reaches 60 FPS.
+  It needs nothing more than that, so every phone falls back on it before the CPU, and it comes with the app: it plays
+  without downloads. It plays on Malis from the G52 to the G710, many at 60 FPS, and on Adreno. **Wait for each
+  frame** in its settings can look smoother on a phone that already reaches 60 FPS. **Check** times it.
 - **CPU:** draws on the processor, no GPU needed. Slow and hard on the battery; it sets Medium sprites, Light
   graphics and the lowest resolution.
 
 They all come from [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers), where CI builds
 each one from source. With **Settings -> Driver downloads** on (the app asks once, after the import), it downloads
 the one it picks, and a newer build when there is one; they come from outside F-Droid's checks. Without them it plays
-on Phone's Vulkan or an imported one. The community drivers are made and tested by others, and their bugs belong
+on Phone's Vulkan, Phone's OpenGL ES (the app's own build) or an imported one. The community drivers are made and tested by others, and their bugs belong
 to their developers.
 
 ## Picking a driver yourself

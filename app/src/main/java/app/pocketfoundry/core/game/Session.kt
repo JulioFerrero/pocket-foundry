@@ -181,16 +181,25 @@ object Session {
             Drivers.prepare(context) { name, percent -> onStep("Downloading $name", percent / 100f) }
             val driver = Drivers.chosen(context)
             val environment = gameEnvironment(context, paths, driver)
-            if (!DriverCheck.needed(context, paths, driver, environment)) return driver
-            val found = checkNow(context, paths, driver, environment, onStep)
-            val next = Drivers.chosen(context)
-            if (next == driver) return driver
-            // Passed, yet another comes first now: driver downloads turned on while it was checked.
-            val name = Drivers.find(context, driver)?.name ?: driver
-            val nextName = Drivers.find(context, next)?.name ?: next
-            Log.i(TAG, if (DriverCheck.passed(found)) "$name passed, but $nextName comes first now: " +
-                           DriverCheck.summary(found)
-                       else "$name can't play here: ${DriverCheck.summary(found)}")
+            if (DriverCheck.needed(context, paths, driver, environment)) {
+                val found = checkNow(context, paths, driver, environment, onStep)
+                val next = Drivers.chosen(context)
+                if (next != driver) {
+                    // Passed, yet another comes first now: driver downloads turned on while it was checked.
+                    val name = Drivers.find(context, driver)?.name ?: driver
+                    val nextName = Drivers.find(context, next)?.name ?: next
+                    Log.i(TAG, if (DriverCheck.passed(found)) "$name passed, but $nextName comes first now: " +
+                                   DriverCheck.summary(found)
+                               else "$name can't play here: ${DriverCheck.summary(found)}")
+                    continue
+                }
+            }
+            // The other of the two every phone has, timed, so the faster plays: once, at the first start.
+            val other = Drivers.toTime(context) ?: return driver
+            checkNow(context, paths, other, gameEnvironment(context, paths, other), onStep)
+            val faster = Drivers.chosen(context)
+            if (faster == driver) return driver
+            Log.i(TAG, "${Drivers.find(context, faster)?.name ?: faster} drew the speed test faster: chosen")
         }
     }
 

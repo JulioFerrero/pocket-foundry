@@ -86,12 +86,21 @@ object DriverImport {
 
     /** Off the main thread: [entry]'s package from the catalog, checked against its SHA-256, then kept. */
     fun download(context: Context, entry: Catalog.Entry, onPercent: (Int) -> Unit) {
-        val paths = Paths(context)
         val archive = File(context.cacheDir, "driver-${entry.id}")
-        val staging = paths.driverStaging.apply { deleteRecursively(); mkdirs() }
         try {
             Http.download(entry.url, archive, onPercent)
-            if (archive.sha256() != entry.sha256) throw IOException("the download doesn't match the catalog")
+            install(context, entry, archive)
+        } finally {
+            archive.delete()
+        }
+    }
+
+    /** Off the main thread: [entry]'s package in [archive], downloaded or the app's own, checked, then kept. */
+    fun install(context: Context, entry: Catalog.Entry, archive: File) {
+        val paths = Paths(context)
+        val staging = paths.driverStaging.apply { deleteRecursively(); mkdirs() }
+        try {
+            if (archive.sha256() != entry.sha256) throw IOException("the package doesn't match its entry")
             val icd = BufferedInputStream(archive.inputStream()).use { unpack(it, staging, archive.name) }
             val libraries = staging.listFiles().orEmpty().filter { SHARED_LIBRARY.matches(it.name) }
             val info = JSONObject().put("name", entry.name).put(CATALOG, entry.json)
@@ -102,7 +111,6 @@ object DriverImport {
                 keep(entry.id, info, libraries, library, icd, paths)
             }
         } finally {
-            archive.delete()
             staging.deleteRecursively()
         }
     }

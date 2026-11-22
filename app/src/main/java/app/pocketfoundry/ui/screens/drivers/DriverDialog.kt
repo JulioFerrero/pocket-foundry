@@ -26,6 +26,7 @@ import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Drivers.Driver
 import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.drivers.Route
+import app.pocketfoundry.core.drivers.SpeedTest
 import app.pocketfoundry.core.game.Session
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
@@ -321,7 +322,8 @@ class DriverDialog(private val launcher: LauncherActivity) {
         }
         useButton.isEnabled = !inUse && Drivers.fits(driver)
         removeButton.shown = driver.origin != Drivers.Origin.APP && downloaded
-        checkButton.shown = downloaded && Route.of(paths, id).checked
+        // MobileGlues only times: nothing for the check's program to try (DriverCheck).
+        checkButton.shown = downloaded && Route.of(paths, id).let { it.checked || it == Route.MOBILEGLUES }
         checkButton.isEnabled = !Session.inGame
     }
 
@@ -337,6 +339,7 @@ class DriverDialog(private val launcher: LauncherActivity) {
         if (Route.of(paths, id, driver.entry).checked) {
             fact("Driver check", DriverCheck.brief(launcher, id) ?: "Not checked yet")
         }
+        DriverCheck.speed(launcher, id).takeIf { it.isNotEmpty() }?.let { fact("Speed test", SpeedTest.summary(it)) }
         if (inUse) fact("Resolution", resolution(id))
         when (Drivers.compression(paths, id, DriverCheck.gpuCompression(launcher, id))) {
             Drivers.Compression.CPU -> fact("Textures", "Compressed by the CPU")

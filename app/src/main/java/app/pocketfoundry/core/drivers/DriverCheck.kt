@@ -54,6 +54,8 @@ object DriverCheck {
     private val MEMORY = Regex("""drivercheck: memory (\d+) MB, (\d+) MB available""")
     /** Saved when no way keeps the game's textures compressed. */
     private const val NO_WAY = "none"
+    /** Saved for a driver only timed. */
+    private const val SPEED_ONLY = "speedOnly"
 
     /**
      * Mesa's software presentation (MESA_VK_WSI_DEBUG=sw, as PanVK presents) reads each frame back through cached or
@@ -198,6 +200,7 @@ object DriverCheck {
     fun brief(context: Context, driver: String) = current(context, driver)?.let(::brief)
 
     internal fun brief(saved: JSONObject): String = when {
+        saved.optBoolean(SPEED_ONLY) -> "Speed tested"
         saved.optBoolean("noOpenGL") -> "No OpenGL"
         saved.optBoolean("failed") -> "Couldn't draw"
         saved.optBoolean("wrong") -> "Wrong picture"
@@ -219,6 +222,7 @@ object DriverCheck {
         DriverRecords.check(context, driver)?.takeIf { it.optString("version") == version(context, driver) }
 
     internal fun summary(saved: JSONObject): String {
+        if (saved.optBoolean(SPEED_ONLY)) return "only the speed test: the check's program can't reach it"
         val drew = passed(saved) || saved.optString("textures") == NO_WAY
         return (listOfNotNull(
             "Zink got no OpenGL from the driver".takeIf { saved.optBoolean("noOpenGL") },
@@ -265,6 +269,7 @@ object DriverCheck {
      */
     fun check(context: Context, paths: Paths, driver: String, environment: Map<String, String>,
               onStep: (String, Float) -> Unit = { _, _ -> }): JSONObject {
+        if (!Route.of(paths, driver).checked) return timeOnly(context, paths, driver, environment, onStep)
         ScreenLog.add("driver check: drawing a test picture")
         paths.driverCheckLog.writeText("")
         var timelines = false
@@ -335,6 +340,26 @@ object DriverCheck {
         DriverRecords.setCheck(context, driver, result)
         return result
     }
+
+    /**
+     * A driver the check's program can't try (MobileGlues: no Mesa for it), only timed: the speed test reaches it as
+     * the game does, through SDL. Kept like a check, [SPEED_ONLY], so it isn't timed again until it changes.
+     */
+    private fun timeOnly(context: Context, paths: Paths, driver: String, environment: Map<String, String>,
+                         onStep: (String, Float) -> Unit): JSONObject {
+        paths.driverCheckLog.writeText("")
+        onStep("speed", 0.1f)
+        val speed = SpeedTest.measure(context, paths, driver, environment)
+        if (speed.isNotEmpty()) ScreenLog.add("speed test: ${SpeedTest.summary(speed)}")
+        val result = JSONObject().put("version", version(context, driver)).put(SPEED_ONLY, true)
+            .put("speed", SpeedTest.toJson(speed))
+        onStep("speed", 1f)
+        DriverRecords.setCheck(context, driver, result)
+        return result
+    }
+
+    /** Whether this version of [driver] has been timed, by its check or alone, whether or not the test could draw. */
+    fun timed(context: Context, driver: String) = current(context, driver)?.has("speed") == true
 
     /** Each way the driver can keep the game's textures, until the best: into [result]. */
     private fun textures(paths: Paths, driver: String, drawn: Map<String, String>, result: JSONObject,
