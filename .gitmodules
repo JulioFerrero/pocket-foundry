@@ -25,3 +25,11 @@
 	path = runtime/hybris/vulkan-extensionlayer
 	url = https://github.com/KhronosGroup/Vulkan-ExtensionLayer
 	shallow = true
+[submodule "runtime/gles/src"]
+	path = runtime/gles/src
+	url = https://github.com/MobileGL-Dev/MobileGlues
+	shallow = true
+[submodule "runtime/gles/drivers"]
+	path = runtime/gles/drivers
+	url = https://github.com/JulioFerrero/pocket-foundry-drivers
+	shallow = true

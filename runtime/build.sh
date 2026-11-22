@@ -11,7 +11,7 @@ here=
 [ "$1" = --here ] && { here=1; shift; }
 PREFIX=/data/data/dev.pocketfoundry/files/usr   # where the app unpacks the runtime (core/system/Paths.kt)
 # In build order: hybris compiles against Mesa's Vulkan headers.
-PIECES="glibc mesa sdl programs hybris"
+PIECES="glibc mesa sdl programs hybris gles"
 
 # This script counts as a source because the pieces are built for its PREFIX.
 sources() {

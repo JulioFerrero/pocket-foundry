@@ -37,7 +37,7 @@ seeds="libGL.so.1 libGLX.so.0 libGLdispatch.so.0 libEGL.so.1 libvulkan.so.1
        libX11.so.6 libX11-xcb.so.1 libXext.so.6 libXrandr.so.2 libXi.so.6 libXcursor.so.1
        libXfixes.so.3 libXss.so.1 libXrender.so.1 libxkbcommon.so.0 libxkbcommon-x11.so.0"
 targets="$(for s in $seeds; do echo $DEB/$s; done) $(find $USR/lib -maxdepth 2 -name '*.so*' -type f)
-         $(find $USR/bin -type f)"
+         $(find $USR/bin -type f) $(find $OUT/gles -name '*.so' -type f)"
 # What the GPU drivers the app downloads link (JulioFerrero/pocket-foundry-drivers, whose CI checks them against this
 # list): Turnip, freedreno and PanVK need them whether or not anything here does.
 driver_seeds="libdrm.so.2 libexpat.so.1 libz.so.1 libzstd.so.1 libstdc++.so.6 libgcc_s.so.1
@@ -98,3 +98,17 @@ cp "$OUT/runtime.tar.xz" "$APK/assets/"
 echo "$VERSION" > "$APK/assets/runtime.version"
 echo "$PREFIX" > "$APK/assets/runtime.prefix"
 cp $USR/lib/ld-linux-aarch64.so.1 "$APK/jniLibs/arm64-v8a/libld-linux.so"
+
+# Phone's OpenGL ES (the gles piece), which the app installs when it can't download it: its package, packed as
+# pocket-foundry-drivers packs it, and its entry as that repository's catalog lists it (build/catalog.py), everything
+# but the recipe's build.
+mkdir -p "$APK/assets/drivers"
+tar -C "$OUT/gles/mobileglues" --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+    --mode=u+rwX,go+rX,go-w --format=gnu -cf - . | xz -9e -T1 > "$APK/assets/drivers/mobileglues.tar.xz"
+jq --arg sha256 "$(sha256sum "$APK/assets/drivers/mobileglues.tar.xz" | cut -d' ' -f1)" \
+   --argjson size "$(stat -c %s "$APK/assets/drivers/mobileglues.tar.xz")" \
+   --arg built "$(date -u -d "@$SOURCE_DATE_EPOCH" +%F)" \
+   '{id: "mobileglues"} + del(.source, .build) + {mesa: "", source: "\(.source.git)/tree/\(.source.ref)",
+     updated: $built, file: {url: "", sha256: $sha256, size: $size}}' \
+   "$OUT/gles/mobileglues.json" > "$APK/assets/drivers/mobileglues.json"
+ls -la "$APK/assets/drivers"

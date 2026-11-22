@@ -8,6 +8,13 @@
  *   pocketfoundry-speedtest 1624x770 812x385
  *   speedtest: 1624x770 63 frames in 1508 ms
  *
+ * Built twice (build-programs.sh). pocketfoundry-speedtest draws straight on GLX, into the runtime's Mesa: the drivers
+ * DriverCheck checks, and the build SpeedTest.kt's factors were measured with. pocketfoundry-speedtest-sdl gets its
+ * window and OpenGL through SDL, as the game does, which reaches the EGL and OpenGL that SDL_EGL_LIBRARY and
+ * SDL_OPENGL_LIBRARY name: MobileGlues, which has no GLX. On a Xiaomi 12T it drew the phone's Vulkan at half the GLX
+ * build's speed (9.7 ms a frame against 5.0): its numbers go only against each other's and as a lower bound.
+ * Through SDL, a window of its own for each size, which an EGL that keeps a window's first size can't get wrong.
+ *
  * Without sizes it tests the X screen's, and half of it each way: debug.env's test.program runs it that way.
  *
  * Exits 0 when it measured every size, 1 on a size it can't read, 2 when OpenGL didn't start (SpeedTest.kt reads
@@ -16,8 +23,12 @@
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #include <GL/glext.h>
+#ifdef SPEEDTEST_SDL
+#include <SDL3/SDL.h>
+#else
 #include <GL/glx.h>
 #include <X11/Xlib.h>
+#endif
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -25,6 +36,53 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifdef SPEEDTEST_SDL
+/* Every OpenGL call it makes, from the driver SDL loaded: none from libGL, which may not be that driver. */
+#define GL_FUNCTIONS(X) \
+    X(glGetString) X(glGetStringi) X(glGetIntegerv) X(glCreateShader) X(glShaderSource) X(glCompileShader) \
+    X(glGetShaderiv) X(glCreateProgram) X(glAttachShader) X(glLinkProgram) X(glGetProgramiv) X(glUseProgram) \
+    X(glGenTextures) X(glBindTexture) X(glTexParameteri) X(glTexImage2D) X(glCompressedTexImage2D) \
+    X(glGenerateMipmap) X(glGenVertexArrays) X(glBindVertexArray) X(glGenBuffers) X(glBindBuffer) X(glBufferData) \
+    X(glBufferSubData) X(glVertexAttribPointer) X(glEnableVertexAttribArray) X(glViewport) X(glEnable) \
+    X(glDisable) X(glBlendFunc) X(glDrawElements) X(glFinish)
+#define TYPE(name) typedef __typeof__(name) *PFN_##name;
+#define DECLARE(name) static PFN_##name p_##name;
+GL_FUNCTIONS(TYPE)
+GL_FUNCTIONS(DECLARE)
+#define glGetString p_glGetString
+#define glGetStringi p_glGetStringi
+#define glGetIntegerv p_glGetIntegerv
+#define glCreateShader p_glCreateShader
+#define glShaderSource p_glShaderSource
+#define glCompileShader p_glCompileShader
+#define glGetShaderiv p_glGetShaderiv
+#define glCreateProgram p_glCreateProgram
+#define glAttachShader p_glAttachShader
+#define glLinkProgram p_glLinkProgram
+#define glGetProgramiv p_glGetProgramiv
+#define glUseProgram p_glUseProgram
+#define glGenTextures p_glGenTextures
+#define glBindTexture p_glBindTexture
+#define glTexParameteri p_glTexParameteri
+#define glTexImage2D p_glTexImage2D
+#define glCompressedTexImage2D p_glCompressedTexImage2D
+#define glGenerateMipmap p_glGenerateMipmap
+#define glGenVertexArrays p_glGenVertexArrays
+#define glBindVertexArray p_glBindVertexArray
+#define glGenBuffers p_glGenBuffers
+#define glBindBuffer p_glBindBuffer
+#define glBufferData p_glBufferData
+#define glBufferSubData p_glBufferSubData
+#define glVertexAttribPointer p_glVertexAttribPointer
+#define glEnableVertexAttribArray p_glEnableVertexAttribArray
+#define glViewport p_glViewport
+#define glEnable p_glEnable
+#define glDisable p_glDisable
+#define glBlendFunc p_glBlendFunc
+#define glDrawElements p_glDrawElements
+#define glFinish p_glFinish
+#endif
 
 #define ATLAS 4096
 /* Each sprite's square in the atlas. */
@@ -41,10 +99,6 @@
 #define WARM_UP_FRAMES 5
 #define MEASURE_MS 1500
 #define MIN_FRAMES 2
-
-typedef GLXContext (*CreateContextAttribs)(Display *, GLXFBConfig, GLXContext, Bool, const int *);
-typedef void (*SwapIntervalExt)(Display *, GLXDrawable, int);
-typedef int (*SwapIntervalMesa)(unsigned);
 
 static const char *VERTEX_SHADER =
     "#version 330 core\n"
@@ -245,6 +299,156 @@ static void draw(int frame)
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void *)((TILES + SPRITES) * 6 * sizeof(GLuint)));
 }
 
+#ifdef SPEEDTEST_SDL
+/* Every function GL_FUNCTIONS names, or 0 and the first it lacks. */
+static int load_gl(void)
+{
+#define LOAD(name) \
+    if (!(p_##name = (PFN_##name)SDL_GL_GetProcAddress(#name))) { \
+        printf("speedtest: no %s\n", #name); \
+        return 0; \
+    }
+    GL_FUNCTIONS(LOAD)
+#undef LOAD
+    return 1;
+}
+
+/* Shown, so frames go all the way to the X server as the game's do; the window manager leaves it be. */
+static SDL_Window *open_window(int width, int height)
+{
+    return SDL_CreateWindow("speedtest", width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
+}
+
+int main(int argc, char **argv)
+{
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    int widths[8], heights[8], sizes = 0;
+    for (int i = 1; i < argc && sizes < 8; i++, sizes++) {
+        if (sscanf(argv[i], "%dx%d", &widths[sizes], &heights[sizes]) != 2 || widths[sizes] < 1 || heights[sizes] < 1) {
+            printf("speedtest: %s isn't a size\n", argv[i]);
+            return 1;
+        }
+    }
+    SDL_SetHint(SDL_HINT_X11_FORCE_OVERRIDE_REDIRECT, "1");
+    // A window of the size asked, in pixels: SDL would scale it by the X screen's DPI.
+    SDL_SetHint(SDL_HINT_VIDEO_X11_SCALING_FACTOR, "1");
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        printf("speedtest: no X display: %s\n", SDL_GetError());
+        return 2;
+    }
+    if (!sizes) {
+        const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
+        if (!mode) {
+            printf("speedtest: no screen size: %s\n", SDL_GetError());
+            return 2;
+        }
+        widths[0] = mode->w;
+        heights[0] = mode->h;
+        widths[1] = widths[0] / 2;
+        heights[1] = heights[0] / 2;
+        sizes = 2;
+    }
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    // Colour only, as before it came through SDL (GLX's RGB888 double-buffered): SpeedTest.kt's factors were measured
+    // that way, and SDL would add a depth buffer.
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
+    SDL_Window *window = open_window(widths[0], heights[0]);
+    SDL_GLContext context = window ? SDL_GL_CreateContext(window) : NULL;
+    if (!context) {
+        printf("speedtest: no OpenGL 3.3 context: %s\n", SDL_GetError());
+        return 2;
+    }
+    if (!load_gl()) return 2;
+    printf("speedtest: %s\n", (const char *)glGetString(GL_RENDERER));
+
+    GLuint program = glCreateProgram();
+    GLuint vertex = shader(GL_VERTEX_SHADER, VERTEX_SHADER), fragment = shader(GL_FRAGMENT_SHADER, FRAGMENT_SHADER);
+    GLint linked = 0;
+    if (vertex && fragment) {
+        glAttachShader(program, vertex);
+        glAttachShader(program, fragment);
+        glLinkProgram(program);
+        glGetProgramiv(program, GL_LINK_STATUS, &linked);
+    }
+    if (!linked) {
+        printf("speedtest: the shaders didn't compile\n");
+        return 2;
+    }
+    glUseProgram(program);
+    make_atlas();
+
+    GLuint vao, vbo, ibo;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, x));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, u));
+    glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(Vertex), (void *)offsetof(Vertex, tint));
+    for (int a = 0; a < 3; a++) glEnableVertexAttribArray(a);
+    for (int q = 0; q < QUADS; q++) {
+        static const GLuint corners[6] = { 0, 1, 2, 2, 1, 3 };
+        for (int c = 0; c < 6; c++) indices[q * 6 + c] = q * 4 + corners[c];
+    }
+    glGenBuffers(1, &ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    int frame = 0;
+    for (int s = 0; s < sizes; s++) {
+        if (s > 0) {
+            SDL_Window *next = open_window(widths[s], heights[s]);
+            if (!next || !SDL_GL_MakeCurrent(next, context)) {
+                printf("speedtest: no window at %dx%d: %s\n", widths[s], heights[s], SDL_GetError());
+                return 2;
+            }
+            SDL_DestroyWindow(window);
+            window = next;
+        }
+        int pixels_w = 0, pixels_h = 0;
+        SDL_GetWindowSizeInPixels(window, &pixels_w, &pixels_h);
+        if (pixels_w != widths[s] || pixels_h != heights[s])
+            printf("speedtest: the window is %dx%d pixels, not %dx%d\n", pixels_w, pixels_h, widths[s], heights[s]);
+        // Frames as fast as the driver takes them: the display's refresh doesn't hold them back.
+        SDL_GL_SetSwapInterval(0);
+        glViewport(0, 0, widths[s], heights[s]);
+        // The first frames at a size make its swapchain and the driver's pipelines.
+        for (int i = 0; i < WARM_UP_FRAMES; i++, frame++) {
+            draw(frame);
+            SDL_GL_SwapWindow(window);
+        }
+        glFinish();
+        double start = now_ms(), elapsed = 0;
+        int frames = 0;
+        while (elapsed < MEASURE_MS || frames < MIN_FRAMES) {
+            draw(frame++);
+            SDL_GL_SwapWindow(window);
+            frames++;
+            elapsed = now_ms() - start;
+        }
+        glFinish();
+        elapsed = now_ms() - start;
+        printf("speedtest: %dx%d %d frames in %.0f ms\n", widths[s], heights[s], frames, elapsed);
+    }
+
+    SDL_GL_DestroyContext(context);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}
+#else
+typedef GLXContext (*CreateContextAttribs)(Display *, GLXFBConfig, GLXContext, Bool, const int *);
+typedef void (*SwapIntervalExt)(Display *, GLXDrawable, int);
+typedef int (*SwapIntervalMesa)(unsigned);
+
 /* Frames as fast as the driver takes them: the display's refresh doesn't hold them back. */
 static void no_vsync(Display *display, Window window)
 {
@@ -378,3 +582,4 @@ int main(int argc, char **argv)
     XCloseDisplay(display);
     return 0;
 }
+#endif

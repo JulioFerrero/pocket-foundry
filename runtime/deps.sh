@@ -25,14 +25,15 @@ fi
 tools="$compilers $emulator make gawk bison flex python3 texinfo gettext jq ca-certificates xz-utils patch file
        meson ninja-build cmake autoconf automake libtool
        python3-mako python3-yaml python3-packaging glslang-tools"
-# Mesa, SDL and libhybris build against these; linux-libc-dev and libc6-dev are glibc's own headers to build it.
+# Mesa, SDL, libhybris and MobileGlues (Vulkan's headers) build against these; linux-libc-dev and libc6-dev are glibc's own headers to build it.
 # arm64's pkgconf is the aarch64-linux-gnu-pkg-config that finds them (toolchain.sh).
 dev="pkgconf linux-libc-dev libc6-dev libdrm-dev libexpat1-dev zlib1g-dev libzstd-dev
      libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev libxrandr-dev libxxf86vm-dev
      libxshmfence-dev libxcb1-dev libxcb-glx0-dev libxcb-dri2-0-dev libxcb-dri3-dev
      libxcb-present-dev libxcb-sync-dev libxcb-shm0-dev libxcb-randr0-dev
      libxcb-xfixes0-dev libglvnd-dev libxcursor-dev libxi-dev libxss-dev
-     libwayland-dev libwayland-egl-backend-dev"
+     libwayland-dev libwayland-egl-backend-dev
+     libvulkan-dev"
 # What assemble copies into the runtime.
 ship="libgl1 libglx0 libegl1 libglvnd0 libvulkan1
       libx11-6 libx11-xcb1 libxext6 libxrandr2 libxi6 libxcursor1 libxfixes3 libxss1
