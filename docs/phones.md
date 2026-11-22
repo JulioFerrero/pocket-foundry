@@ -14,12 +14,12 @@ phones need nothing from you. **Settings -> Driver** shows the one in use and le
 | Mali-G77, G78 | PanVK-kbase RC3 |
 | Mali-G76 | PanVK 1.2.9 |
 | Xclipse (Samsung Exynos) | RADV for Xclipse |
-| Mali-G610 | Phone's OpenGL ES |
+| Mali-G52, G57, G610, G710 | Phone's OpenGL ES |
 | Other Malis, PowerVR and other GPUs with Vulkan 1.1 | Phone's Vulkan |
 | GPUs without Vulkan 1.1 (Adreno 5xx and older) | Phone's OpenGL ES |
 
 If the first one can't play, the app moves on by itself: the next one for your GPU, then Phone's Vulkan, then
-Phone's OpenGL ES (the other way round on a Mali-G610), then the CPU.
+Phone's OpenGL ES (the other way round on the Malis above that get it first), then the CPU.
 
 ## The check
 

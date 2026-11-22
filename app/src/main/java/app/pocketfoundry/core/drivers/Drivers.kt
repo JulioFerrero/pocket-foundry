@@ -125,24 +125,23 @@ object Drivers {
             .sortedBy { it.priority }
         val fitting = listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id }
         val gles = listed.filter { it.kind == Catalog.Kind.GLES }.map { it.id }
-        val glesFirst = Gpu.name?.let { gpu -> GLES_BEFORE_PHONE.any { Catalog.matches(it, gpu) } } == true
-        return recommend(fitting, Gpu.hasVulkan(context), gles, glesFirst,
+        return recommend(fitting, Gpu.hasVulkan(context), gles,
                          failedInGame = { DriverRecords.outcome(context, it) == Outcome.FAILED }) {
             DriverRecords.outcome(context, it) == Outcome.DIDNT_START || DriverCheck.passed(context, it) == false
         }
     }
 
     /**
-     * [fitting]: the catalog's drivers for this GPU, best first. [gles]: its ones on the phone's own OpenGL ES, for
-     * any GPU, which play where the CPU would crawl. One of the others that failed in a game sends the choice
-     * straight to those: the rest go through the same Mesa and Vulkan and would likely fail the same way (#76: PanVK
-     * lost the GPU, the phone's driver drew black textures, MobileGlues played). [glesFirst]: those come before the
-     * phone's own Vulkan.
+     * [fitting]: the catalog's drivers for this GPU, best first: MobileGlues among them on the GPUs it's listed for,
+     * where it played better than the phone's own Vulkan. [gles]: the catalog's on the phone's own OpenGL ES, for any
+     * GPU, which play where the CPU would crawl. One of the others that failed in a game sends the choice straight to
+     * those: the rest go through the same Mesa and Vulkan and would likely fail the same way (#76: PanVK lost the GPU,
+     * the phone's driver drew black textures, MobileGlues played).
      */
-    internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>, glesFirst: Boolean = false,
+    internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>,
                            failedInGame: (String) -> Boolean = { false }, passedOver: (String) -> Boolean): String {
         val phone = listOfNotNull(PHONE.takeIf { vulkan })
-        val line = fitting + if (glesFirst) gles + phone else phone + gles
+        val line = (fitting + phone + gles).distinct()
         val usable = if (line.any { it !in gles && failedInGame(it) }) gles else line
         return usable.firstOrNull { !passedOver(it) && !failedInGame(it) } ?: CPU
     }
@@ -151,13 +150,6 @@ object Drivers {
         switching(context) { DriverRecords.setOutcome(context, id, outcome) }
 
     fun cpu(context: Context) = chosen(context) == CPU
-
-    /**
-     * GPUs whose own Vulkan plays worse than their OpenGL ES through MobileGlues, which comes first there. Mali-G610
-     * (2026-11-21): on a Xiaomi 12T its Vulkan lost the GPU in 2 games of 7 and drew 41 FPS where MobileGlues drew 60;
-     * a Redmi Note 13 Pro+ got 30-46 on it.
-     */
-    private val GLES_BEFORE_PHONE = listOf("Mali-G610*")
 
     /** MaliBridge's fixes come with the phone's own driver. */
     fun isPhone(id: String) = id == PHONE
