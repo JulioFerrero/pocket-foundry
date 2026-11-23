@@ -5,13 +5,10 @@ import app.pocketfoundry.ui.controller.KeySets
 import app.pocketfoundry.core.controller.Input
 import android.app.Activity
 import android.app.Application
-import android.app.GameManager
-import android.app.GameState
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.PorterDuff
-import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
@@ -37,10 +34,8 @@ import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.core.saves.Saves
 import app.pocketfoundry.ui.kit.MATCH
 import app.pocketfoundry.core.system.background
-import app.pocketfoundry.ui.kit.displayCompat
 import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.shown
-import kotlin.math.abs
 import java.io.File
 import java.util.WeakHashMap
 
@@ -109,8 +104,6 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
         if (activity !is MainActivity) return
         resumed = activity
         ScreenLog.add("game screen shown")
-        applyRefreshRate(activity)
-        tellGameState(activity, playing = true)
         CpuBoost.start(activity)
         val screen = screens[activity]
         screen?.border?.apply()
@@ -121,33 +114,10 @@ object GameScreens : Application.ActivityLifecycleCallbacks {
         }
     }
 
-    /**
-     * Android 13 and later: whether the game is being played, which the phone maker's game booster may act on, as it
-     * may on the manifest's game category. A Xiaomi 12T's didn't: a heavy map stayed at 18 FPS (2026-11-22).
-     */
-    private fun tellGameState(activity: Activity, playing: Boolean) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val mode = if (playing) GameState.MODE_GAMEPLAY_INTERRUPTIBLE else GameState.MODE_NONE
-        runCatching { activity.getSystemService(GameManager::class.java)?.setGameState(GameState(false, mode)) }
-    }
-
-    /** The game's highest frame rate, which the others divide evenly. */
-    private fun applyRefreshRate(activity: Activity) {
-        val display = activity.displayCompat() ?: return
-        val now = display.mode
-        val mode = display.supportedModes
-            .filter { it.physicalWidth == now.physicalWidth && it.physicalHeight == now.physicalHeight }
-            .minByOrNull { abs(it.refreshRate - Settings.FRAME_RATES.max()) } ?: return
-        activity.window.attributes = activity.window.attributes.apply { preferredDisplayModeId = mode.modeId }
-    }
-
     override fun onActivityPaused(activity: Activity) {
         if (activity is MainActivity) ScreenLog.add("game screen hidden")
         if (resumed === activity) resumed = null
-        if (activity is MainActivity) {
-            CpuBoost.stop()
-            tellGameState(activity, playing = false)
-        }
+        if (activity is MainActivity) CpuBoost.stop()
         screens[activity]?.pause()
     }
 

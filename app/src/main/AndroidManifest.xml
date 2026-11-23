@@ -18,19 +18,17 @@
         <package android:name="app.pocketfoundry" />
     </queries>
 
-    <!-- A game to Android and to the phone makers' game modes and launchers. -->
+    <!-- Not a game to Android or the phone makers: their game modes hold a game's CPU down to leave the heat to the GPU,
+         and Factorio's simulation is one thread on the CPU. On a vivo X200 Ultra (2026-11-23) its game service capped a
+         game at 1.4-2.2 GHz, against 2.9-3.5 for other apps: a 4k-train megabase ran at 16.8 UPS as a game, 29.7 without
+         the game category and isGame (Fast CPU on). Qualcomm's classifier, which vivo asks, read them as the only game
+         signs in the APK. -->
     <application
         android:name=".PocketFoundryApp"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:appCategory="game"
-        android:isGame="true"
         tools:replace="android:name">
-
-        <meta-data
-            android:name="android.game_mode_config"
-            android:resource="@xml/game_mode_config" />
 
         <activity
             android:name=".LauncherActivity"
