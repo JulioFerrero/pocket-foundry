@@ -9,7 +9,7 @@ Your finger is the cursor: touch the game where you want something to happen.
 |---|---|
 | Tap | Moves the cursor there and acts on it, like A: places what you hold, opens what's there. In menus, it clicks. |
 | Double tap, keep the finger down and drag | Holds A along the way: a line of belts or pipes. |
-| Long press | Mines what's under the finger (holds X); drag to keep mining. |
+| Long press | Mines what's under the finger (holds X); drag to keep mining. **Settings -> Long press** changes or disables it. |
 | Two-finger tap | B: closes a menu, goes back, dismisses a tutorial tip. |
 | Pinch | Zooms in and out. |
 
@@ -17,8 +17,8 @@ The square on the right is a trackpad, like a laptop's or the Steam Deck's: drag
 you drag, so your finger never covers what you point at. Tap in it to act where the cursor is, long press for X, and
 double tap and hold to hold A while you drag. **Settings -> Touch** changes it: **Direct** puts a right stick there
 instead, **Trackpad** makes the whole screen a trackpad, and **Trackpad speed** sets how far the cursor goes.
-**Long touch** sets what a long press does (**Right click**, **Left click**, or **Off**), and **Long touch delay**
-sets how long to hold before it triggers.
+**Long press** sets what a long press does (**X button** or **Disable**), and **Long press delay** sets how long to
+hold before it triggers.
 
 | Button | In Factorio |
 |---|---|
@@ -52,7 +52,7 @@ Your finger is the mouse:
 | On the game | What it does |
 |---|---|
 | Tap | Click: build, open, pick up a stack. |
-| Long press | Right click: mine, remove, take half a stack. Drag to keep mining. |
+| Long press | Right click: mine, remove, take half a stack. Drag to keep mining. **Settings -> Long press** changes or disables it. |
 | Drag | Holds the click: belts and pipes in a line, a stack dragged. |
 | Pinch | Zooms, as the mouse wheel. |
 | Two-finger drag | Scrolls lists, recipes and the tech tree. |

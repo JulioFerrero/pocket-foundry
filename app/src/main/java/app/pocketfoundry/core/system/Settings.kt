@@ -25,10 +25,10 @@ class Settings(context: Context) {
     var controllerButtons by prefs.string("controllerButtons", "{}")
     /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
     var trackpadSpeed by prefs.int("trackpadSpeed", 150)
-    /** What a long touch does: one of LONG_TOUCHES (RIGHT, LEFT, or OFF). */
-    var longTouch by prefs.string("longTouch", RIGHT)
-    /** How long a finger must stay still before long touch fires, in milliseconds: one of LONG_TOUCH_DELAYS. */
-    var longTouchDelay by prefs.int("longTouchDelay", 300)
+    /** What a long press does: one of LONG_PRESSES (RIGHT or OFF). */
+    var longPress by prefs.string("longPress", RIGHT)
+    /** How long a finger must stay still before long press fires, in milliseconds: one of LONG_PRESS_DELAYS. */
+    var longPressDelay by prefs.int("longPressDelay", 300)
     var fpsCounter by prefs.bool("fpsCounter", false)
     /**
      * Whether the driver list and its drivers come from pocket-foundry-drivers: outside the app, so outside F-Droid's
@@ -93,9 +93,8 @@ class Settings(context: Context) {
         const val KEYS = "keys"
         val CONTROLS = listOf(PAD, KEYS)
         const val RIGHT = "right"
-        const val LEFT = "left"
-        val LONG_TOUCHES = listOf(RIGHT, LEFT, OFF)
-        val LONG_TOUCH_DELAYS = listOf(300, 500, 750, 1000)
+        val LONG_PRESSES = listOf(RIGHT, OFF)
+        val LONG_PRESS_DELAYS = listOf(300, 500, 750, 1000)
 
         /** The app's own prefs file, which other features keep their own keys in too (DriverRecords). */
         fun prefs(context: Context): SharedPreferences = context.getSharedPreferences("pocketfoundry", Context.MODE_PRIVATE)

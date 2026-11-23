@@ -18,10 +18,10 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 /**
- * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press: configurable via
- * [Settings.longTouch] and [Settings.longTouchDelay] (by default right button held, X with [padMode]; or left button /
- * A, or off). Two fingers: tap right-clicks (B with [padMode]), pinch zooms, drag scrolls. With [padMode], double tap
- * and hold holds A. [padMode] is controller mode, where Factorio's mouse clicks only in menus.
+ * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press: right button held
+ * (X with [padMode]), configurable via [Settings.longPress] and [Settings.longPressDelay] (or disabled). Two fingers:
+ * tap right-clicks (B with [padMode]), pinch zooms, drag scrolls. With [padMode], double tap and hold holds A.
+ * [padMode] is controller mode, where Factorio's mouse clicks only in menus.
  *
  * A trackpad finger (Settings.touch TRACKPAD, read at each first finger, or one that lands on the BOX) moves the cursor
  * by how far it goes, like a laptop's trackpad, and what it does happens at the cursor, which the game shows; a drag
@@ -80,7 +80,6 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
 
     private var trackpad = false
     private var speed = 1f
-    private var longTouchAction = Settings.RIGHT
     /** The trackpad's cursor, in window coordinates (-1: not placed yet), and where it was when the finger went down. */
     private var cursorX = -1f
     private var cursorY = -1f
@@ -97,20 +96,11 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
 
     private val longPress = Runnable {
         if (fingers.size != 1 || holding || mode != Mode.ONE) return@Runnable
-        when (longTouchAction) {
-            Settings.RIGHT -> if (pad != null) {
-                moveTo(aimX, aimY)
-                holdPad(PadButton.WEST)
-            } else {
-                press(InputStub.BUTTON_RIGHT, aimX, aimY)
-            }
-            Settings.LEFT -> if (pad != null) {
-                moveTo(aimX, aimY)
-                holdPad(PadButton.SOUTH)
-            } else {
-                press(InputStub.BUTTON_LEFT, aimX, aimY)
-            }
-            else -> return@Runnable
+        if (pad != null) {
+            moveTo(aimX, aimY)
+            holdPad(PadButton.WEST)
+        } else {
+            press(InputStub.BUTTON_RIGHT, aimX, aimY)
         }
         onLongPress()
     }
@@ -167,14 +157,13 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         downY = y
         trackpad = box || settings.touch == Settings.TRACKPAD
         speed = settings.trackpadSpeed / 100f
-        longTouchAction = settings.longTouch
         if (trackpad) trackpadDown(x, y) else moveTo(x, y)   // the game shows what's under the finger
         val now = SystemClock.uptimeMillis()
         if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
             lastTapAt = 0
             holdPad(PadButton.SOUTH)
-        } else if (longTouchAction != Settings.OFF) {
-            mainHandler.postDelayed(longPress, settings.longTouchDelay.toLong())
+        } else if (settings.longPress != Settings.OFF) {
+            mainHandler.postDelayed(longPress, settings.longPressDelay.toLong())
         }
     }
 
