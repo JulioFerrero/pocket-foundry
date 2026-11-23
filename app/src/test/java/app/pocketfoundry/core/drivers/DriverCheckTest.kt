@@ -246,4 +246,24 @@ class DriverCheckTest {
         assertEquals(3, DriverCheck.rank(layerWay, atlases(takes = -1)))
         assertEquals(2, DriverCheck.rank(layerWay, atlases(takes = -1, comesBack = false)))
     }
+
+    @Test fun `GPU faults in the check's log fail a driver whose picture came out right`() {
+        val log = "drivercheck: right\nMESA: error: kbase: JM atom 27 failed: event=0x58 core_req=0x1\n" +
+            "MESA: error: kbase: JM atom 28 failed: event=0x58 core_req=0x1\nspeed: 8.4 ms\n"
+        val faults = DriverCheck.faults(log)!!
+        assertEquals(2, faults.optInt("count"))
+        assertEquals("JM atom 27 failed: event=0x58 core_req=0x1", faults.optString("first"))
+        assertEquals(null, DriverCheck.faults("drivercheck: right\nspeed: 8.4 ms\n"))
+        val saved = JSONObject().put("textures", "layer").put("faults", faults)
+        assertEquals(false, DriverCheck.passed(saved))
+        assertEquals("GPU faults", DriverCheck.brief(saved))
+        assertEquals(true, DriverCheck.passed(JSONObject().put("textures", "layer")))
+    }
+
+    @Test fun `a lost device counts as a fault`() {
+        val lost = "MESA: error: zink: DEVICE LOST! (../src/gallium/drivers/zink/zink_screen.c:2709)\n"
+        val faults = DriverCheck.faults(lost)!!
+        assertEquals(1, faults.optInt("count"))
+        assertEquals("DEVICE LOST! (../src/gallium/drivers/zink/zink_screen.c:2709)", faults.optString("first"))
+    }
 }

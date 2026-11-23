@@ -47,7 +47,14 @@ object DriverCheck {
     /** The atlases can go through the converter on the CPU: a few seconds on a fast phone. */
     private const val TEXTURES_TIMEOUT_S = 120L
     /** How the check searches: a new one checks every driver again, those an older one gave up on too. */
-    private const val REVISION = 10
+    private const val REVISION = 11
+    /**
+     * The GPU failing the driver's work while the check draws, even when the picture comes out right and the speed test
+     * times it: Mali's kernel driver refusing jobs (PanVK-kbase: "JM atom 27 failed: event=0x58"), or the device lost.
+     * A Redmi Note 10S's PanVK-kbase did both in its check and drew the fastest speed test of its four drivers, then
+     * lost the GPU as soon as a map drew (#85).
+     */
+    private val FAULT = Regex("""JM atom \d+ failed[^\n]*|DEVICE LOST[^\n]*|VK_ERROR_DEVICE_LOST[^\n]*""")
     /** The program's exits (pocketfoundry-drivercheck.c); any other is a failure: no OpenGL, or a crash. */
     internal const val RIGHT = 0
     internal const val WRONG = 1
@@ -161,7 +168,16 @@ object DriverCheck {
     fun passed(context: Context, driver: String) = current(context, driver)?.let(::passed)
 
     internal fun passed(saved: JSONObject) =
-        !saved.optBoolean("failed") && !saved.optBoolean("wrong") && saved.optString("textures") != NO_WAY
+        !saved.optBoolean("failed") && !saved.optBoolean("wrong") && saved.optString("textures") != NO_WAY &&
+            !saved.has(FAULTS)
+
+    /** What [FAULT] found in a check's log: how many, and the first, as the driver wrote it. */
+    internal fun faults(log: String): JSONObject? {
+        val found = FAULT.findAll(log).map { it.value.trim() }.toList()
+        return if (found.isEmpty()) null else JSONObject().put("count", found.size).put("first", found.first())
+    }
+
+    private const val FAULTS = "faults"
 
     /** The GPU memory this version of [driver] had free when checked, in MB; null where it doesn't say. */
     fun freeMemory(context: Context, driver: String) =
@@ -200,6 +216,7 @@ object DriverCheck {
     fun brief(context: Context, driver: String) = current(context, driver)?.let(::brief)
 
     internal fun brief(saved: JSONObject): String = when {
+        saved.has(FAULTS) -> "GPU faults"
         saved.optBoolean(SPEED_ONLY) -> "Speed tested"
         saved.optBoolean("noOpenGL") -> "No OpenGL"
         saved.optBoolean("failed") -> "Couldn't draw"
@@ -222,6 +239,9 @@ object DriverCheck {
         DriverRecords.check(context, driver)?.takeIf { it.optString("version") == version(context, driver) }
 
     internal fun summary(saved: JSONObject): String {
+        saved.optJSONObject(FAULTS)?.let {
+            return "the GPU faulted while it drew, ${it.optInt("count")} times: ${it.optString("first")}"
+        }
         if (saved.optBoolean(SPEED_ONLY)) return "only the speed test: the check's program can't reach it"
         val drew = passed(saved) || saved.optString("textures") == NO_WAY
         return (listOfNotNull(
@@ -336,9 +356,18 @@ object DriverCheck {
         MEMORY.findAll(paths.driverCheckLog.readText()).lastOrNull()?.destructured?.let { (total, available) ->
             result.put("memory", total.toInt()).put("available", available.toInt())
         }
+        noteFaults(paths, result)
         onStep("speed", 1f)
         DriverRecords.setCheck(context, driver, result)
         return result
+    }
+
+    /** From the last try on, what the game gets: the tries before it turned off what their faults came from. */
+    private fun noteFaults(paths: Paths, result: JSONObject) {
+        val log = paths.driverCheckLog.readText()
+        val found = faults(log.substring(log.lastIndexOf("── off: ").coerceAtLeast(0))) ?: return
+        result.put(FAULTS, found)
+        ScreenLog.add("driver check: the GPU faulted ${found.optInt("count")} times: ${found.optString("first")}")
     }
 
     /**
@@ -353,6 +382,7 @@ object DriverCheck {
         if (speed.isNotEmpty()) ScreenLog.add("speed test: ${SpeedTest.summary(speed)}")
         val result = JSONObject().put("version", version(context, driver)).put(SPEED_ONLY, true)
             .put("speed", SpeedTest.toJson(speed))
+        noteFaults(paths, result)
         onStep("speed", 1f)
         DriverRecords.setCheck(context, driver, result)
         return result
