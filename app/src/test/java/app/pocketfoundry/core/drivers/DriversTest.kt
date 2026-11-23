@@ -58,11 +58,28 @@ class DriversTest {
                      Drivers.recommend(listOf("panvk", "mobileglues"), vulkan = true, gles) { it == "panvk" })
     }
 
-    @Test fun `where the speed test drew MobileGlues faster, it comes before the phone's own Vulkan`() {
+    @Test fun `where the speed test drew MobileGlues faster than its rival, it comes first`() {
         assertEquals("mobileglues", Drivers.recommend(emptyList(), vulkan = true, gles, glesFaster = true) { false })
         assertEquals("phone",
                      Drivers.recommend(emptyList(), vulkan = true, gles, glesFaster = true) { it == "mobileglues" })
-        assertEquals("turnip", Drivers.recommend(listOf("turnip"), vulkan = true, gles, glesFaster = true) { false })
+        assertEquals("mobileglues",
+                     Drivers.recommend(listOf("panvk"), vulkan = true, gles, glesFaster = true) { false })
+        assertEquals("panvk",
+                     Drivers.recommend(listOf("panvk"), vulkan = true, gles, glesFaster = true) { it == "mobileglues" })
+    }
+
+    @Test fun `MobileGlues is timed against the phone's own Vulkan, and on a Mali against a PanVK too`() {
+        assertEquals("phone", Drivers.rival(emptyList(), vulkan = true, gles, mali = false) { false })
+        assertEquals("panvk", Drivers.rival(listOf("panvk"), vulkan = true, gles, mali = true) { false })
+        assertEquals("phone", Drivers.rival(listOf("panvk"), vulkan = true, gles, mali = true) { it == "panvk" })
+        assertEquals(null, Drivers.rival(listOf("panvk"), vulkan = false, gles, mali = true) { it == "panvk" })
+    }
+
+    @Test fun `MobileGlues isn't timed before Turnip, nor where the catalog lists it for the GPU`() {
+        assertEquals(null, Drivers.rival(listOf("turnip"), vulkan = true, gles, mali = false) { false })
+        assertEquals(null, Drivers.rival(listOf("mobileglues"), vulkan = true, gles, mali = true) { false })
+        assertEquals(null, Drivers.rival(listOf("panvk", "mobileglues"), vulkan = true, gles, mali = true) { false })
+        assertEquals(null, Drivers.rival(listOf("panvk"), vulkan = true, emptyList(), mali = true) { false })
     }
 
     private fun speed(vararg ms: Pair<Int, Double>) = ms.map { (width, ms) -> SpeedTest.Measured(width, width / 2, ms) }

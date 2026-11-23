@@ -127,12 +127,32 @@ object Drivers {
      */
     fun recommended(context: Context): String {
         val (fitting, gles) = line(context)
-        val phoneSpeed = DriverCheck.speed(context, PHONE)
-        val glesFaster = gles.firstOrNull()?.let { faster(DriverCheck.speed(context, it), phoneSpeed) } == true
-        return recommend(fitting, Gpu.hasVulkan(context), gles, glesFaster,
-                         failedInGame = { DriverRecords.outcome(context, it) == Outcome.FAILED }) {
-            DriverRecords.outcome(context, it) == Outcome.DIDNT_START || DriverCheck.passed(context, it) == false
+        val vulkan = Gpu.hasVulkan(context)
+        val failedInGame = { id: String -> DriverRecords.outcome(context, id) == Outcome.FAILED }
+        val passedOver = { id: String ->
+            DriverRecords.outcome(context, id) == Outcome.DIDNT_START || DriverCheck.passed(context, id) == false
         }
+        val rival = rival(fitting, vulkan, gles, isMali()) { passedOver(it) || failedInGame(it) }
+        val glesFaster = rival != null && gles.firstOrNull()
+            ?.let { faster(DriverCheck.speed(context, it), DriverCheck.speed(context, rival)) } == true
+        return recommend(fitting, vulkan, gles, glesFaster, failedInGame, passedOver)
+    }
+
+    private fun isMali() = Gpu.name?.contains("Mali", ignoreCase = true) == true
+
+    /**
+     * The driver MobileGlues ([gles]' first) is timed against: the one that would play otherwise, among [fitting] and
+     * the phone's own Vulkan, if it can ([out]: it can't). The phone's own anywhere; on a Mali, a PanVK too: a
+     * Redmi Note 10S's 4-core G76 played at 54-60 FPS on MobileGlues and 25-40 on the PanVK listed first for the G76,
+     * which a Huawei P30's 10-core G76 plays at 60 (#85). None where the catalog lists MobileGlues for this GPU (its
+     * players' games decided), nor before Turnip or RADV, which play better than the phone's OpenGL ES.
+     */
+    internal fun rival(fitting: List<String>, vulkan: Boolean, gles: List<String>, mali: Boolean,
+                       out: (String) -> Boolean): String? {
+        val mobileGlues = gles.firstOrNull() ?: return null
+        if (mobileGlues in fitting) return null
+        val first = (fitting + listOfNotNull(PHONE.takeIf { vulkan })).firstOrNull { it !in gles && !out(it) }
+        return first?.takeIf { it == PHONE || mali }
     }
 
     /** The catalog's drivers for this GPU, best first, and its ones on the phone's own OpenGL ES: those that count. */
@@ -158,21 +178,20 @@ object Drivers {
     }
 
     /**
-     * At a start, before a game: Phone's Vulkan or Phone's OpenGL ES, the two every phone has, if the pick comes down
-     * to them and it still needs its speed test to put the faster first. Not where the player chose, where the
-     * catalog lists MobileGlues for this GPU (its players' games decided that), where either can't play here, nor
-     * once both are timed.
+     * At a start, before a game: MobileGlues or its [rival], if the pick comes down to them and one still needs its
+     * speed test to put the faster first. Not where the player chose, where either can't play here, nor once both are
+     * timed.
      */
     fun toTime(context: Context): String? {
-        if (DriverRecords.choice(context) != null || !Gpu.hasVulkan(context)) return null
-        val (fitting, glesLine) = line(context)
-        val gles = glesLine.firstOrNull()?.takeIf { it !in fitting } ?: return null
-        val both = listOf(PHONE, gles)
-        if (chosen(context) !in both) return null
+        if (DriverRecords.choice(context) != null) return null
+        val (fitting, gles) = line(context)
         val cantPlay = listOf(Outcome.DIDNT_START, Outcome.FAILED)
-        if (both.any { DriverCheck.passed(context, it) == false || DriverRecords.outcome(context, it) in cantPlay }) {
-            return null
+        val out = { id: String ->
+            DriverCheck.passed(context, id) == false || DriverRecords.outcome(context, id) in cantPlay
         }
+        val rival = rival(fitting, Gpu.hasVulkan(context), gles, isMali(), out) ?: return null
+        val both = listOf(rival, gles.first())
+        if (chosen(context) !in both || both.any(out)) return null
         return both.firstOrNull { !DriverCheck.timed(context, it) }
     }
 
@@ -182,12 +201,12 @@ object Drivers {
      * GPU, which play where the CPU would crawl. One of the others that failed in a game sends the choice straight to
      * those: the rest go through the same Mesa and Vulkan and would likely fail the same way (#76: PanVK lost the GPU,
      * the phone's driver drew black textures, MobileGlues played). [glesFaster]: the speed test drew the first of
-     * those faster than the phone's own Vulkan ([toTime]), so it comes before it.
+     * those faster than its [rival] ([toTime]), so it comes first.
      */
     internal fun recommend(fitting: List<String>, vulkan: Boolean, gles: List<String>, glesFaster: Boolean = false,
                            failedInGame: (String) -> Boolean = { false }, passedOver: (String) -> Boolean): String {
         val phone = listOfNotNull(PHONE.takeIf { vulkan })
-        val line = (fitting + if (glesFaster) gles + phone else phone + gles).distinct()
+        val line = (if (glesFaster) gles + fitting + phone else fitting + phone + gles).distinct()
         val usable = if (line.any { it !in gles && failedInGame(it) }) gles else line
         return usable.firstOrNull { !passedOver(it) && !failedInGame(it) } ?: CPU
     }
