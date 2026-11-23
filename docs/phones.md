@@ -103,6 +103,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Pixel 6 | Mali-G78 | PanVK-kbase RC3 | [Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/11) |
 | Huawei P30 | Mali-G76 | PanVK 1.2.9 | [60](https://github.com/JulioFerrero/pocket-foundry/issues/56) |
 | Galaxy S10 | Mali-G76 | PanVK 1.2.9 | 17–37 |
+| Redmi Note 10S | Mali-G76 | Phone's OpenGL ES | [54–60](https://github.com/JulioFerrero/pocket-foundry/issues/85) |
 | Pixel 8 | Mali-G715 | Phone's Vulkan | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/13) |
 | Xiaomi 15T Pro | Mali-G925 | Phone's Vulkan | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/2) |
 | OnePlus Nord 3 5G | Mali-G710 | Phone's OpenGL ES | [60, highest settings](https://github.com/JulioFerrero/pocket-foundry/issues/30) |
@@ -111,6 +112,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Galaxy A34 5G | Mali-G68 | Phone's OpenGL ES | [22–60, Medium sprites, Space Age](https://github.com/JulioFerrero/pocket-foundry/issues/53) |
 | Poco M6 Pro 4G | Mali-G57 | Phone's Vulkan | [50–60](https://github.com/JulioFerrero/pocket-foundry/issues/51) |
 | Galaxy XCover7 | Mali-G57 | Phone's OpenGL ES | 55–60 |
+| Redmi Note 10T 5G | Mali-G57 | Phone's OpenGL ES | [50–60](https://github.com/JulioFerrero/pocket-foundry/issues/86) |
 | Galaxy Tab S6 Lite | Mali-G72 | Phone's Vulkan | [29–60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/59) |
 | Infinix Hot 60i | Mali-G52 | Phone's Vulkan | [35–52, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/1) |
 | Redmi 12C | Mali-G52 | Phone's OpenGL ES | [50–60](https://github.com/JulioFerrero/pocket-foundry/issues/71) |
