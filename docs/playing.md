@@ -17,6 +17,8 @@ The square on the right is a trackpad, like a laptop's or the Steam Deck's: drag
 you drag, so your finger never covers what you point at. Tap in it to act where the cursor is, long press for X, and
 double tap and hold to hold A while you drag. **Settings -> Touch** changes it: **Direct** puts a right stick there
 instead, **Trackpad** makes the whole screen a trackpad, and **Trackpad speed** sets how far the cursor goes.
+**Long touch** sets what a long press does (**Right click**, **Left click**, or **Off**), and **Long touch delay**
+sets how long to hold before it triggers.
 
 | Button | In Factorio |
 |---|---|
