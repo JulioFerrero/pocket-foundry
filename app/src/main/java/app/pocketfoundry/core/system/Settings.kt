@@ -25,8 +25,8 @@ class Settings(context: Context) {
     var controllerButtons by prefs.string("controllerButtons", "{}")
     /** How far the trackpad moves the cursor for a finger's movement, in percent: one of TRACKPAD_SPEEDS. */
     var trackpadSpeed by prefs.int("trackpadSpeed", 150)
-    /** What a long press does: one of LONG_PRESSES (RIGHT or OFF). */
-    var longPress by prefs.string("longPress", RIGHT)
+    /** What a long press does: one of LONG_PRESSES (BUTTON_X or OFF). */
+    var longPress by prefs.string("longPress", BUTTON_X)
     /** How long a finger must stay still before long press fires, in milliseconds: one of LONG_PRESS_DELAYS. */
     var longPressDelay by prefs.int("longPressDelay", 300)
     var fpsCounter by prefs.bool("fpsCounter", false)
@@ -92,8 +92,8 @@ class Settings(context: Context) {
         const val PAD = "pad"
         const val KEYS = "keys"
         val CONTROLS = listOf(PAD, KEYS)
-        const val RIGHT = "right"
-        val LONG_PRESSES = listOf(RIGHT, OFF)
+        const val BUTTON_X = "button_x"
+        val LONG_PRESSES = listOf(BUTTON_X, OFF)
         val LONG_PRESS_DELAYS = listOf(300, 500, 750, 1000)
 
         /** The app's own prefs file, which other features keep their own keys in too (DriverRecords). */
