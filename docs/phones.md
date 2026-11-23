@@ -87,6 +87,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Galaxy Z Fold 8 Ultra | Adreno | Turnip | Folded and unfolded |
 | Retroid Pocket Flip 2 | Adreno 650 | Turnip | |
 | Galaxy S20 FE | Adreno 650 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/12) |
+| realme GT Master Edition | Adreno 642L | Turnip | [15–60, crDroid ROM](https://github.com/JulioFerrero/pocket-foundry/issues/81) |
 | Redmi Note 10 Pro | Adreno 618 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/17) |
 | Nothing Phone (1) | Adreno 642L | Freedreno | |
 | POCO X5 Pro 5G | Adreno 642L | Freedreno | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/36) |
