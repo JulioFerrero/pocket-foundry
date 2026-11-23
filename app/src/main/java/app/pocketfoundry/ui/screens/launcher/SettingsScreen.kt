@@ -85,14 +85,11 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         settings.trackpadSpeed = Settings.TRACKPAD_SPEEDS[it]
     }
     private val trackpadSpeedRow by lazy { dropdownSetting("Trackpad speed", trackpadSpeed) }
-    private val longPress = Dropdown(launcher, listOf("X button", "Disable")) {
-        settings.longPress = Settings.LONG_PRESSES[it]
-        longPressDelayRow.shown = settings.longPress != Settings.OFF
-    }
-    private val longPressDelay = Dropdown(launcher, Settings.LONG_PRESS_DELAYS.map { "$it ms" }) {
-        settings.longPressDelay = Settings.LONG_PRESS_DELAYS[it]
-    }
-    private val longPressDelayRow by lazy { dropdownSetting("Long press delay", longPressDelay) }
+    // What a long press does depends on the controls (X with the gamepad's, a right click with Mouse & keys): only
+    // its wait is set here.
+    private val longPress = Dropdown(launcher, Settings.LONG_PRESSES.map {
+        when { it == 0 -> "Off"; it % 1000 == 0 -> "${it / 1000} s"; else -> "$it ms" }
+    }) { settings.longPress = Settings.LONG_PRESSES[it] }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)
     // The first controller connected: a handheld's own, or the one plugged in.
     private val controllerButtons = button(launcher, "Change", size = 15f) {
@@ -163,7 +160,6 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         setting("Touch", touch),
         trackpadSpeedRow,
         dropdownSetting("Long press", longPress),
-        longPressDelayRow,
         checkSetting("Vibration", settings.vibration) { settings.vibration = it },
         setting("Controller buttons", controllerButtons),
         setting("Layout", FrameLayout(launcher).apply {
@@ -238,8 +234,6 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         trackpadSpeed.selected = Settings.TRACKPAD_SPEEDS.indexOf(settings.trackpadSpeed).coerceAtLeast(0)
         trackpadSpeedRow.shown = settings.touch != Settings.DIRECT
         longPress.selected = Settings.LONG_PRESSES.indexOf(settings.longPress).coerceAtLeast(0)
-        longPressDelay.selected = Settings.LONG_PRESS_DELAYS.indexOf(settings.longPressDelay).coerceAtLeast(0)
-        longPressDelayRow.shown = settings.longPress != Settings.OFF
         showFastStart()
         note.shown = Session.inGame
         credit.shown = !Session.inGame

@@ -18,10 +18,10 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 /**
- * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press: right button held
- * (X with [padMode]), configurable via [Settings.longPress] and [Settings.longPressDelay] (or disabled). Two fingers:
- * tap right-clicks (B with [padMode]), pinch zooms, drag scrolls. With [padMode], double tap and hold holds A.
- * [padMode] is controller mode, where Factorio's mouse clicks only in menus.
+ * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press, after
+ * [Settings.longPress] (none at 0): right button held, X with [padMode]. Two fingers: tap right-clicks (B with
+ * [padMode]), pinch zooms, drag scrolls. With [padMode], double tap and hold holds A. [padMode] is controller mode,
+ * where Factorio's mouse clicks only in menus.
  *
  * A trackpad finger (Settings.touch TRACKPAD, read at each first finger, or one that lands on the BOX) moves the cursor
  * by how far it goes, like a laptop's trackpad, and what it does happens at the cursor, which the game shows; a drag
@@ -162,8 +162,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
             lastTapAt = 0
             holdPad(PadButton.SOUTH)
-        } else if (settings.longPress != Settings.OFF) {
-            mainHandler.postDelayed(longPress, settings.longPressDelay.toLong())
+        } else if (settings.longPress > 0) {
+            mainHandler.postDelayed(longPress, settings.longPress.toLong())
         }
     }
 
