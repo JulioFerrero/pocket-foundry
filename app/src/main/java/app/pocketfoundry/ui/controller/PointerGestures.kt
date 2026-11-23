@@ -18,9 +18,10 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 /**
- * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press: right button held,
- * X with [padMode]. Two fingers: tap right-clicks (B with [padMode]), pinch zooms, drag scrolls. With [padMode],
- * double tap and hold holds A. [padMode] is controller mode, where Factorio's mouse clicks only in menus.
+ * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press: right button held
+ * (X with [padMode]), configurable via [Settings.longPress] and [Settings.longPressDelay] (or disabled). Two fingers:
+ * tap right-clicks (B with [padMode]), pinch zooms, drag scrolls. With [padMode], double tap and hold holds A.
+ * [padMode] is controller mode, where Factorio's mouse clicks only in menus.
  *
  * A trackpad finger (Settings.touch TRACKPAD, read at each first finger, or one that lands on the BOX) moves the cursor
  * by how far it goes, like a laptop's trackpad, and what it does happens at the cursor, which the game shows; a drag
@@ -161,8 +162,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
             lastTapAt = 0
             holdPad(PadButton.SOUTH)
-        } else {
-            mainHandler.postDelayed(longPress, LONG_PRESS_MS)
+        } else if (settings.longPress != Settings.OFF) {
+            mainHandler.postDelayed(longPress, settings.longPressDelay.toLong())
         }
     }
 
@@ -316,7 +317,6 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private fun wheel(notches: Int) = lorie.sendMouseWheelEvent(0f, notches * 120f)
 
     companion object {
-        private const val LONG_PRESS_MS = 300L
         private const val PARK_MS = 150L
         private const val TAP_MS = 300L
         /** Span ratio per notch of zoom. */
