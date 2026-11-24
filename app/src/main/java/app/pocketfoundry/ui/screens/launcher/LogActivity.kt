@@ -11,12 +11,16 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.LeadingMarginSpan
 import android.text.style.StyleSpan
 import android.util.Log
+import android.view.Gravity
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -33,12 +37,17 @@ import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.drivers.SpeedTest
 import app.pocketfoundry.core.game.GameEnding
 import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.logs.Reports
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.REPOSITORY
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.scaleUi
+import app.pocketfoundry.ui.kit.DialogHost
+import app.pocketfoundry.ui.kit.Tone
+import app.pocketfoundry.ui.kit.button
+import app.pocketfoundry.ui.kit.label
 import app.pocketfoundry.ui.kit.FButton
 import app.pocketfoundry.ui.kit.Factorio
 import app.pocketfoundry.ui.kit.Frame
@@ -126,11 +135,81 @@ class LogActivity : Activity() {
             }
         }
 
+    private val host by lazy { DialogHost(this) {} }
+
+    /**
+     * What happened, in the player's words, and the Logs as a file, sent to Pocket Foundry's Acrarium (Reports) when
+     * they tap Send, or the GitHub form instead. Nothing goes anywhere before that tap.
+     */
+    private fun report() {
+        load()
+        val what = field("What happened, in a few words", lines = 3).apply { setText(lastGame.orEmpty()) }
+        val contact = field("Email or GitHub name, if you'd like an answer (optional)", lines = 1)
+        val status = label(this, "", 13f, Factorio.MUTED)
+        val github = button(this, "GitHub") {
+            host.close()
+            reportOnGitHub()
+        }
+        lateinit var send: FButton
+        send = button(this, "Send", Tone.GREEN) {
+            send.isEnabled = false
+            status.text = "Sending…"
+            val played = ScreenLog.driver ?: Drivers.chosen(this)
+            val driver = Drivers.find(this, played)?.name ?: played
+            val gpu = Gpu.name ?: "GPU unknown"
+            val ending = lastGame
+            val logs = shown
+            val comment = what.text.toString().trim()
+            val reply = contact.text.toString().trim()
+            thread {
+                val sent = runCatching { Reports.send(this, driver, gpu, ending, comment, reply, logs) }
+                mainHandler.post {
+                    sent.onSuccess { id ->
+                        host.close()
+                        host.show("Report sent", 420, "Close") {
+                            add(label(context, "It's number ${id.take(8)}. If you also open an issue on GitHub, " +
+                                               "mention it there.", 15f))
+                        }
+                    }.onFailure {
+                        status.text = "Couldn't send it: ${it.message}. Check the connection and try again."
+                        send.isEnabled = true
+                    }
+                }
+            }
+        }
+        host.show("Send a report", 480, "Cancel", github, send) {
+            add(label(context, "Sends these logs and what you write here to Pocket Foundry's developer. Nothing " +
+                               "is sent until you tap Send.", 14f))
+            add(stack(context, Frame.DEEP) { add(what) })
+            add(stack(context, Frame.DEEP) { add(contact) })
+            add(status)
+        }
+    }
+
+    private fun field(hint: String, lines: Int) = EditText(this).apply {
+        this.hint = hint
+        textSize = 14f
+        setTextColor(Factorio.TEXT)
+        setHintTextColor(0xFF8A8580.toInt())
+        background = null
+        pad(horizontal = 8, vertical = 6)
+        if (lines > 1) {
+            minLines = lines
+            gravity = Gravity.TOP or Gravity.START
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        } else {
+            isSingleLine = true
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+        imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI
+    }
+
     /**
      * The Logs onto the clipboard and a new bug report on GitHub, its phone and title filled in: the player sees the
      * form and decides whether to post it. The app sends nothing itself.
      */
-    private fun report() {
+    private fun reportOnGitHub() {
         load()
         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Pocket Foundry logs", shown))
         val phone = "${Build.MANUFACTURER} ${Build.MODEL}"
@@ -147,6 +226,11 @@ class LogActivity : Activity() {
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(this, "No browser to open the report in. The Logs are copied.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    @Deprecated("Android's own, still the way on Android 10")
+    override fun onBackPressed() {
+        if (host.isOpen) host.close() else @Suppress("DEPRECATION") super.onBackPressed()
     }
 
     override fun onPause() {
