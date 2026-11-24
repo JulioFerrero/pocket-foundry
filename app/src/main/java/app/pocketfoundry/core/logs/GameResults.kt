@@ -110,8 +110,8 @@ object GameResults {
             .put("android", Build.VERSION.RELEASE)
         val details = listOfNotNull(
             ending,
-            "FPS ${custom.optString("fps")} (lowest tenth ${custom.optString("fpsLow")}) over " +
-                "${custom.optString("minutesDrawn")} minutes drawn".takeIf { drawn.isNotEmpty() },
+            ("FPS ${custom.optString("fps")} (lowest tenth ${custom.optString("fpsLow")}) over " +
+                "${custom.optString("minutesDrawn")} minutes drawn").takeIf { drawn.isNotEmpty() },
         )
         Reports.post(context, REPORTER, id(context), "$name (${words(outcome)}): $gpu", details.joinToString("\n"),
                      "", "", custom, if (failed) logs(paths) else null)
