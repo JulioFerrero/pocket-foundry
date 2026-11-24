@@ -117,6 +117,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Infinix Hot 60i | Mali-G52 | Phone's Vulkan | [35–52, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/1) |
 | Redmi 12C | Mali-G52 | Phone's OpenGL ES | [50–60](https://github.com/JulioFerrero/pocket-foundry/issues/71) |
 | Redmi 12 | Mali-G52 | Phone's OpenGL ES | 45–60 |
+| Redmi 13C | Mali-G52 | Phone's OpenGL ES | [60](https://github.com/JulioFerrero/pocket-foundry/issues/78) |
 | Redmi Note 9 | Mali-G52 | PanVK 1.2.9 | [25–32](https://github.com/JulioFerrero/pocket-foundry/issues/21) |
 | Pixel 10 Pro | PowerVR | Phone's Vulkan | 58–60, High sprites |
 
