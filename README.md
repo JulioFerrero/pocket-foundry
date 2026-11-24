@@ -59,7 +59,8 @@ GPU by itself. If it doesn't start, the next game uses the next one.
 Something wrong, or it works on your phone? Tap Report on the Logs screen to send the logs privately, or
 [open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with what the Logs screen shows (its Copy button
 takes it all). Nothing leaves the phone on its own: reports go only when you tap Send, and the game results Pocket
-Foundry asks to share after your first game only once you say yes ([what they hold](docs/playing.md#settings)).
+Foundry asks to share after your first game only once you say yes ([what they hold](docs/playing.md#settings),
+[privacy](https://pocketfoundry.dev/privacy/)).
 
 ## Licence
 

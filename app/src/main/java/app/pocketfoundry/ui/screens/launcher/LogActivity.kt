@@ -43,6 +43,7 @@ import app.pocketfoundry.core.runtime.Runtime
 import app.pocketfoundry.core.system.REPOSITORY
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.mainHandler
+import app.pocketfoundry.ui.kit.link
 import app.pocketfoundry.ui.kit.scaleUi
 import app.pocketfoundry.ui.kit.DialogHost
 import app.pocketfoundry.ui.kit.Tone
@@ -180,6 +181,7 @@ class LogActivity : Activity() {
         host.show("Send a report", 480, "Cancel", github, send) {
             add(label(context, "Sends these logs and what you write here to Pocket Foundry's developer. Nothing " +
                                "is sent until you tap Send.", 14f))
+            add(link(context, "Privacy", Reports.PRIVACY))
             add(stack(context, Frame.DEEP) { add(what) })
             add(stack(context, Frame.DEEP) { add(contact) })
             add(status)

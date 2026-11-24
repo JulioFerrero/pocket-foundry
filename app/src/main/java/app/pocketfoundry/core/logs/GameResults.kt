@@ -19,7 +19,8 @@ import kotlin.math.roundToInt
  * How a game ran, sent after it to Pocket Foundry's report server, only once the player said yes to it
  * (Settings.shareResults): the phone, its GPU and driver, the game's settings, its frames a second while it drew and
  * how it ended, and the game's logs when it didn't start or failed. No saves and nothing personal; before that yes,
- * nothing is measured or sent. Acrarium groups them by driver, outcome and GPU.
+ * nothing is measured or sent. Acrarium groups them by driver, outcome and GPU. What's kept and for how long:
+ * Reports.PRIVACY.
  */
 object GameResults {
     /** Acrarium's reporter for its "Pocket Foundry results" app: it can send and nothing else. */
@@ -112,8 +113,26 @@ object GameResults {
             "FPS ${custom.optString("fps")} (lowest tenth ${custom.optString("fpsLow")}) over " +
                 "${custom.optString("minutesDrawn")} minutes drawn".takeIf { drawn.isNotEmpty() },
         )
-        Reports.post(context, REPORTER, "$name (${words(outcome)}): $gpu", details.joinToString("\n"), "", "", custom,
-                     if (failed) logs(paths) else null)
+        Reports.post(context, REPORTER, id(context), "$name (${words(outcome)}): $gpu", details.joinToString("\n"),
+                     "", "", custom, if (failed) logs(paths) else null)
+    }
+
+    /**
+     * This install's random results id, which Settings shows so a player can ask for theirs to be deleted. 0.9.4-beta.1
+     * sent reports and results under one; results keep it, so the ones sent already stay findable by it.
+     */
+    private fun id(context: Context): String {
+        val prefs = Settings.prefs(context)
+        prefs.getString(SHARED_ID, null)?.takeIf { !prefs.contains(ID) }?.let {
+            prefs.edit().putString(ID, it).remove(SHARED_ID).apply()
+        }
+        return Reports.installation(context, ID)
+    }
+
+    /** As Settings shows it: the id's start, enough to find its results; none before the first one is sent. */
+    fun shownId(context: Context): String? {
+        val prefs = Settings.prefs(context)
+        return (prefs.getString(ID, null) ?: prefs.getString(SHARED_ID, null))?.take(8)
     }
 
     private fun words(outcome: Drivers.Outcome) = when (outcome) {
@@ -134,6 +153,9 @@ object GameResults {
 
     private fun tail(file: File) = runCatching { file.readLines().takeLast(LOG_LINES).joinToString("\n") }
         .getOrDefault("(none)")
+
+    private const val ID = "resultsId"
+    private const val SHARED_ID = "reportInstallation"
 
     private val FACTORIO = Regex("""Factorio (\d+\.\d+\.\d+ \(build \d+, [^)]*\))""")
     /** What Factorio's log says as a save's map is in: a new map's script, or a save's. */

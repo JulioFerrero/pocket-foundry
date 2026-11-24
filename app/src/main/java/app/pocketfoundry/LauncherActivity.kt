@@ -22,6 +22,7 @@ import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.game.GameImport
 import app.pocketfoundry.core.game.MemoryNeed
 import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.logs.Reports
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.DebugEnv
 import app.pocketfoundry.core.runtime.Runtime
@@ -49,6 +50,7 @@ import app.pocketfoundry.ui.kit.Window
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
 import app.pocketfoundry.ui.kit.label
+import app.pocketfoundry.ui.kit.link
 import app.pocketfoundry.ui.kit.stack
 import app.pocketfoundry.core.system.background
 import app.pocketfoundry.ui.kit.edgeToEdge
@@ -330,8 +332,9 @@ class LauncherActivity : Activity() {
             add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
                 add(label(this@LauncherActivity, "Share how your games run?", 16f, weight = 600))
                 add(label(this@LauncherActivity, "After each game: your phone's model, GPU and driver, the game's " +
-                    "settings, its FPS and how it ended, with the logs if it failed. No saves and nothing personal. " +
+                    "settings, its FPS and how it ended, with the logs if it failed. No saves, nothing that names you. " +
                     "It helps pick the right driver for every phone.", 14f, Factorio.MUTED))
+                add(link(this@LauncherActivity, "Privacy", Reports.PRIVACY))
             })
         }
     }

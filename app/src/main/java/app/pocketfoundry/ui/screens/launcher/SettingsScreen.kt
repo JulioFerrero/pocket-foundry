@@ -10,6 +10,8 @@ import android.text.TextUtils
 import app.pocketfoundry.core.controller.gamepads
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.logs.GameResults
+import app.pocketfoundry.core.logs.Reports
 import app.pocketfoundry.core.saves.GameFilesProvider
 import app.pocketfoundry.core.system.GITHUB
 import app.pocketfoundry.core.system.Paths
@@ -52,6 +54,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val note = label(launcher, "Resolution, sprites, graphics, detailed logs and fast start change when " +
                              "Factorio next starts.", 13f, Factorio.MUTED)
     private val fastStart = label(launcher, FAST_START, 15f)
+    private val shareResultsLabel = label(launcher, "", 15f)
     private val shareResults = checkBox(launcher, settings.shareResults == Settings.ON) { on ->
         settings.shareResults = if (on) Settings.ON else Settings.OFF
     }
@@ -182,9 +185,17 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         setting(label(launcher, "", 15f).apply {
             text = withNote("Driver downloads", "from GitHub, outside F-Droid's checks", Factorio.FAINT)
         }, driverDownloads, controlHeight = CONTROL_HEIGHT),
-        setting(label(launcher, "", 15f).apply {
-            text = withNote("Share results", "how each game ran, no personal data", Factorio.FAINT)
-        }, shareResults, controlHeight = CONTROL_HEIGHT))
+        setting(shareResultsLabel, shareResults, controlHeight = CONTROL_HEIGHT),
+        setting("Privacy", link(launcher, "What's sent and kept", Reports.PRIVACY, 15f).apply {
+            gravity = Gravity.CENTER_VERTICAL
+        }, controlHeight = CONTROL_HEIGHT))
+
+    /** The id is what a player quotes to have their results deleted. */
+    private fun showShareResults() {
+        val id = GameResults.shownId(launcher)
+        shareResultsLabel.text = withNote("Share results", if (id == null) "how each game ran" else "how each game ran, id $id",
+                                          Factorio.FAINT)
+    }
 
     /** One tab's rows. Scrolls only on the smallest phones. */
     private fun page(vararg rows: View) = ScrollView(launcher).apply {
@@ -248,6 +259,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         importAgain.isEnabled = !Session.inGame && idle
         driverDownloads.isChecked = settings.driverDownloads == Settings.ON
         shareResults.isChecked = settings.shareResults == Settings.ON
+        showShareResults()
         val pad = gamepads(launcher).any()
         controllerButtons.isEnabled = pad
         controllerButtons.text = if (pad) "Change" else "None connected"
