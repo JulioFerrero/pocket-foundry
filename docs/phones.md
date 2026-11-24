@@ -87,6 +87,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Galaxy Z Fold 8 Ultra | Adreno | Turnip | Folded and unfolded |
 | Retroid Pocket Flip 2 | Adreno 650 | Turnip | |
 | Galaxy S20 FE | Adreno 650 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/12) |
+| POCO F3 | Adreno 650 | Turnip | [30–60, High sprites](https://github.com/JulioFerrero/pocket-foundry/issues/92) |
 | realme GT Master Edition | Adreno 642L | Turnip | [15–60, crDroid ROM](https://github.com/JulioFerrero/pocket-foundry/issues/81) |
 | Redmi Note 10 Pro | Adreno 618 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/17) |
 | Nothing Phone (1) | Adreno 642L | Freedreno | |
@@ -120,6 +121,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Redmi 13C | Mali-G52 | Phone's OpenGL ES | [60](https://github.com/JulioFerrero/pocket-foundry/issues/78) |
 | Redmi Note 9 | Mali-G52 | PanVK 1.2.9 | [25–32](https://github.com/JulioFerrero/pocket-foundry/issues/21) |
 | Pixel 10 Pro | PowerVR | Phone's Vulkan | 58–60, High sprites |
+| Pixel 11 | PowerVR | Phone's Vulkan | [35–60, Light graphics](https://github.com/JulioFerrero/pocket-foundry/issues/65) |
 
 Yours works, or doesn't? [Open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with the Logs
 screen's Copy.
