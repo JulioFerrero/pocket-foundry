@@ -52,6 +52,9 @@ class SettingsScreen(private val launcher: LauncherActivity) {
     private val note = label(launcher, "Resolution, sprites, graphics, detailed logs and fast start change when " +
                              "Factorio next starts.", 13f, Factorio.MUTED)
     private val fastStart = label(launcher, FAST_START, 15f)
+    private val shareResults = checkBox(launcher, settings.shareResults == Settings.ON) { on ->
+        settings.shareResults = if (on) Settings.ON else Settings.OFF
+    }
     private val driverDownloads = checkBox(launcher, settings.driverDownloads == Settings.ON) { on ->
         if (on == (settings.driverDownloads == Settings.ON)) return@checkBox
         if (on) launcher.turnOnDriverDownloads() else settings.driverDownloads = Settings.OFF
@@ -178,7 +181,10 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         checkSetting("Detailed logs", settings.detailedLogs) { settings.detailedLogs = it },
         setting(label(launcher, "", 15f).apply {
             text = withNote("Driver downloads", "from GitHub, outside F-Droid's checks", Factorio.FAINT)
-        }, driverDownloads, controlHeight = CONTROL_HEIGHT))
+        }, driverDownloads, controlHeight = CONTROL_HEIGHT),
+        setting(label(launcher, "", 15f).apply {
+            text = withNote("Share results", "how each game ran, no personal data", Factorio.FAINT)
+        }, shareResults, controlHeight = CONTROL_HEIGHT))
 
     /** One tab's rows. Scrolls only on the smallest phones. */
     private fun page(vararg rows: View) = ScrollView(launcher).apply {
@@ -241,6 +247,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         layoutLater.shown = !Session.live
         importAgain.isEnabled = !Session.inGame && idle
         driverDownloads.isChecked = settings.driverDownloads == Settings.ON
+        shareResults.isChecked = settings.shareResults == Settings.ON
         val pad = gamepads(launcher).any()
         controllerButtons.isEnabled = pad
         controllerButtons.text = if (pad) "Change" else "None connected"

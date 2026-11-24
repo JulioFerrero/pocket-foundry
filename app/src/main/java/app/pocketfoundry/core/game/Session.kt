@@ -13,6 +13,7 @@ import app.pocketfoundry.core.drivers.DriverRecords
 import app.pocketfoundry.core.drivers.Drivers
 import app.pocketfoundry.core.drivers.Route
 import app.pocketfoundry.core.logs.DetailedLogs
+import app.pocketfoundry.core.logs.GameResults
 import app.pocketfoundry.core.logs.MemoryWatch
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.DebugEnv
@@ -310,6 +311,7 @@ object Session {
         this.game = game
         lastGame = null
         ScreenLog.add("game started")
+        if (!testing) GameResults.start(context, paths)
         setState(State.RUNNING)
         val app = context.applicationContext
         thread(name = "pocketfoundry-game-exit", isDaemon = true) { onGameExit(app, game, started.waitFor()) }
@@ -412,6 +414,13 @@ object Session {
             else -> null   // quit while loading
         }
         outcome?.let { Drivers.record(context, game.driver, it) }
+        if (outcome == Drivers.Outcome.RAN) Settings(context).played = true
+        if (outcome != null) {
+            val words = failure?.let {
+                GameEnding.sentence(Drivers.find(context, game.driver)?.name ?: game.driver, it, stage)
+            }
+            GameResults.finish(context, Paths(context), game.driver, outcome, words)
+        }
         setState(State.STOPPED)
     }
 

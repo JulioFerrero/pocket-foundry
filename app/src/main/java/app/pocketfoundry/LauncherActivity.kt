@@ -309,10 +309,31 @@ class LauncherActivity : Activity() {
 
     private fun finding() = "Finding the driver for your ${Gpu.name ?: "GPU"}"
 
-    /** Driver downloads once the game is here, else the old app's saves. */
+    /** Driver downloads once the game is here, sharing results once a game has run, else the old app's saves. */
     private fun nextQuestion() {
         if (GameImport.installedVersion(this) != null && settings.driverDownloads == Settings.ASK) askDriverDownloads()
+        else if (settings.played && settings.shareResults == Settings.ASK) askShareResults()
         else offerOldSaves()
+    }
+
+    /**
+     * Once, after the first game: whether each game's results go to Pocket Foundry's report server (GameResults).
+     * Off until the player says yes, and saying no is as easy: what F-Droid asks of anything that sends data.
+     * Settings changes the answer.
+     */
+    private fun askShareResults() {
+        val share = button(this, "Share", Tone.GREEN) {
+            settings.shareResults = Settings.ON
+            host.close()
+        }
+        host.show("Help Pocket Foundry", 480, "No thanks", share, onBack = { settings.shareResults = Settings.OFF }) {
+            add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
+                add(label(this@LauncherActivity, "Share how your games run?", 16f, weight = 600))
+                add(label(this@LauncherActivity, "After each game: your phone's model, GPU and driver, the game's " +
+                    "settings, its FPS and how it ended, with the logs if it failed. No saves and nothing personal. " +
+                    "It helps pick the right driver for every phone.", 14f, Factorio.MUTED))
+            })
+        }
     }
 
     /**

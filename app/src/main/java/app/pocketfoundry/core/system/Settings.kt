@@ -33,6 +33,13 @@ class Settings(context: Context) {
      * checks. ASK until the player answers; one of ASK, ON and OFF (Drivers.downloads).
      */
     var driverDownloads by prefs.string("driverDownloads", ASK)
+    /**
+     * After each game, how it ran goes to Pocket Foundry's report server (GameResults): only with the player's yes,
+     * asked once, so nothing is sent before it. ASK until the player answers; one of ASK, ON and OFF.
+     */
+    var shareResults by prefs.string("shareResults", ASK)
+    /** A game has run here: the question about sharing results waits for the first. */
+    var played by prefs.bool("played", false)
     /** The saves of Pocket Foundry before 0.9, another app, came over (OldApp). */
     var oldSavesBrought by prefs.bool("oldSavesBrought", false)
     /**

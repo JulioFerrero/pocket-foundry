@@ -138,6 +138,13 @@ still works as the mouse too.
 - **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen and every
   graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.
+- **Share results:** off until you say yes; Pocket Foundry asks once, after your first game. Then after each game it
+  sends how it ran to reports.pocketfoundry.dev: the phone's model and Android version, the GPU, the driver and its
+  version, Factorio's version, the resolution, sprites and graphics, Fast CPU, the FPS, the minutes played and how
+  the game ended, with the logs when it didn't start or failed. No saves, no account and nothing personal, only a
+  random id the install makes for itself. It shows which driver plays best on each phone.
+- **Logs -> Report** sends the Logs, as a file, and what you write to Pocket Foundry's developer at
+  reports.pocketfoundry.dev, privately, when you tap Send. Its GitHub button opens a public issue instead.
 - **Driver downloads:** the driver list and its drivers, from
   [pocket-foundry-drivers](https://github.com/JulioFerrero/pocket-foundry-drivers) on GitHub, outside F-Droid's
   checks. Pocket Foundry asks once, after the import; without them it plays on the phone's own driver or an
