@@ -177,6 +177,7 @@ class LayoutEditor(private val layout: PadLayout, private val painter: PadPainte
             Tool.BIGGER -> resize(SCALE_STEP)
             Tool.OPACITY -> layout.nextOpacity()
             Tool.OPTIONS -> selected?.takeIf { it.kind is Kind.Key }?.let { panels?.options(it) }
+            Tool.TOUCH -> panels?.touch()
             Tool.RESET -> {
                 layout.closeDrawer()
                 layout.reset()

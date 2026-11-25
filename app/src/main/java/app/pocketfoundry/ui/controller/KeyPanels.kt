@@ -13,6 +13,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
+import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.ui.kit.DialogHost
 import app.pocketfoundry.ui.kit.Dropdown
 import app.pocketfoundry.ui.kit.FButton
@@ -46,10 +47,11 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
     }
 
     /**
-     * A keyboard, laid out as one, its keys the keycaps on screen. Ctrl, Shift and Alt light up when tapped: the key
-     * tapped next comes with them; Use takes them alone. [onPicked] gets the codes, the modifiers first.
+     * A keyboard, laid out as one, its keys the keycaps on screen, the mouse's buttons among them. Ctrl, Shift and Alt
+     * light up when tapped: the key tapped next comes with them; Use takes them alone. [onPicked] gets the codes, the
+     * modifiers first; with [nothing], its Nothing button an empty array.
      */
-    fun pickKey(title: String, onPicked: (IntArray) -> Unit) {
+    fun pickKey(title: String, nothing: Boolean = false, onPicked: (IntArray) -> Unit) {
         close()
         val held = LinkedHashSet<Int>()
         val sofar = label(activity, "", 15f, Factorio.MUTED)
@@ -57,6 +59,10 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
             if (held.isEmpty()) return@button
             host.close()
             onPicked(held.sortedBy { KeyNames.MODIFIERS.indexOf(it) }.toIntArray())
+        }
+        val none = button(activity, "Nothing") {
+            host.close()
+            onPicked(IntArray(0))
         }
         fun update() {
             sofar.text = if (held.isEmpty()) "" else KeyNames.label(held.toIntArray()) + "+…"
@@ -72,8 +78,40 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
                 onPicked(KeyNames.withModifiers(held, code))
             }
         }
-        host.show(title, PICKER_DP, "Cancel", use, titleEnd = sofar) {
+        val actions = if (nothing) arrayOf(none, use) else arrayOf(use)
+        host.show(title, PICKER_DP, "Cancel", *actions, titleEnd = sofar) {
             add(stack(activity, Frame.DEEP, padding = 8) { add(keyboard) })
+        }
+    }
+
+    /**
+     * What Mouse & keys' gestures send (Gesture), each picked as a key is, or nothing; and how long a long press is
+     * (Settings.longPress, the gamepad's too).
+     */
+    fun touch() {
+        close()
+        val settings = Settings(activity)
+        val rows = Gesture.entries.map { gesture ->
+            val codes = keys.gestures[gesture]
+            setting(gesture.title, dropdownLike(if (codes.isEmpty()) "Nothing" else KeyNames.label(codes)) {
+                pickKey(gesture.title, nothing = true) { picked ->
+                    keys.gestures[gesture] = picked
+                    touch()
+                }
+            })
+        }
+        val wait = Dropdown(activity, Settings.LONG_PRESSES.map(Settings::longPressName)) {
+            settings.longPress = Settings.LONG_PRESSES[it]
+        }.apply { selected = Settings.LONG_PRESSES.indexOf(settings.longPress).coerceAtLeast(0) }
+        val reset = button(activity, "Reset") {
+            keys.gestures.reset()
+            touch()
+        }
+        host.show("Touch", OPTIONS_DP, "Close", reset) {
+            add(stack(activity, Frame.DEEP, padding = 10, gap = 6) {
+                rows.forEach(::add)
+                add(setting("Long press after", wait))
+            })
         }
     }
 

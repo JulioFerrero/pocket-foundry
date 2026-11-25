@@ -104,6 +104,13 @@ class Settings(context: Context) {
         val CONTROLS = listOf(PAD, KEYS)
         val LONG_PRESSES = listOf(300, 500, 750, 1000, 0)
 
+        /** A [LONG_PRESSES] wait as it's shown: 300 ms, 1 s, Off. */
+        fun longPressName(ms: Int) = when {
+            ms == 0 -> "Off"
+            ms % 1000 == 0 -> "${ms / 1000} s"
+            else -> "$ms ms"
+        }
+
         /** The app's own prefs file, which other features keep their own keys in too (DriverRecords). */
         fun prefs(context: Context): SharedPreferences = context.getSharedPreferences("pocketfoundry", Context.MODE_PRIVATE)
 

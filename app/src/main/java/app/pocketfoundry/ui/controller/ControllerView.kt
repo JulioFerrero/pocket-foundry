@@ -169,14 +169,23 @@ class ControllerView(context: Context, private val input: Input, private val cou
         }
     }
 
-    /** Mouse & keys' two-finger tap: Esc, which closes what Factorio has open, and the game's keys again. */
-    fun escape() {
-        val keys = layout.keyOut ?: return
-        keys.press(ESC)
-        keys.release(ESC)
-        layout.closeDrawer()
-        layout.switchTo(KeySets.GAME)
-        invalidate()
+    /** Mouse & keys' gestures on the game (PointerGestures): what each sends (the editor's Touch), through the keys. */
+    val gestureOut = object : GestureOut {
+        override fun sends(gesture: Gesture) = layout.gestures[gesture]
+        override fun press(codes: IntArray) { layout.keyOut?.press(codes) }
+        override fun release(codes: IntArray) { layout.keyOut?.release(codes) }
+        override fun heldButtons() = layout.keyOut?.heldButtons() ?: IntArray(0)
+
+        override fun tap(codes: IntArray) {
+            val keys = layout.keyOut ?: return
+            keys.press(codes)
+            keys.release(codes)
+            // As the Esc key: what Factorio had open closes, and the game's keys come back.
+            if (!codes.contentEquals(ESC)) return
+            layout.closeDrawer()
+            layout.switchTo(KeySets.GAME)
+            invalidate()
+        }
     }
 
     fun pointerMove(id: Int, x: Float, y: Float) {

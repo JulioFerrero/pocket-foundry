@@ -18,14 +18,17 @@ import kotlin.math.pow
 import kotlin.math.sign
 
 /**
- * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Long press, after
- * [Settings.longPress] (none at 0): right button held, X with [padMode]. Two fingers: tap right-clicks (B with
- * [padMode]), pinch zooms, drag scrolls. With [padMode], double tap and hold holds A. [padMode] is controller mode,
- * where Factorio's mouse clicks only in menus.
+ * Fingers on the game, in window coordinates. Tap: left click. Drag: left button held. Two fingers: pinch zooms, drag
+ * scrolls. The long press comes after [Settings.longPress] (none at 0). The rest is the controls':
+ * - The gamepad's ([padMode], controller mode, where Factorio's mouse clicks only in menus): a long press holds X,
+ *   double tap and hold holds A, a two-finger tap is B.
+ * - Mouse & keys' ([out]): the long press, double tap and hold, and the two- and three-finger taps send what the
+ *   editor's Touch panel has them send ([Gesture]). While keys hold a mouse button, a finger only moves the cursor.
+ * - A real keyboard's: a long press holds the right button, a two-finger tap right-clicks.
  *
  * A trackpad finger (Settings.touch TRACKPAD, read at each first finger, or one that lands on the BOX) moves the cursor
  * by how far it goes, like a laptop's trackpad, and what it does happens at the cursor, which the game shows; a drag
- * holds no button.
+ * holds no button. Lifted within [tapSlop] it's a tap where the cursor was, past it a move: a nudge to the next belt.
  */
 class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLongPress: () -> Unit) {
     private val settings = Settings(activity)
@@ -35,17 +38,18 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private val pad = if (padMode) PadPresses() else null
     private val config = ViewConfiguration.get(lorie.context)
     private val slop = config.scaledTouchSlop.toFloat()
+    /** How far a trackpad's tap may wobble: Android's slop let a nudge of a belt or two snap back and click (#96). */
+    private val tapSlop = slop / 2
     private val doubleTapSlop = config.scaledDoubleTapSlop.toFloat()
     private val doubleTapMs = ViewConfiguration.getDoubleTapTimeout().toLong()
     private val scrollStep = lorie.context.dp(SCROLL_STEP_DP)
     private val location = IntArray(2)
-    /** In place of a two-finger tap's right click: Mouse & keys' Esc (ControllerView.escape). */
-    var twoFingerTap: (() -> Unit)? = null
     /**
-     * The mouse buttons Mouse & keys' keys hold down (KeyOut.heldButtons): while any is, a finger only moves the cursor,
-     * which drags with them, as on a laptop's trackpad with its button held. It clicks and presses nothing itself.
+     * Mouse & keys' gestures and keys (ControllerView.gestureOut). While its keys hold a mouse button
+     * (GestureOut.heldButtons), a finger only moves the cursor, which drags with it, as on a laptop's trackpad with its
+     * button held: it clicks and presses nothing itself.
      */
-    var heldButtons: () -> IntArray = { NO_BUTTONS }
+    var out: GestureOut? = null
     /**
      * Whether, a finger's tap or drag done, the cursor leaves for the screen's corner: Mouse & keys' while a window
      * fills the screen, where it would keep the tooltip of what it was left on.
@@ -72,7 +76,9 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private var downY = 0f
     private var heldMouse = InputStub.BUTTON_UNDEFINED
     private var heldPad: PadButton? = null
-    private val holding get() = heldMouse != InputStub.BUTTON_UNDEFINED || heldPad != null
+    /** What a Mouse & keys gesture holds down through [out]. */
+    private var heldCodes: IntArray? = null
+    private val holding get() = heldMouse != InputStub.BUTTON_UNDEFINED || heldPad != null || heldCodes != null
     private var lastTapAt = 0L
     private var lastTapX = 0f
     private var lastTapY = 0f
@@ -93,21 +99,25 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private var lastX = 0f
     private var lastY = 0f
     private var dragged = false
-    /** The finger down landed while keys held mouse buttons ([heldButtons]): it moves the cursor, and that's all. */
+    /** The finger down landed while keys held mouse buttons: it moves the cursor, and that's all. */
     private var carrying = false
     /** Where a finger acts: under it, or at the trackpad's cursor. */
     private val aimX get() = if (trackpad) cursorX else downX
     private val aimY get() = if (trackpad) cursorY else downY
 
-    private enum class Mode { ONE, UNDECIDED, PINCH, SCROLL, LIFTED }
+    /** UNDECIDED: two fingers, not yet a pinch or a scroll. THREE: Mouse & keys' three, a tap or nothing. */
+    private enum class Mode { ONE, UNDECIDED, THREE, PINCH, SCROLL, LIFTED }
 
     private val longPress = Runnable {
         if (fingers.size != 1 || holding || mode != Mode.ONE) return@Runnable
-        if (pad != null) {
-            moveTo(aimX, aimY)
-            holdPad(PadButton.WEST)
-        } else {
-            press(InputStub.BUTTON_RIGHT, aimX, aimY)
+        val keys = out
+        when {
+            pad != null -> {
+                moveTo(aimX, aimY)
+                holdPad(PadButton.WEST)
+            }
+            keys != null -> if (!holdGesture(keys, Gesture.LONG_PRESS)) return@Runnable
+            else -> press(InputStub.BUTTON_RIGHT, aimX, aimY)
         }
         onLongPress()
     }
@@ -117,8 +127,11 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         fingers += id
         xs[id] = x
         ys[id] = y
-        if (fingers.size == 1) firstFingerDown(x, y, box)
-        else if (fingers.size == 2 && !holding && mode == Mode.ONE) secondFingerDown()
+        when {
+            fingers.size == 1 -> firstFingerDown(x, y, box)
+            fingers.size == 2 && !holding && mode == Mode.ONE -> secondFingerDown()
+            fingers.size == 3 && mode == Mode.UNDECIDED && out != null -> mode = Mode.THREE
+        }
     }
 
     fun move(id: Int, x: Float, y: Float) {
@@ -126,7 +139,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         xs[id] = x
         ys[id] = y
         if (mode != Mode.ONE) {
-            if (fingers.size >= 2) twoFingerMove()
+            if (fingers.size >= 2 && mode != Mode.THREE) twoFingerMove()
             return
         }
         if (fingers.size != 1) return
@@ -144,7 +157,11 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     fun up(id: Int, x: Float, y: Float) {
         xs[id] = x
         ys[id] = y
-        if (mode != Mode.ONE) twoFingerUp() else if (fingers.size == 1) oneFingerUp(x, y)
+        when {
+            mode == Mode.THREE -> threeFingerUp()
+            mode != Mode.ONE -> twoFingerUp()
+            fingers.size == 1 -> oneFingerUp(x, y)
+        }
         fingers -= id
         if (fingers.isEmpty()) mode = Mode.ONE
     }
@@ -165,7 +182,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         downY = y
         trackpad = box || settings.touch == Settings.TRACKPAD
         speed = settings.trackpadSpeed / 100f
-        val buttons = heldButtons()
+        val keys = out
+        val buttons = keys?.heldButtons() ?: NO_BUTTONS
         carrying = buttons.isNotEmpty()
         when {
             trackpad -> trackpadDown(x, y)
@@ -173,12 +191,15 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
             else -> moveTo(x, y)   // the game shows what's under the finger
         }
         if (carrying) return
-        val now = SystemClock.uptimeMillis()
-        if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
-            lastTapAt = 0
-            holdPad(PadButton.SOUTH)
-        } else if (settings.longPress > 0) {
-            mainHandler.postDelayed(longPress, settings.longPress.toLong())
+        val doubleTap = SystemClock.uptimeMillis() - lastTapAt < doubleTapMs &&
+            hypot(x - lastTapX, y - lastTapY) < doubleTapSlop
+        when {
+            doubleTap && pad != null -> {
+                lastTapAt = 0
+                holdPad(PadButton.SOUTH)
+            }
+            doubleTap && keys != null && holdGesture(keys, Gesture.DOUBLE_TAP_HOLD) -> lastTapAt = 0
+            settings.longPress > 0 -> mainHandler.postDelayed(longPress, settings.longPress.toLong())
         }
     }
 
@@ -219,19 +240,49 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     }
 
     private fun twoFingerUp() {
-        if (mode == Mode.UNDECIDED && SystemClock.uptimeMillis() - twoFingerStart < TAP_MS) {
-            if (pad != null) {
-                pad.tap(PadButton.EAST)
-            } else {
-                val escape = twoFingerTap
-                if (escape != null) escape()
-                else {
+        if (mode == Mode.UNDECIDED && quick()) {
+            val keys = out
+            when {
+                pad != null -> pad.tap(PadButton.EAST)
+                keys != null -> tapGesture(keys, Gesture.TWO_FINGER_TAP)
+                else -> {
                     if (!trackpad) moveTo(midX(), midY())
                     click(InputStub.BUTTON_RIGHT)
                 }
             }
         }
         mode = Mode.LIFTED   // so the other finger's lift doesn't tap again
+    }
+
+    /** The first of three fingers lifts: soon enough, a tap ([mode] THREE is Mouse & keys' only). */
+    private fun threeFingerUp() {
+        val keys = out
+        if (quick() && keys != null) tapGesture(keys, Gesture.THREE_FINGER_TAP)
+        mode = Mode.LIFTED
+    }
+
+    /** Fingers that came and went as a tap: within [TAP_MS] of the second's landing. */
+    private fun quick() = SystemClock.uptimeMillis() - twoFingerStart < TAP_MS
+
+    /** A tap gesture's keys pressed and let go: a click where the fingers are, or at the trackpad's cursor. */
+    private fun tapGesture(keys: GestureOut, gesture: Gesture) {
+        val codes = keys.sends(gesture)
+        if (codes.isEmpty()) return
+        if (!trackpad && codes.any(KeyNames::isMouse)) moveTo(midX(), midY())
+        keys.tap(codes)
+    }
+
+    /**
+     * A hold gesture's keys down where the finger acts, till it lifts, the cursor going with it: Left dragging a line of
+     * belts. Returns false for one that sends nothing.
+     */
+    private fun holdGesture(keys: GestureOut, gesture: Gesture): Boolean {
+        val codes = keys.sends(gesture)
+        if (codes.isEmpty()) return false
+        moveTo(aimX, aimY)
+        keys.press(codes)
+        heldCodes = codes
+        return true
     }
 
     private fun twoFingerMove() {
@@ -282,7 +333,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
 
     /** Small movements count too, for aiming: a tap puts the cursor back where it was. */
     private fun trackpadMove(x: Float, y: Float) {
-        if (!dragged && hypot(x - downX, y - downY) > slop) {
+        if (!dragged && hypot(x - downX, y - downY) > tapSlop) {
             dragged = true
             mainHandler.removeCallbacks(longPress)
         }
@@ -336,6 +387,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         heldMouse = InputStub.BUTTON_UNDEFINED
         heldPad?.let { pad?.release(it) }
         heldPad = null
+        heldCodes?.let { out?.release(it) }
+        heldCodes = null
     }
 
     private fun click(button: Int) {

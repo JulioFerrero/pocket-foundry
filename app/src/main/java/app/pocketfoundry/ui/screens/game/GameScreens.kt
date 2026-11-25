@@ -159,8 +159,7 @@ private class GameScreen(activity: MainActivity) {
                 else activity.lorieView.sendKeyEvent(0, code, down)
             }
             view.keyOut = keys
-            gestures.heldButtons = keys::heldButtons
-            gestures.twoFingerTap = view::escape
+            gestures.out = view.gestureOut
             // A window filling the screen: the cursor leaves it as it opens and after each tap, so no tooltip of what
             // it was on stays; the FPS counter steps off the window's title.
             gestures.parkAfterTap = { view.windowOpen }

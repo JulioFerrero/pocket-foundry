@@ -6,7 +6,7 @@ import android.graphics.RectF
 import app.pocketfoundry.ui.kit.GuiSheet
 import kotlin.math.roundToInt
 
-enum class Tool { ADJUST, KEYBOARD, HIDE, SHOW, ADD, REMOVE, SMALLER, BIGGER, OPACITY, OPTIONS, RESET, DONE }
+enum class Tool { ADJUST, KEYBOARD, HIDE, SHOW, ADD, REMOVE, SMALLER, BIGGER, OPACITY, OPTIONS, TOUCH, RESET, DONE }
 
 class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
     private val held = arrayOfNulls<Tool>(ControllerView.POINTER_IDS)
@@ -144,14 +144,26 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
                 path.lineTo(x + s * 0.8f, y - s * 0.55f)
                 canvas.drawPath(path, icon)
             }
+            Tool.TOUCH -> {
+                // A hand, its finger up and touching, a ring round the fingertip: controls.py's, its y up.
+                val u = s * 0.18f
+                rect.set(x - 1.1f * u, y - 4.1f * u, x + 1.1f * u, y - 1.9f * u)
+                path.reset()
+                path.arcTo(rect, 180f, 180f, true)
+                for (i in TOUCH_PALM.indices step 2) path.lineTo(x + TOUCH_PALM[i] * u, y - TOUCH_PALM[i + 1] * u)
+                path.close()
+                canvas.drawPath(path, icon)
+                rect.set(x - 2.7f * u, y - 5.7f * u, x + 2.7f * u, y - 0.3f * u)
+                canvas.drawArc(rect, 205f, 130f, false, icon)
+            }
         }
     }
 
     companion object {
         val EDITING = listOf(Tool.ADD, Tool.REMOVE, Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.RESET, Tool.DONE)
-        /** Mouse & keys' editor: Options opens the key picked's (KeyPanels.options). */
-        val EDITING_KEYS = listOf(Tool.ADD, Tool.REMOVE, Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.OPTIONS, Tool.RESET,
-                                  Tool.DONE)
+        /** Mouse & keys' editor: Options opens the key picked's (KeyPanels.options), Touch the gestures' (KeyPanels.touch). */
+        val EDITING_KEYS = listOf(Tool.ADD, Tool.REMOVE, Tool.SMALLER, Tool.BIGGER, Tool.OPACITY, Tool.OPTIONS, Tool.TOUCH,
+                                  Tool.RESET, Tool.DONE)
         val PLAYING = listOf(Tool.ADJUST, Tool.KEYBOARD, Tool.HIDE)
         val HIDDEN = listOf(Tool.SHOW)
         val PAD_IN_HAND = listOf(Tool.KEYBOARD)
@@ -163,5 +175,8 @@ class Toolbar(private val layout: PadLayout, private val painter: PadPainter) {
         private const val TOUCH_MARGIN = 0.15f
         /** The three sliders' knobs, from -1 (left) to 1. */
         private val ADJUST_KNOBS = floatArrayOf(-0.4f, 0.45f, -0.05f)
+        /** Touch's hand from its finger's right side round to its left, x then y (up), in its units. */
+        private val TOUCH_PALM = floatArrayOf(1.1f, 0.1f, 3.0f, -0.3f, 4.2f, -1.3f, 4.2f, -3.7f, 3.0f, -5.5f, -0.5f, -5.5f,
+                                              -2.5f, -3.4f, -3.6f, -1.5f, -3.0f, -0.9f, -1.1f, -1.6f)
     }
 }

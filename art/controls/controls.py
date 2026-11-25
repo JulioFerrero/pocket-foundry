@@ -1025,7 +1025,7 @@ def key_tool_cap(kind):
 CELL = 122 / PPM          # a key's cell: 0.085 of the screen's height, a whole number of pixels so the pieces join
 END = 5 / PPM             # what the panel adds beyond the first and the last cell
 TOOL_KEY = outline(rbox(0, 0, CELL / 2 - 0.0080, CELL / 2 - 0.0080, 0.0022))
-TOOLS = ('adjust', 'keyboard', 'hide', 'show', 'add', 'remove', 'smaller', 'bigger', 'opacity', 'reset', 'done')
+TOOLS = ('adjust', 'keyboard', 'hide', 'show', 'add', 'remove', 'smaller', 'bigger', 'opacity', 'reset', 'done', 'touch')
 
 
 def toolbar_panel(keys):
@@ -1117,6 +1117,13 @@ def tool_sign(kind, z, sign, face):
               (0, 0, z + 0.00025), sign, normal=(0, 0, 1))
     elif kind == 'done':            # a check
         stroke([(-0.0064, -0.0004), (-0.0020, -0.0050), (0.0068, 0.0050)], 0.0022, z, sign)
+    elif kind == 'touch':           # a hand, its finger up and touching, a ring round the fingertip
+        u = 0.00118                 # few steps to a curve: short pieces bead at their round joints
+        tip = [(x, y + 3.0 * u) for x, y in arc(1.1 * u, 180, 0, 4)]
+        palm = [(1.1, 0.1), (3.0, -0.3), (4.2, -1.3), (4.2, -3.7), (3.0, -5.5), (-0.5, -5.5), (-2.5, -3.4),
+                (-3.6, -1.5), (-3.0, -0.9), (-1.1, -1.6)]
+        stroke(tip + [(x * u, y * u) for x, y in palm], 0.0013, z, sign, closed=True)
+        stroke([(x, y + 3.0 * u) for x, y in arc(2.7 * u, 25, 155, 6)], 0.0013, z, sign)
 
 
 def tool_cap(kind):

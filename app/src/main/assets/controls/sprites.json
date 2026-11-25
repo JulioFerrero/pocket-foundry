@@ -1091,6 +1091,37 @@
    "offsetX": 0,
    "offsetY": 0
   },
+  "tool-touch": {
+   "file": "tool-touch.webp",
+   "frameW": 147,
+   "frameH": 170,
+   "frames": 11,
+   "fps": 60,
+   "cx": 86.2,
+   "cy": 86.2,
+   "controlW": 122,
+   "controlH": 122,
+   "press": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "release": [
+    7,
+    8,
+    9,
+    10,
+    0
+   ],
+   "held": 6,
+   "base": "toolbar",
+   "offsetX": 0,
+   "offsetY": 0
+  },
   "toolbar-left": {
    "file": "toolbar-left.webp",
    "w": 32,

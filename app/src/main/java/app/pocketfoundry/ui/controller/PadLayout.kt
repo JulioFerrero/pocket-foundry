@@ -46,6 +46,8 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
         private set
     /** Where Mouse & keys' keys go (GameScreen); none in the pad's layout. */
     var keyOut: KeyOut? = null
+    /** What Mouse & keys' gestures send, the same in every set (the editor's Touch). */
+    val gestures = GestureSends()
     /** The latched keys held now, by id: one set's Shift and another's are the same key. */
     private val latched = HashSet<String>()
     /** An open drawer's panel; [drawerCentre] places its keys in it. */
@@ -288,12 +290,14 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
                 val lists = sets.keys.associateWith { sets.getValue(it) } +
                     titles.keys.associateWith(::keys)
                 val reads = lists.map { (key, controls) -> each.optJSONObject(key)?.let { LayoutJson.read(it, controls) } }
+                val gestureRead = gestures.read(json.optJSONObject("gestures"))
                 ({
                     for ((key, title) in titles) {
                         ownTitles[key] = title
                         sets[key] = lists.getValue(key)
                     }
                     reads.forEach { it?.invoke() }
+                    gestureRead()
                 })
             } else LayoutJson.read(json, sets.getValue(KeySets.PAD))
             opacity = json.optDouble("opacity", defaultOpacity.toDouble()).toFloat()
@@ -327,7 +331,10 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
             val each = JSONObject()
             for ((key, controls) in sets) LayoutJson.write(controls).takeIf { it.length() > 0 }?.let { each.put(key, it) }
             val own = JSONArray(ownTitles.map { (key, title) -> JSONObject().put("key", key).put("title", title) })
-            JSONObject().put("sets", each).apply { if (own.length() > 0) put("own sets", own) }
+            JSONObject().put("sets", each).apply {
+                if (own.length() > 0) put("own sets", own)
+                gestures.write()?.let { put("gestures", it) }
+            }
         } else LayoutJson.write(allControls).apply { if (!has("controls")) put("controls", JSONObject()) }
         json.put("opacity", opacity.toDouble()).put("hidden", hidden)
         counter?.let { json.put("counter", JSONArray(listOf(it.x.toDouble(), it.y.toDouble()))) }

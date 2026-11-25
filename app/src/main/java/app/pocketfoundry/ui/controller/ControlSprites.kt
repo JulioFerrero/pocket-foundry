@@ -66,8 +66,8 @@ object ControlSprites {
      */
     private val LATER = setOf("dpad-up-left", "dpad-up-right", "dpad-down-left", "dpad-down-right",
                               "tool-add", "tool-remove", "tool-smaller", "tool-bigger", "tool-opacity", "tool-reset",
-                              "tool-done", "tool-show", "stick-knob-r", "stick-knob-k", "stick-base-k", "trackpad-k",
-                              "fps-panel-k", "fps-glass-k") +
+                              "tool-done", "tool-show", "tool-touch", "stick-knob-r", "stick-knob-k", "stick-base-k",
+                              "trackpad-k", "fps-panel-k", "fps-glass-k") +
         SpritePainter.CAPS.flatten()
 
     private val worker = Executors.newSingleThreadExecutor()

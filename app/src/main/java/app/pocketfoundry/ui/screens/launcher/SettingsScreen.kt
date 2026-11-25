@@ -91,11 +91,11 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         settings.trackpadSpeed = Settings.TRACKPAD_SPEEDS[it]
     }
     private val trackpadSpeedRow by lazy { dropdownSetting("Trackpad speed", trackpadSpeed) }
-    // What a long press does depends on the controls (X with the gamepad's, a right click with Mouse & keys): only
-    // its wait is set here.
-    private val longPress = Dropdown(launcher, Settings.LONG_PRESSES.map {
-        when { it == 0 -> "Off"; it % 1000 == 0 -> "${it / 1000} s"; else -> "$it ms" }
-    }) { settings.longPress = Settings.LONG_PRESSES[it] }
+    // What a long press does depends on the controls (X with the gamepad's, Mouse & keys' as the editor's Touch has
+    // it): only its wait is set here, which Touch shows too.
+    private val longPress = Dropdown(launcher, Settings.LONG_PRESSES.map(Settings::longPressName)) {
+        settings.longPress = Settings.LONG_PRESSES[it]
+    }
     private val editLayout = button(launcher, "Edit layout", size = 15f, onClick = launcher::editLayout)
     // The first controller connected: a handheld's own, or the one plugged in.
     private val controllerButtons = button(launcher, "Change", size = 15f) {
