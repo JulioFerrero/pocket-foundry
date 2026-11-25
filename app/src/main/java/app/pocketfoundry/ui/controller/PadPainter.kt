@@ -152,18 +152,21 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             val moving = sprites.draw(canvas, c, x, y, r, box, now, units, held)
             val w: Float
             val h: Float
+            val ink: Int
             if (moving != null) {
                 w = r * (units - CAP_WALLS)
                 h = r * CAP_TOP
-                val ink = if (pressed || c.light) INK_ON_LIGHT else INK_ON_DARK
+                ink = if (pressed || c.light) INK_ON_LIGHT else INK_ON_DARK
                 keyLabel(canvas, c, x, y + if (pressed) r * PRESS_DROP else 0f, w, h, ink, units)
             } else {
                 w = units * r * 0.85f
                 h = r * 0.75f
+                ink = glyphColour(pressed)
                 drawKey(canvas, c, x, y, r, pressed, units)
             }
-            if (c.kind == Kind.Key && c.latch) led(canvas, x + w, y - h + if (pressed && moving != null) r * PRESS_DROP else 0f, h,
-                                                   layout.isLatched(c))
+            val top = y - h + if (pressed && moving != null) r * PRESS_DROP else 0f
+            if (c.kind == Kind.Key && c.latch) led(canvas, x + w, top, h, layout.isLatched(c))
+            if (c.kind == Kind.Key && c.longPressMs > 0) clock(canvas, x - w, top, h, ink)
             if (selected) drawSelection(canvas, c, x, y, r)
             return moving == true
         }
@@ -243,6 +246,22 @@ class PadPainter(private val context: Context, private val layout: PadLayout) {
             fill.color = LED_EDGE
             canvas.drawRect(rect.left + tall / 2, rect.bottom, rect.right - tall / 2, rect.bottom + px(1f), fill)
         }
+    }
+
+    /**
+     * A key that goes down only on a long press has a clock at its top's other corner ([left], [top]), its top [h] half
+     * high, in its legend's [colour].
+     */
+    private fun clock(canvas: Canvas, left: Float, top: Float, h: Float, colour: Int) {
+        val r = h * 0.17f
+        val inset = h * 0.26f
+        val cx = left + inset + r
+        val cy = top + inset + r
+        icon.color = colour
+        icon.strokeWidth = r * 0.32f
+        canvas.drawCircle(cx, cy, r, icon)
+        canvas.drawLine(cx, cy, cx, cy - r * 0.6f, icon)
+        canvas.drawLine(cx, cy, cx + r * 0.45f, cy, icon)
     }
 
     /** A keyboard key in the drawn look: its cap the control's whole size, its name or sign on it (Keys). */

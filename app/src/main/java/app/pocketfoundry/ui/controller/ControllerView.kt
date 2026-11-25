@@ -15,6 +15,7 @@ import app.pocketfoundry.core.controller.PadAxis
 import app.pocketfoundry.core.controller.VirtualPad
 import app.pocketfoundry.core.controller.VirtualPad.Source.SCREEN
 import app.pocketfoundry.core.system.Settings
+import app.pocketfoundry.core.system.mainHandler
 import app.pocketfoundry.ui.kit.GuiSprites
 import kotlin.math.abs
 
@@ -135,6 +136,27 @@ class ControllerView(context: Context, private val input: Input, private val cou
     private fun press(id: Int, control: Control, x: Float, y: Float): Boolean {
         pressed[id] = control
         if (control.press(id, x, y, layout)) haptic(if (control.kind == Kind.Dpad) TICK else CLICK)
+        if (control.waiting) {
+            // A long-press key: down once its time is up, its finger still on it.
+            mainHandler.removeCallbacksAndMessages(control)
+            mainHandler.postAtTime({ longPressed(control) }, control, SystemClock.uptimeMillis() + control.longPressMs)
+            invalidate()
+            return true
+        }
+        acted(control)
+        invalidate()
+        return true
+    }
+
+    private fun longPressed(control: Control) {
+        if (!control.longPressed()) return
+        haptic(CLICK)
+        acted(control)
+        invalidate()
+    }
+
+    /** [control] went down: a drawer opens, a tool is used, a key brings its set. */
+    private fun acted(control: Control) {
         when (val k = control.kind) {
             is Kind.Drawer -> layout.toggleDrawer(control)
             is Kind.ToolKey -> {
@@ -145,8 +167,6 @@ class ControllerView(context: Context, private val input: Input, private val cou
             Kind.Key -> control.shows?.let { layout.switchTo(KeySets.next(layout.set, it)) }
             else -> {}
         }
-        invalidate()
-        return true
     }
 
     /** Mouse & keys' two-finger tap: Esc, which closes what Factorio has open, and the game's keys again. */

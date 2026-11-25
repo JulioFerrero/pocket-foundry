@@ -21,7 +21,6 @@ import app.pocketfoundry.ui.kit.Frame
 import app.pocketfoundry.ui.kit.Tone
 import app.pocketfoundry.ui.kit.add
 import app.pocketfoundry.ui.kit.button
-import app.pocketfoundry.ui.kit.checkBox
 import app.pocketfoundry.ui.kit.dp
 import app.pocketfoundry.ui.kit.dpi
 import app.pocketfoundry.ui.kit.label
@@ -135,7 +134,10 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
         }
     }
 
-    /** What [c] sends, how wide it is, whether it stays held and which set it brings, the key itself at the top. */
+    /**
+     * What [c] sends, how wide it is, how it presses (while touched, held till tapped again, or only after a long
+     * press) and which set it brings, the key itself at the top.
+     */
     fun options(c: Control) {
         close()
         val preview = KeyPreview(c)
@@ -159,9 +161,15 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
             c.shows = if (it == 0) null else sets[it - 1]
             changed()
         }.apply { selected = c.shows?.let { sets.indexOf(it) + 1 } ?: 0 }
-        val held = checkBox(activity, c.latch) {
-            c.latch = it
+        val press = Dropdown(activity, PRESSES.map(::pressName)) {
+            c.latch = PRESSES[it] == STAYS_HELD
+            c.longPressMs = PRESSES[it].coerceAtLeast(0)
             changed()
+        }.apply {
+            selected = when {
+                c.latch -> PRESSES.indexOf(STAYS_HELD)
+                else -> PRESSES.indexOf(c.longPressMs).coerceAtLeast(0)
+            }
         }
         val remove = button(activity, "Remove") {
             keys.remove(c)
@@ -171,7 +179,7 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
             add(stack(activity, Frame.DEEP, padding = 10, gap = 6) {
                 add(setting("Sends", sends))
                 add(setting("Width", width))
-                add(setting("Stays held", held, wide = false))
+                add(setting("Press", press))
                 add(setting("Brings the keys of", shows))
             })
         }
@@ -239,6 +247,19 @@ class KeyPanels(private val activity: Activity, private val keys: PadLayout, pri
     }
 
     private companion object {
+        /** A key's Press: 0 while touched, [STAYS_HELD], or held this long first (Keys.LONG_PRESSES). */
+        const val STAYS_HELD = -1
+        val PRESSES = listOf(0, STAYS_HELD) + Keys.LONG_PRESSES.toList()
+
+        fun pressName(press: Int) = when (press) {
+            0 -> "While touched"
+            STAYS_HELD -> "Stays held"
+            else -> "Long press, ${seconds(press)}"
+        }
+
+        /** 300 ms as "0.3 s", 1000 as "1 s". */
+        fun seconds(ms: Int) = if (ms % 1000 == 0) "${ms / 1000} s" else "${ms / 1000f} s"
+
         /** In dp: the picker's keyboard unit, a 1u key's width and height; its caps carry their own gaps. */
         const val KEY_UNIT_DP = 40f
         const val LOADING_MS = 100L

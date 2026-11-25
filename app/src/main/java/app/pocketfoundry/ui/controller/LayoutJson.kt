@@ -5,8 +5,8 @@ import org.json.JSONObject
 
 /**
  * A set of controls in the saved layout (PadLayout), only what the player changed: places and sizes, controls removed
- * or added, latches, keys moved into or out of the drawer, what a key sends, its width and the set it brings; and the
- * keys the player made, whole. The rest follows the defaults when those change.
+ * or added, latches and long presses, keys moved into or out of the drawer, what a key sends, its width and the set it
+ * brings; and the keys the player made, whole. The rest follows the defaults when those change.
  */
 internal object LayoutJson {
     fun write(controls: List<Control>): JSONObject {
@@ -29,6 +29,7 @@ internal object LayoutJson {
         val added = controls.filter { !it.defaultShown && it.shown }.map { it.id }
         if (added.isNotEmpty()) json.put("added", JSONArray(added))
         changes(controls, { it.latch }, { it.defaultLatch })?.let { json.put("latch", it) }
+        changes(controls.filter { it.longPressMs > 0 }) { it.longPressMs }?.let { json.put("long", it) }
         // The drawer a key is in, by its id; out of the one it was in: an empty id.
         changes(controls.filter { it.drawer != it.defaultDrawer }) { it.drawer.orEmpty() }?.let { json.put("drawer", it) }
         val catalog = controls.filter { !it.own }
@@ -59,6 +60,7 @@ internal object LayoutJson {
             }
         }
         val latch = json.optJSONObject("latch") ?: JSONObject()
+        val long = json.optJSONObject("long") ?: JSONObject()
         val drawer = json.optJSONObject("drawer") ?: JSONObject()
         val codes = json.optJSONObject("codes") ?: JSONObject()
         val sent = all.associateWith { c -> codes.optJSONArray(c.id)?.ints() }
@@ -73,6 +75,7 @@ internal object LayoutJson {
                     else -> c.defaultShown
                 }
                 c.latch = latch.optBoolean(c.id, c.defaultLatch)
+                c.longPressMs = long.optInt(c.id, 0)
                 c.drawer = if (drawer.has(c.id)) drawer.getString(c.id).ifEmpty { null } else c.defaultDrawer
                 sent[c]?.let { c.codes = it }
                 if (units.has(c.id)) c.units = units.getDouble(c.id).toFloat()

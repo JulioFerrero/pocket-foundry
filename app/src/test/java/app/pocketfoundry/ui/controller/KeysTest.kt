@@ -95,6 +95,24 @@ class KeysTest {
         assertEquals("Ctrl+Left click", back.label)
     }
 
+    @Test fun `a long press comes back as it was saved, and a layout saved before has none`() {
+        val before = Keys.controls(KeySets.GAME)
+        before.first { it.id == "esc" }.longPressMs = 500
+        val mine = Keys.own("k1", intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_Z)).apply { longPressMs = 1000 }
+        val json = JSONObject(LayoutJson.write(before + mine).toString())
+        assertEquals(setOf("esc", "k1"), json.getJSONObject("long").keys().asSequence().toSet())
+        val after = Keys.controls(KeySets.GAME).toMutableList()
+        LayoutJson.read(json, after)()
+        assertEquals(500, after.first { it.id == "esc" }.longPressMs)
+        assertEquals(1000, after.first { it.id == "k1" }.longPressMs)
+        assertEquals(0, after.first { it.id == "q" }.longPressMs)
+        val old = Keys.controls(KeySets.GAME).toMutableList()
+        LayoutJson.read(JSONObject("""{"latch":{"q":true}}"""), old)()
+        assertTrue(old.all { it.longPressMs == 0 })
+        after.first { it.id == "esc" }.resetPlacement()
+        assertEquals(0, after.first { it.id == "esc" }.longPressMs)
+    }
+
     @Test fun `the stick holds nothing near its middle`() {
         assertEquals(0, Keys.stickDirections(0.2f, -0.1f, 1f))
     }

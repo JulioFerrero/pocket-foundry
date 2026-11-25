@@ -111,6 +111,11 @@ class Control(
     val inDrawer get() = drawer != null
     /** A key that stays held when tapped, till it's tapped again: Shift, Ctrl. */
     var latch = defaultLatch
+    /** A key that goes down only once held this long, in ms (Keys.LONG_PRESSES); 0: at once. */
+    var longPressMs = 0
+    /** A long-press key's finger is on it, its time not up: nothing sent yet ([longPressed]). */
+    var waiting = false
+        private set
     var x = defaultX
     var y = defaultY
     var scale = 1f
@@ -136,6 +141,7 @@ class Control(
         shown = defaultShown
         drawer = defaultDrawer
         latch = defaultLatch
+        longPressMs = 0
         if (!codes.contentEquals(defaultCodes)) codes = defaultCodes
         shows = defaultShows
         units = defaultUnits
@@ -167,6 +173,10 @@ class Control(
             Kind.Key -> {
                 val keys = layout.keyOut ?: return true
                 out = keys
+                if (longPressMs > 0) {
+                    waiting = true
+                    return false
+                }
                 when {
                     !latch -> keys.press(codes)
                     layout.toggleLatched(this) -> keys.press(codes)
@@ -179,6 +189,14 @@ class Control(
             // Its fingers aren't the controls' but on its edge, beside the box: they do nothing.
             Kind.Trackpad -> false
         }
+    }
+
+    /** A long-press key's time is up: down now, if its finger is still on it. Returns whether it went down. */
+    fun longPressed(): Boolean {
+        if (!waiting || pointers.isEmpty()) return false
+        waiting = false
+        out?.press(codes)
+        return true
     }
 
     /** The first finger moves. Returns whether a D-pad direction went down. */
@@ -220,8 +238,12 @@ class Control(
             is Kind.Button -> VirtualPad.button(SCREEN, k.button, false)
             is Kind.Trigger -> VirtualPad.axis(SCREEN, k.axis, 0)
             Kind.KeyStick -> holdKeys(0)
-            // A latched key is let go by its next tap, or by the layout (PadLayout.releaseKeys).
-            Kind.Key -> if (!latch) out?.release(codes)
+            // A latched key is let go by its next tap, or by the layout (PadLayout.releaseKeys). A long-press key lifted
+            // before its time sent nothing: its codes may be another key's, held.
+            Kind.Key -> when {
+                waiting -> waiting = false
+                !latch -> out?.release(codes)
+            }
             is Kind.Drawer, is Kind.ToolKey, Kind.Trackpad -> {}
         }
     }

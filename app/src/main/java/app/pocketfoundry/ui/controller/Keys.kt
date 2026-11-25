@@ -378,6 +378,12 @@ object Keys {
         DpadDir.RIGHT -> KeyEvent.KEYCODE_D
     }
 
+    /**
+     * How long a key that acts on a long press is held first, in ms ([Control.longPressMs]): one that shouldn't go by a
+     * brush of the thumb, Esc or Undo.
+     */
+    val LONG_PRESSES = intArrayOf(300, 500, 1000)
+
     /** A keyboard's widths, in its units: what a key can be (the rendered caps, kc-pearl-1.25). */
     val WIDTHS = floatArrayOf(1f, 1.25f, 1.5f, 1.75f, 2f, 2.25f, 2.75f, 6.25f)
 
