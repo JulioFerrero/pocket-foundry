@@ -18,8 +18,8 @@ import kotlin.math.roundToInt
 /**
  * How a game ran, sent after it to Pocket Foundry's report server, only once the player said yes to it
  * (Settings.shareResults): the phone, its GPU and driver, the game's settings, its frames a second while it drew and
- * how it ended, and the game's logs when it didn't start or failed. No saves and nothing personal; before that yes,
- * nothing is measured or sent. Acrarium groups them by driver, outcome and GPU. What's kept and for how long:
+ * how it ended, and the game's logs when it didn't end well. No saves and nothing personal; before that yes, nothing
+ * is measured or sent. Acrarium groups them by driver, outcome and GPU. What's kept and for how long:
  * Reports.PRIVACY.
  */
 object GameResults {
@@ -27,6 +27,27 @@ object GameResults {
     private const val REPORTER = "vcrMPQzmdNUKoUDP:tPDxgYHxxSPRT0TI"
     private const val EVERY_MS = 5_000L
     private const val LOG_LINES = 300
+
+    /** How a game ended, for Acrarium to group by: the words stay as they are, or its groups split. */
+    enum class Outcome(val words: String) {
+        PLAYED("played"), STOPPED("stopped"), DIDNT_START("didn't start"), FAILED("failed"),
+        /** The player quit after a long wait for the game to be ready (GameEnding.quitLoading). */
+        QUIT_LOADING("quit while loading"),
+        /** Android closed the app, and the game went with it: sent at the app's next start (LastRun). */
+        APP_CLOSED("app closed");
+
+        /** Anything but a game played comes with the logs that say why. */
+        val withLogs get() = this != PLAYED
+
+        companion object {
+            fun of(outcome: Drivers.Outcome) = when (outcome) {
+                Drivers.Outcome.RAN -> PLAYED
+                Drivers.Outcome.STOPPED -> STOPPED
+                Drivers.Outcome.DIDNT_START -> DIDNT_START
+                Drivers.Outcome.FAILED -> FAILED
+            }
+        }
+    }
 
     private var sampler: Thread? = null
     private val rates = mutableListOf<Float>()
@@ -70,31 +91,32 @@ object GameResults {
     }
 
     /**
-     * As the game exits: [outcome] as Drivers records it, [ending] how it ended in words when it didn't end well. Sent
-     * in the background; a phone without a connection just doesn't send it.
+     * As the game exits, or at the app's next start for one Android closed the app in: [ending] how it ended in words
+     * when it didn't end well. Sent in the background; a phone without a connection just doesn't send it.
      */
-    fun finish(context: Context, paths: Paths, driverId: String, outcome: Drivers.Outcome, ending: String?) {
+    fun finish(context: Context, paths: Paths, driverId: String, outcome: Outcome, ending: String?) {
         stop()
         if (Settings(context).shareResults != Settings.ON) return
         val drawn = synchronized(rates) { rates.sorted().also { rates.clear() } }
+        // Read now: a next game, started straight away, writes over them.
+        val log = runCatching { paths.gameLog.readText() }.getOrDefault("")
+        val logs = if (outcome.withLogs) logs(paths) else null
         val app = context.applicationContext
         thread(name = "pocketfoundry-game-results-send", isDaemon = true) {
-            runCatching { send(app, paths, driverId, outcome, ending, drawn) }
+            runCatching { send(app, driverId, outcome, ending, drawn, log, logs) }
                 .onFailure { Log.w(TAG, "Game results not sent", it) }
         }
     }
 
-    private fun send(context: Context, paths: Paths, driverId: String, outcome: Drivers.Outcome, ending: String?,
-                     drawn: List<Float>) {
+    private fun send(context: Context, driverId: String, outcome: Outcome, ending: String?, drawn: List<Float>,
+                     log: String, logs: String?) {
         val settings = Settings(context)
         val driver = Drivers.find(context, driverId)
         val name = driver?.name ?: driverId
         val gpu = Gpu.name ?: "GPU unknown"
-        val failed = outcome == Drivers.Outcome.DIDNT_START || outcome == Drivers.Outcome.FAILED
-        val log = runCatching { paths.gameLog.readText() }.getOrDefault("")
         val (width, height) = X11Prefs(context).let { it.gameSize(it.resolutionScale) }
         val custom = JSONObject()
-            .put("outcome", words(outcome))
+            .put("outcome", outcome.words)
             .put("driver", name)
             .put("driverVersion", driver?.let { Drivers.version(context, it) }.orEmpty())
             .put("gpu", gpu)
@@ -113,8 +135,8 @@ object GameResults {
             ("FPS ${custom.optString("fps")} (lowest tenth ${custom.optString("fpsLow")}) over " +
                 "${custom.optString("minutesDrawn")} minutes drawn").takeIf { drawn.isNotEmpty() },
         )
-        Reports.post(context, REPORTER, id(context), "$name (${words(outcome)}): $gpu", details.joinToString("\n"),
-                     "", "", custom, if (failed) logs(paths) else null)
+        Reports.post(context, REPORTER, id(context), "$name (${outcome.words}): $gpu", details.joinToString("\n"),
+                     "", "", custom, logs)
     }
 
     /**
@@ -135,18 +157,11 @@ object GameResults {
         return (prefs.getString(ID, null) ?: prefs.getString(SHARED_ID, null))?.take(8)
     }
 
-    private fun words(outcome: Drivers.Outcome) = when (outcome) {
-        Drivers.Outcome.RAN -> "played"
-        Drivers.Outcome.STOPPED -> "stopped"
-        Drivers.Outcome.DIDNT_START -> "didn't start"
-        Drivers.Outcome.FAILED -> "failed"
-    }
-
     /** The [share] lowest of the rates: 0.5 the middle, 0.1 the slowest tenth. 0 without any. */
     internal fun percentile(sorted: List<Float>, share: Double): Int =
         if (sorted.isEmpty()) 0 else sorted[((sorted.size - 1) * share).roundToInt()].roundToInt()
 
-    /** What a failed game's report needs: the screen's log whole, the ends of the game's and the driver check's. */
+    /** What a game that didn't end well needs: the ends of the screen's, the game's and the driver check's logs. */
     private fun logs(paths: Paths) = listOf(paths.screenLog, paths.gameLog, paths.driverCheckLog).joinToString("\n") {
         "── ${it.name} ──\n" + tail(it)
     }

@@ -26,6 +26,15 @@ class GameEndingTest {
         assertEquals(Stage.PLAYING, GameEnding.stage("  77.560 Sprites loaded\n  90.0 Factorio initialised"))
     }
 
+    @Test fun `a game quit before it was ready, after a long wait, may have been stuck`() {
+        // #93: stuck at loading sprites 50% on an Adreno 618.
+        assertEquals("Quit loading sprites, 95 s after the game started.", GameEnding.quitLoading(Stage.SPRITES, 95))
+        assertEquals("Quit while starting, 60 s after the game started.", GameEnding.quitLoading(Stage.STARTING, 60))
+        // Quit straight away, or from the menu: nothing to learn.
+        assertEquals(null, GameEnding.quitLoading(Stage.SPRITES, 59))
+        assertEquals(null, GameEnding.quitLoading(Stage.PLAYING, 600))
+    }
+
     @Test fun `in a sentence`() {
         assertEquals("PanVK-kbase lost the GPU loading textures.",
                      GameEnding.sentence("PanVK-kbase", Failure.LOST_GPU, Stage.TEXTURES))

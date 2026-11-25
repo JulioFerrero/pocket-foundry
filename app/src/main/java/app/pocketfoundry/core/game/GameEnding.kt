@@ -1,5 +1,7 @@
 package app.pocketfoundry.core.game
 
+import java.io.File
+
 /**
  * Why a game the player didn't quit ended, when the graphics driver is to blame, and how far it got: in plain words
  * for Home, the Logs and a report. A driver that fails like this is passed over (Drivers.recommended).
@@ -31,6 +33,17 @@ object GameEnding {
     fun sentence(driverName: String, failure: Failure, stage: Stage?) =
         listOfNotNull(driverName, failure.words, stage?.words).joinToString(" ") + "."
 
+    /** How far the game whose log is [log] got. Factorio says so early: a long log of errors isn't read whole. */
+    fun stage(log: File): Stage = stage(head(log))
+
+    /**
+     * A game the player quit before Factorio was ready, [seconds] after it started: a long load, or one stuck (#93).
+     * Null once it was ready, or for one quit straight away, which says nothing.
+     */
+    fun quitLoading(stage: Stage, seconds: Long): String? =
+        if (stage == Stage.PLAYING || seconds < QUIT_LOADING_AFTER_S) null
+        else "Quit ${stage.words}, $seconds s after the game started."
+
     fun stage(log: String): Stage = when {
         INITIALISED in log -> Stage.PLAYING
         SPRITES_LOADED in log -> Stage.TEXTURES
@@ -43,4 +56,19 @@ object GameEnding {
     private const val SPRITES_LOADED = "Sprites loaded"
     private val SPRITE_LOADING = listOf("Created an atlas bitmap", "Parallel sprite loader")
     private const val CRASH = "Factorio crashed"
+    private const val QUIT_LOADING_AFTER_S = 60L
+    private const val LOG_HEAD = 2 shl 20
+
+    private fun head(file: File): String = runCatching {
+        file.bufferedReader().use { reader ->
+            val buffer = CharArray(LOG_HEAD)
+            var read = 0
+            while (read < LOG_HEAD) {
+                val n = reader.read(buffer, read, LOG_HEAD - read)
+                if (n < 0) break
+                read += n
+            }
+            String(buffer, 0, read)
+        }
+    }.getOrDefault("")
 }

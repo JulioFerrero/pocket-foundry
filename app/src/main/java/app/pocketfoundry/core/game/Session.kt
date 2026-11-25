@@ -2,6 +2,7 @@ package app.pocketfoundry.core.game
 
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.system.OsConstants
 import android.util.Log
 import app.pocketfoundry.core.controller.InputBridge
@@ -94,8 +95,8 @@ object Session {
         private set
 
     /**
-     * At the app's start: a game the app went down with, in screen.log and as [lastGame] (LastRun), unless a new game
-     * has started by the time Android has said why.
+     * At the app's start: a game the app went down with, in screen.log, as [lastGame] (LastRun) and in the results,
+     * unless a new game has started by the time Android has said why, and written over its logs.
      */
     fun checkLastRun(context: Context) {
         val app = context.applicationContext
@@ -104,6 +105,7 @@ object Session {
             synchronized(this) {
                 if (inGame) return@thread
                 lastGame = ending
+                GameResults.finish(app, Paths(app), ending.driver, GameResults.Outcome.APP_CLOSED, ending.closedBy)
             }
             mainHandler.post { listeners.forEach { it() } }
         }
@@ -117,6 +119,7 @@ object Session {
         @Volatile var windowOpened = false
         @Volatile var noWindow = false
         @Volatile var deviceLost = false
+        val startedAt = SystemClock.elapsedRealtime()
     }
 
     private var xServer: Process? = null
@@ -415,11 +418,16 @@ object Session {
         }
         outcome?.let { Drivers.record(context, game.driver, it) }
         if (outcome == Drivers.Outcome.RAN) Settings(context).played = true
-        if (outcome != null) {
-            val words = failure?.let {
+        // Quit before Factorio was ready: after a long wait, a load that may have been stuck (#93).
+        val quitLoading = if (state != State.QUITTING || noWindow || game.testing) null
+            else GameEnding.quitLoading(GameEnding.stage(Paths(context).gameLog),
+                                        (SystemClock.elapsedRealtime() - game.startedAt) / 1000)
+        val result = if (quitLoading != null) GameResults.Outcome.QUIT_LOADING else outcome?.let(GameResults.Outcome::of)
+        if (result != null) {
+            val words = quitLoading ?: failure?.let {
                 GameEnding.sentence(Drivers.find(context, game.driver)?.name ?: game.driver, it, stage)
             }
-            GameResults.finish(context, Paths(context), game.driver, outcome, words)
+            GameResults.finish(context, Paths(context), game.driver, result, words)
         }
         setState(State.STOPPED)
     }

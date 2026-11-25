@@ -332,7 +332,7 @@ class LauncherActivity : Activity() {
             add(stack(this@LauncherActivity, Frame.SHALLOW, padding = 12, gap = 6) {
                 add(label(this@LauncherActivity, "Share how your games run?", 16f, weight = 600))
                 add(label(this@LauncherActivity, "After each game: your phone's model, GPU and driver, the game's " +
-                    "settings, its FPS and how it ended, with the logs if it failed. No saves, nothing that names you. " +
+                    "settings, its FPS and how it ended, with the logs if it didn't end well. No saves, nothing that names you. " +
                     "It helps pick the right driver for every phone.", 14f, Factorio.MUTED))
                 add(link(this@LauncherActivity, "Privacy", Reports.PRIVACY))
             })

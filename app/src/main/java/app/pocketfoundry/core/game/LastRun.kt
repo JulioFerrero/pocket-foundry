@@ -7,7 +7,6 @@ import android.os.Build
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
-import java.io.File
 
 /**
  * Games that ended with the app gone. Short of memory, Android's low-memory killer closes the app, the only process of
@@ -19,8 +18,6 @@ object LastRun {
     private const val OPENED = "gameOpened"
     private const val DRIVER = "gameDriver"
     private const val LAUNCHED = "gameLaunched"
-    /** Factorio says how far it got early in its log: a long log of errors needn't be read whole at the app's start. */
-    private const val LOG_HEAD = 2 shl 20
 
     /** A game's start, before its driver is set up: [driver] as chosen. */
     fun opened(context: Context, paths: Paths, driver: String) {
@@ -51,7 +48,7 @@ object LastRun {
         closed(context)
         val paths = Paths(context)
         val exit = lastExit(context, opened)
-        val stage = if (launched) GameEnding.stage(head(paths.gameLog)) else null
+        val stage = if (launched) GameEnding.stage(paths.gameLog) else null
         val memory = runCatching { paths.lastMemory.readText() }.getOrNull()?.takeIf { it.isNotBlank() }
         ScreenLog.addAfterDeath(paths, exit?.let { (it.timestamp - opened) / 1000.0 },
                            line(exit, Build.VERSION.SDK_INT, memory))
@@ -134,19 +131,6 @@ object LastRun {
     }
 
     private fun signal(number: Int) = SIGNALS[number] ?: "signal $number"
-
-    private fun head(file: File): String = runCatching {
-        file.bufferedReader().use { reader ->
-            val buffer = CharArray(LOG_HEAD)
-            var read = 0
-            while (read < LOG_HEAD) {
-                val n = reader.read(buffer, read, LOG_HEAD - read)
-                if (n < 0) break
-                read += n
-            }
-            String(buffer, 0, read)
-        }
-    }.getOrDefault("")
 
     private const val RECORDS = 8
     private const val SETTLE_MS = 5_000L
