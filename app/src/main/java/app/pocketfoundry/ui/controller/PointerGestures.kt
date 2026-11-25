@@ -122,6 +122,17 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         onLongPress()
     }
 
+    /**
+     * Mouse & keys' double tap and hold, once the finger has stayed a moment: a tap that picks an item from the quickbar,
+     * then a finger straight back down to move the cursor away, only moves it. Held at once, the button put the item
+     * back (#96).
+     */
+    private val doubleTapHold = Runnable {
+        val keys = out ?: return@Runnable
+        if (fingers.size != 1 || holding || mode != Mode.ONE) return@Runnable
+        if (holdGesture(keys, Gesture.DOUBLE_TAP_HOLD)) onLongPress()
+    }
+
     /** [box]: on the trackpad box. */
     fun down(id: Int, x: Float, y: Float, box: Boolean = false) {
         fingers += id
@@ -148,7 +159,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         } else if (holding || carrying) {
             moveTo(x, y)
         } else if (hypot(x - downX, y - downY) > slop) {
-            mainHandler.removeCallbacks(longPress)
+            stopWaiting()
             press(InputStub.BUTTON_LEFT, downX, downY)
             moveTo(x, y)
         }
@@ -167,7 +178,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     }
 
     fun cancel() {
-        mainHandler.removeCallbacks(longPress)
+        stopWaiting()
         mainHandler.removeCallbacks(park)
         release()
         pad?.cancel()
@@ -193,18 +204,26 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         if (carrying) return
         val doubleTap = SystemClock.uptimeMillis() - lastTapAt < doubleTapMs &&
             hypot(x - lastTapX, y - lastTapY) < doubleTapSlop
-        when {
-            doubleTap && pad != null -> {
-                lastTapAt = 0
-                holdPad(PadButton.SOUTH)
-            }
-            doubleTap && keys != null && holdGesture(keys, Gesture.DOUBLE_TAP_HOLD) -> lastTapAt = 0
-            settings.longPress > 0 -> mainHandler.postDelayed(longPress, settings.longPress.toLong())
+        if (doubleTap && pad != null) {
+            lastTapAt = 0
+            holdPad(PadButton.SOUTH)
+            return
         }
+        if (doubleTap && keys != null) {
+            lastTapAt = 0
+            mainHandler.postDelayed(doubleTapHold, DOUBLE_TAP_HOLD_MS)
+        }
+        if (settings.longPress > 0) mainHandler.postDelayed(longPress, settings.longPress.toLong())
+    }
+
+    /** What a finger may still become while it stays: a long press, a double tap's hold. Its move or lift ends that. */
+    private fun stopWaiting() {
+        mainHandler.removeCallbacks(longPress)
+        mainHandler.removeCallbacks(doubleTapHold)
     }
 
     private fun secondFingerDown() {
-        mainHandler.removeCallbacks(longPress)
+        stopWaiting()
         mode = Mode.UNDECIDED
         twoFingerStart = SystemClock.uptimeMillis()
         spanRef = span()
@@ -213,7 +232,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     }
 
     private fun oneFingerUp(x: Float, y: Float) {
-        mainHandler.removeCallbacks(longPress)
+        stopWaiting()
         if (carrying) {
             // The keys' buttons stay down till their keys let go; parked, the cursor would drag them across.
             carrying = false
@@ -335,7 +354,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private fun trackpadMove(x: Float, y: Float) {
         if (!dragged && hypot(x - downX, y - downY) > tapSlop) {
             dragged = true
-            mainHandler.removeCallbacks(longPress)
+            stopWaiting()
         }
         moveCursor(cursorX + (x - lastX) * speed, cursorY + (y - lastY) * speed)
         lastX = x
@@ -403,6 +422,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         private val NO_BUTTONS = IntArray(0)
         private const val PARK_MS = 150L
         private const val TAP_MS = 300L
+        /** How long a double tap's second touch stays before it holds. */
+        private const val DOUBLE_TAP_HOLD_MS = 150L
         /** Span ratio per notch of zoom. */
         private const val ZOOM_STEP = 1.18f
         private const val SCROLL_STEP_DP = 36f

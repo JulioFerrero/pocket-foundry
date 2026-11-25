@@ -54,7 +54,7 @@ Your finger is the mouse:
 | Tap | Click: build, open, pick up a stack. |
 | Long press | Right click: mine, remove, take half a stack. Drag to keep mining. |
 | Drag | Holds the click: belts and pipes in a line, a stack dragged. |
-| Double tap, keep the finger down and drag | Holds the click from there, with the trackpad too: belts in a line, a repair held. |
+| Double tap, keep the finger down a moment, then drag | Holds the click from there, with the trackpad too: belts in a line, a repair held. A finger that moves at once only moves the cursor. |
 | Pinch | Zooms, as the mouse wheel. |
 | Two-finger drag | Scrolls lists, recipes and the tech tree. |
 | Two-finger tap | Esc: closes what's open, and brings back the game's keys. |
