@@ -94,6 +94,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | POCO X5 Pro 5G | Adreno 642L | Freedreno | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/36) |
 | Galaxy S25 FE | Xclipse 940 | RADV for Xclipse | [60](https://github.com/JulioFerrero/pocket-foundry/issues/18) |
 | Galaxy A56 | Xclipse 540 | RADV for Xclipse | [54–59](https://github.com/JulioFerrero/pocket-foundry/issues/62) |
+| Galaxy S24 FE | Xclipse 940 | RADV for Xclipse | [60, maximum graphics](https://github.com/JulioFerrero/pocket-foundry/issues/94) |
 | realme 16 Pro | Mali-G615 | PanVK-kbase 26.3.1 | [60, High sprites](https://github.com/JulioFerrero/pocket-foundry/issues/35) |
 | Xiaomi 14T | Mali-G615 | PanVK-kbase 26.3.1 | 46–59, High sprites |
 | Poco X6 Pro | Mali-G615 | Phone's Vulkan | [60](https://github.com/JulioFerrero/pocket-foundry/issues/10) |
