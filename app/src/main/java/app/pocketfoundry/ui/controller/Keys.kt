@@ -41,7 +41,11 @@ enum class KeyIcon(val path: String, val stroke: Float = 2f) {
     UP("M10 15.5v-11M5.5 9L10 4.5L14.5 9", stroke = 2.2f),
     DOWN("M10 4.5v11M5.5 11L10 15.5L14.5 11", stroke = 2.2f),
     LEFT("M15.5 10h-11M9 5.5L4.5 10L9 14.5", stroke = 2.2f),
-    RIGHT("M4.5 10h11M11 5.5L15.5 10L11 14.5", stroke = 2.2f);
+    RIGHT("M4.5 10h11M11 5.5L15.5 10L11 14.5", stroke = 2.2f),
+    /** The mouse buttons: a mouse, the one button marked, the middle one its wheel. */
+    MOUSE_LEFT("$MOUSE_BODY$MOUSE_SPLIT M7.5 4.8v2.4", stroke = 1.8f),
+    MOUSE_MIDDLE("$MOUSE_BODY M10 4.5v2.6", stroke = 1.8f),
+    MOUSE_RIGHT("$MOUSE_BODY$MOUSE_SPLIT M12.5 4.8v2.4", stroke = 1.8f);
 
     companion object {
         /** The box its path is drawn in. */
@@ -49,9 +53,26 @@ enum class KeyIcon(val path: String, val stroke: Float = 2f) {
     }
 }
 
+// A mouse, its buttons split from its body; an enum's own constants can't be used in its entries.
+private const val MOUSE_BODY = "M10 2.5a5 5 0 0 1 5 5v5a5 5 0 0 1-10 0v-5a5 5 0 0 1 5-5zM5 9h10"
+private const val MOUSE_SPLIT = "M10 2.5v6.5"
+
 /** Keys by their names on a keyboard, and the keyboard the editor's picker shows. */
 object KeyNames {
     val MODIFIERS = intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_SHIFT_LEFT, KeyEvent.KEYCODE_ALT_LEFT)
+
+    /**
+     * The mouse's buttons, among a key's codes as keys are, so Shift+Left click is Shift, then the button: below 0,
+     * where Android has no key codes, and each X's button number made negative (1 left, 2 middle, 3 right).
+     */
+    const val MOUSE_LEFT = -1
+    const val MOUSE_MIDDLE = -2
+    const val MOUSE_RIGHT = -3
+
+    fun isMouse(code: Int) = code < 0
+
+    /** X's number for a mouse code's button. */
+    fun button(code: Int) = -code
 
     private val names: Map<Int, String> = buildMap {
         for (i in 0..25) put(KeyEvent.KEYCODE_A + i, ('A' + i).toString())
@@ -69,6 +90,7 @@ object KeyNames {
             KeyEvent.KEYCODE_COMMA to ",", KeyEvent.KEYCODE_PERIOD to ".", KeyEvent.KEYCODE_SLASH to "/",
             KeyEvent.KEYCODE_CAPS_LOCK to "Caps", KeyEvent.KEYCODE_SHIFT_LEFT to "Shift",
             KeyEvent.KEYCODE_CTRL_LEFT to "Ctrl", KeyEvent.KEYCODE_ALT_LEFT to "Alt",
+            MOUSE_LEFT to "Left click", MOUSE_MIDDLE to "Middle click", MOUSE_RIGHT to "Right click",
         ))
     }
 
@@ -80,7 +102,8 @@ object KeyNames {
 
     /**
      * The picker's keyboard, laid out as one, a row at a time: (key, width in a keyboard's units); 0 is a gap. The main
-     * block is 15 units wide, then a gap and a block of three: Home, End, Page Up and Down, Delete and the arrows.
+     * block is 15 units wide, then a gap and a block of three: Home, End, Page Up and Down, Delete and the arrows. The
+     * mouse's buttons are under the space bar's end, as a ThinkPad has its trackpoint's.
      */
     val KEYBOARD: List<List<Pair<Int, Float>>> = listOf(
         listOf(KeyEvent.KEYCODE_ESCAPE to 1f, 0 to 1f) + (1..4).fn() + listOf(0 to 0.5f) + (5..8).fn() +
@@ -99,7 +122,8 @@ object KeyNames {
                    0 to 4.25f, KeyEvent.KEYCODE_DPAD_UP to 1f),
         // Each width one the keycaps come in (Keys.WIDTHS).
         listOf(KeyEvent.KEYCODE_CTRL_LEFT to 1.25f, KeyEvent.KEYCODE_ALT_LEFT to 1.25f, KeyEvent.KEYCODE_SPACE to 6.25f,
-               0 to 6.75f, KeyEvent.KEYCODE_DPAD_LEFT to 1f, KeyEvent.KEYCODE_DPAD_DOWN to 1f, KeyEvent.KEYCODE_DPAD_RIGHT to 1f),
+               0 to 1.25f, MOUSE_LEFT to 1f, MOUSE_MIDDLE to 1f, MOUSE_RIGHT to 1f, 0 to 2.5f,
+               KeyEvent.KEYCODE_DPAD_LEFT to 1f, KeyEvent.KEYCODE_DPAD_DOWN to 1f, KeyEvent.KEYCODE_DPAD_RIGHT to 1f),
     )
 
     /** The picker's keys, a row at a time. */
@@ -115,12 +139,15 @@ object KeyNames {
 
     private val SHORT = mapOf("Backspace" to "Bksp", "Delete" to "Del")
 
-    /** An arrow key's sign, which keyboards print instead of its name. */
+    /** An arrow key's sign, which keyboards print instead of its name; a mouse button's, a mouse. */
     fun sign(codes: IntArray): KeyIcon? = when (codes.singleOrNull()) {
         KeyEvent.KEYCODE_DPAD_UP -> KeyIcon.UP
         KeyEvent.KEYCODE_DPAD_DOWN -> KeyIcon.DOWN
         KeyEvent.KEYCODE_DPAD_LEFT -> KeyIcon.LEFT
         KeyEvent.KEYCODE_DPAD_RIGHT -> KeyIcon.RIGHT
+        MOUSE_LEFT -> KeyIcon.MOUSE_LEFT
+        MOUSE_MIDDLE -> KeyIcon.MOUSE_MIDDLE
+        MOUSE_RIGHT -> KeyIcon.MOUSE_RIGHT
         else -> null
     }
 
@@ -152,7 +179,8 @@ object KeyNames {
 
 /**
  * Keys pressed in X, counted: two keys that both hold Ctrl (a latched Ctrl and Undo's Ctrl+Z) keep it down till the
- * last lets go. [send]: an Android key code down or up (LorieView.sendKeyEvent). The main thread's only.
+ * last lets go. [send]: an Android key code down or up (LorieView.sendKeyEvent), or a mouse button's
+ * ([KeyNames.isMouse], LorieView.sendMouseEvent). The main thread's only.
  */
 class KeyOut(private val send: (code: Int, down: Boolean) -> Unit) {
     private val held = LinkedHashMap<Int, Int>()
@@ -187,6 +215,9 @@ class KeyOut(private val send: (code: Int, down: Boolean) -> Unit) {
     }
 
     fun isHeld(code: Int) = code in held
+
+    /** The mouse buttons keys hold down now: a finger on the game moves the cursor with them (PointerGestures). */
+    fun heldButtons(): IntArray = held.keys.filter(KeyNames::isMouse).toIntArray()
 }
 
 /** The keys there are, and where each set has them by default. */
@@ -295,6 +326,10 @@ object Keys {
         key("enter", "Enter", KeyEvent.KEYCODE_ENTER,
             places = inDrawer(NUMBERS, KeySets.GAME, KeySets.WINDOW)),
         key("console", "Console", KeyEvent.KEYCODE_GRAVE),
+        // A laptop's buttons, for the trackpad: held, the cursor moves with them down, so Left drags a line of belts.
+        key("mouse-left", "Left click", KeyNames.MOUSE_LEFT),
+        key("mouse-right", "Right click", KeyNames.MOUSE_RIGHT),
+        key("mouse-middle", "Middle click", KeyNames.MOUSE_MIDDLE),
         Def("keyboard", Kind.ToolKey(Tool.KEYBOARD), "Keyboard", icon = KeyIcon.KEYBOARD,
             places = inDrawer(DRAWER, KeySets.GAME, KeySets.MAP, OWN_SETS)),
         Def("edit", Kind.ToolKey(Tool.ADJUST), "Edit keys", icon = KeyIcon.EDIT,

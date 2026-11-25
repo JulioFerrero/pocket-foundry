@@ -1,5 +1,6 @@
 package app.pocketfoundry.ui.screens.game
 
+import app.pocketfoundry.ui.controller.KeyNames
 import app.pocketfoundry.ui.controller.KeyOut
 import app.pocketfoundry.ui.controller.KeySets
 import app.pocketfoundry.core.controller.Input
@@ -152,7 +153,13 @@ private class GameScreen(activity: MainActivity) {
         fps.shown = false
         view.onKeyboard = { activity.lorieView.toggleKeyboardVisible() }
         if (input == Input.KEYS) {
-            view.keyOut = KeyOut { code, down -> activity.lorieView.sendKeyEvent(0, code, down) }
+            val keys = KeyOut { code, down ->
+                // A mouse button at the cursor, wherever it is: X takes a button's place from the pointer's.
+                if (KeyNames.isMouse(code)) activity.lorieView.sendMouseEvent(0f, 0f, KeyNames.button(code), down, false)
+                else activity.lorieView.sendKeyEvent(0, code, down)
+            }
+            view.keyOut = keys
+            gestures.heldButtons = keys::heldButtons
             gestures.twoFingerTap = view::escape
             // A window filling the screen: the cursor leaves it as it opens and after each tap, so no tooltip of what
             // it was on stays; the FPS counter steps off the window's title.

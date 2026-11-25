@@ -49,6 +49,52 @@ class KeysTest {
         assertFalse(out.isHeld(KeyEvent.KEYCODE_SHIFT_LEFT))
     }
 
+    @Test fun `a mouse button is held as a key is, Shift+Left click Shift first, and only buttons count as buttons`() {
+        val shiftClick = intArrayOf(KeyEvent.KEYCODE_SHIFT_LEFT, KeyNames.MOUSE_LEFT)
+        out.press(shiftClick)
+        out.press(intArrayOf(KeyNames.MOUSE_LEFT))
+        assertTrue(out.heldButtons().contentEquals(intArrayOf(KeyNames.MOUSE_LEFT)))
+        out.release(shiftClick)
+        assertTrue(out.heldButtons().contentEquals(intArrayOf(KeyNames.MOUSE_LEFT)))
+        out.release(intArrayOf(KeyNames.MOUSE_LEFT))
+        assertEquals(0, out.heldButtons().size)
+        assertEquals(listOf("+${KeyEvent.KEYCODE_SHIFT_LEFT}", "+${KeyNames.MOUSE_LEFT}", "-${KeyEvent.KEYCODE_SHIFT_LEFT}",
+                            "-${KeyNames.MOUSE_LEFT}"), sent)
+    }
+
+    @Test fun `mouse buttons are X's 1, 2 and 3, named as clicks, with a mouse for a sign`() {
+        assertEquals(1, KeyNames.button(KeyNames.MOUSE_LEFT))
+        assertEquals(2, KeyNames.button(KeyNames.MOUSE_MIDDLE))
+        assertEquals(3, KeyNames.button(KeyNames.MOUSE_RIGHT))
+        assertFalse(KeyNames.isMouse(KeyEvent.KEYCODE_E))
+        assertEquals("Shift+Left click", KeyNames.label(intArrayOf(KeyEvent.KEYCODE_SHIFT_LEFT, KeyNames.MOUSE_LEFT)))
+        assertEquals("Shift" to "Right click", KeyNames.legend(intArrayOf(KeyEvent.KEYCODE_SHIFT_LEFT, KeyNames.MOUSE_RIGHT)))
+        assertEquals(KeyIcon.MOUSE_MIDDLE, KeyNames.sign(intArrayOf(KeyNames.MOUSE_MIDDLE)))
+        assertEquals(null, KeyNames.sign(intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyNames.MOUSE_LEFT)))
+        assertFalse(KeyNames.light(intArrayOf(KeyNames.MOUSE_LEFT)))
+    }
+
+    @Test fun `the mouse's keys are there to add, in no set at first, and the picker has its buttons`() {
+        for (set in KeySets.BUILT_IN.keys) {
+            val mouse = Keys.controls(set, trackpad = true).filter { it.codes.any(KeyNames::isMouse) }
+            assertEquals(set, listOf("mouse-left", "mouse-right", "mouse-middle"), mouse.map { it.id })
+            assertTrue(set, mouse.none { it.shown })
+        }
+        val picked = KeyNames.ROWS.flatMap { it.toList() }
+        assertTrue(listOf(KeyNames.MOUSE_LEFT, KeyNames.MOUSE_MIDDLE, KeyNames.MOUSE_RIGHT).all { it in picked })
+        // As wide as the keyboard's other rows.
+        assertEquals(KeyNames.KEYBOARD[0].sumOf { it.second.toDouble() }, KeyNames.KEYBOARD.last().sumOf { it.second.toDouble() }, 0.001)
+    }
+
+    @Test fun `a key the player made to click comes back as it was saved`() {
+        val click = Keys.own("k1", intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyNames.MOUSE_LEFT))
+        val after = Keys.controls(KeySets.GAME).toMutableList()
+        LayoutJson.read(JSONObject(LayoutJson.write(Keys.controls(KeySets.GAME) + click).toString()), after)()
+        val back = after.first { it.id == "k1" }
+        assertTrue(back.codes.contentEquals(intArrayOf(KeyEvent.KEYCODE_CTRL_LEFT, KeyNames.MOUSE_LEFT)))
+        assertEquals("Ctrl+Left click", back.label)
+    }
+
     @Test fun `the stick holds nothing near its middle`() {
         assertEquals(0, Keys.stickDirections(0.2f, -0.1f, 1f))
     }

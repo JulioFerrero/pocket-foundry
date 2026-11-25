@@ -42,6 +42,11 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     /** In place of a two-finger tap's right click: Mouse & keys' Esc (ControllerView.escape). */
     var twoFingerTap: (() -> Unit)? = null
     /**
+     * The mouse buttons Mouse & keys' keys hold down (KeyOut.heldButtons): while any is, a finger only moves the cursor,
+     * which drags with them, as on a laptop's trackpad with its button held. It clicks and presses nothing itself.
+     */
+    var heldButtons: () -> IntArray = { NO_BUTTONS }
+    /**
      * Whether, a finger's tap or drag done, the cursor leaves for the screen's corner: Mouse & keys' while a window
      * fills the screen, where it would keep the tooltip of what it was left on.
      */
@@ -88,6 +93,8 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private var lastX = 0f
     private var lastY = 0f
     private var dragged = false
+    /** The finger down landed while keys held mouse buttons ([heldButtons]): it moves the cursor, and that's all. */
+    private var carrying = false
     /** Where a finger acts: under it, or at the trackpad's cursor. */
     private val aimX get() = if (trackpad) cursorX else downX
     private val aimY get() = if (trackpad) cursorY else downY
@@ -125,7 +132,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         if (fingers.size != 1) return
         if (trackpad) {
             trackpadMove(x, y)
-        } else if (holding) {
+        } else if (holding || carrying) {
             moveTo(x, y)
         } else if (hypot(x - downX, y - downY) > slop) {
             mainHandler.removeCallbacks(longPress)
@@ -149,6 +156,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         pad?.cancel()
         fingers.clear()
         mode = Mode.ONE
+        carrying = false
     }
 
     private fun firstFingerDown(x: Float, y: Float, box: Boolean) {
@@ -157,7 +165,14 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         downY = y
         trackpad = box || settings.touch == Settings.TRACKPAD
         speed = settings.trackpadSpeed / 100f
-        if (trackpad) trackpadDown(x, y) else moveTo(x, y)   // the game shows what's under the finger
+        val buttons = heldButtons()
+        carrying = buttons.isNotEmpty()
+        when {
+            trackpad -> trackpadDown(x, y)
+            carrying -> carryTo(x, y, buttons)
+            else -> moveTo(x, y)   // the game shows what's under the finger
+        }
+        if (carrying) return
         val now = SystemClock.uptimeMillis()
         if (pad != null && now - lastTapAt < doubleTapMs && hypot(x - lastTapX, y - lastTapY) < doubleTapSlop) {
             lastTapAt = 0
@@ -178,6 +193,11 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
 
     private fun oneFingerUp(x: Float, y: Float) {
         mainHandler.removeCallbacks(longPress)
+        if (carrying) {
+            // The keys' buttons stay down till their keys let go; parked, the cursor would drag them across.
+            carrying = false
+            return
+        }
         if (holding) {
             release()
         } else if (trackpad) {
@@ -271,6 +291,16 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
         lastY = y
     }
 
+    /**
+     * Direct, with keys holding [buttons]: they let go, the cursor goes to the finger, and they're down again there,
+     * so the jump drags nothing: no belt laid from where the cursor was.
+     */
+    private fun carryTo(x: Float, y: Float, buttons: IntArray) {
+        for (b in buttons) lorie.sendMouseEvent(0f, 0f, KeyNames.button(b), false, false)
+        moveTo(x, y)
+        for (b in buttons) lorie.sendMouseEvent(0f, 0f, KeyNames.button(b), true, false)
+    }
+
     private fun moveCursor(x: Float, y: Float) {
         lorie.getLocationInWindow(location)
         cursorX = x.coerceIn(location[0].toFloat(), (location[0] + lorie.width - 1).toFloat())
@@ -317,6 +347,7 @@ class PointerGestures(activity: MainActivity, padMode: Boolean, private val onLo
     private fun wheel(notches: Int) = lorie.sendMouseWheelEvent(0f, notches * 120f)
 
     companion object {
+        private val NO_BUTTONS = IntArray(0)
         private const val PARK_MS = 150L
         private const val TAP_MS = 300L
         /** Span ratio per notch of zoom. */
