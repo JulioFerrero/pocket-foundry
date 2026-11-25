@@ -35,7 +35,8 @@ instead, **Trackpad** makes the whole screen a trackpad, and **Trackpad speed** 
 | The two under the toolbar | Map and game menu. |
 
 The toolbar at the top moves and resizes the buttons (pinch one), removes them and adds them back, fades or hides
-them all, and opens the phone's keyboard, for naming a save. Faded to 0% they don't show but still work; the editor
+them all, and opens the phone's keyboard, for naming a save. **Settings -> Controls -> Edit layout** opens the same
+editor without a game, over your newest save's picture, for the controls chosen there. Faded to 0% they don't show but still work; the editor
 shows them, and the percentage by its fade key. Back, or a controller's
 home button, opens the pause menu; the game freezes while it's off screen.
 
@@ -51,16 +52,23 @@ Your finger is the mouse:
 | On the game | What it does |
 |---|---|
 | Tap | Click: build, open, pick up a stack. |
-| Long press | Right click: mine, remove, take half a stack. Drag to keep mining. **Settings -> Long press** changes or disables it. |
+| Long press | Right click: mine, remove, take half a stack. Drag to keep mining. |
 | Drag | Holds the click: belts and pipes in a line, a stack dragged. |
+| Double tap, keep the finger down and drag | Holds the click from there, with the trackpad too: belts in a line, a repair held. |
 | Pinch | Zooms, as the mouse wheel. |
 | Two-finger drag | Scrolls lists, recipes and the tech tree. |
 | Two-finger tap | Esc: closes what's open, and brings back the game's keys. |
+| Three-finger tap | Middle click. |
+
+**Touch** in the editor (the fingertip) changes what the long press, double tap and hold, and the two- and
+three-finger taps do: any key, a combination or a mouse button, or nothing. **Long press after** there sets how long
+you hold first, as **Settings -> Long press** does.
 
 With **Touch -> Box** (the default) the gamepad's trackpad is there too, over E and F: drag in it and the cursor
 moves by how far you drag, so your finger doesn't hide what it points at, and what it shows when the cursor is over
-it (a machine's recipe, a belt's contents). **Trackpad** makes the whole screen a trackpad, **Direct** leaves it out.
-Edit keys moves it, resizes it or removes it, as any key.
+it (a machine's recipe, a belt's contents). A tap acts where the cursor is; a move, however small, leaves it where it
+went, with no click. **Trackpad** makes the whole screen a trackpad, **Direct** leaves it out. Edit keys moves it,
+resizes it or removes it, as any key.
 
 The keys on screen are Factorio's own, as large as a thumb's target and kept where thumbs reach, off the middle of
 the screen (the game's) and off Factorio's own panels:
@@ -81,12 +89,17 @@ closed with its own ✕ leaves the inventory's keys up: Esc or a two-finger tap 
 **Edit keys** works as the gamepad's layout editor, its tools at the bottom: drag a key, pinch it. **Add** lists,
 as the gamepad's does, the keys the screen doesn't have, each with what it does (Ctrl+Z Undo), and:
 
-- **New key:** a whole keyboard, F keys, arrows and Space included. Ctrl, Shift and Alt switched on first make a
-  combination: Ctrl+F, Shift+R.
+- **New key:** a whole keyboard, F keys, arrows and Space included, and the mouse's three buttons under Space. Ctrl,
+  Shift and Alt switched on first make a combination: Ctrl+F, Shift+R, Shift+Left click.
+- **Left click, Right click and Middle click:** a laptop's buttons. While one is held, a finger on the game only moves
+  the cursor, and the button drags with it: hold Left and drag on the trackpad to lay belts. With Touch on Direct the
+  cursor first jumps to the finger, the button let go on the way, so nothing is dragged from where it was.
 - **Sets:** a key for each other set, with its name on it, that only brings that set.
 
 **Options** (the sliders) is the key picked's: what it sends (Change opens the keyboard), its width as on a keyboard
-(1u for a letter up to 6.25u for Space), whether it stays held like Shift, and which set it brings, if any. E, M and
+(1u for a letter up to 6.25u for Space), how it presses, and which set it brings, if any. **Press** is while touched,
+stays held like Shift (tapped again to let go), or a long press of 0.3 to 1 s, for a key that shouldn't go by a brush
+of the thumb: it shows a clock, and acts once held that long. E, M and
 the rest bring theirs that way, and can be changed. Letters, numbers and signs get the pale cap, the rest the darker
 one.
 
