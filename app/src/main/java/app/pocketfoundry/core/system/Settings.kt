@@ -2,6 +2,7 @@ package app.pocketfoundry.core.system
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
 
@@ -55,8 +56,12 @@ class Settings(context: Context) {
      * of building them again: on the vivo X200 Ultra 3 s instead of 20, with a third less memory.
      */
     var fastStart by prefs.bool("fastStart", true)
-    /** The fast cores kept busy while the game falls behind its frame rate (CpuBoost). */
-    var fastCpu by prefs.bool("fastCpu", true)
+    /**
+     * The fast cores kept busy while the game falls behind its frame rate (CpuBoost). On by default only on MediaTek
+     * phones, where it took a Xiaomi 12T's heavy map from 18 to 54 FPS: on a POCO F3's Snapdragon it made the frame rate
+     * lower and jumpy (#92).
+     */
+    var fastCpu by prefs.bool("fastCpu", MEDIATEK)
     /** The catalog's drivers marked testing, in Settings -> Driver: a long press on its title turns them on and off. */
     var testDrivers by prefs.bool("testDrivers", false)
     /** Factorio's extra effects off (smoke, clouds, decoratives, shadows, terrain effects…): fewer pixels to draw. */
@@ -101,6 +106,16 @@ class Settings(context: Context) {
 
         /** The app's own prefs file, which other features keep their own keys in too (DriverRecords). */
         fun prefs(context: Context): SharedPreferences = context.getSharedPreferences("pocketfoundry", Context.MODE_PRIVATE)
+
+        private val MEDIATEK by lazy {
+            val maker = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Build.SOC_MANUFACTURER else null
+            mediaTek(Build.VERSION.SDK_INT, maker, Build.HARDWARE)
+        }
+
+        /** Android 12 and later name the chip's maker ("Mediatek"); before, MediaTek's hardware name is its chip's. */
+        internal fun mediaTek(sdk: Int, maker: String?, hardware: String?) =
+            if (sdk >= Build.VERSION_CODES.S) maker.equals("Mediatek", ignoreCase = true)
+            else hardware?.startsWith("mt", ignoreCase = true) == true
 
         private const val SPRITE_QUALITY = "spriteQuality"
         private const val LIGHT_GRAPHICS = "lightGraphics"

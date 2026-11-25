@@ -132,9 +132,10 @@ still works as the mouse too.
 - **Fast CPU:** while the game falls behind its frame rate, Pocket Foundry keeps the phone's fast cores looking busy
   at the lowest priority, which takes no time from the game but keeps their clocks up. The phone gets warmer and the
   battery goes faster. It stops when the game keeps up without it, when the phone reports heat and with battery saver
-  on. MediaTek phones don't need it: the game tells their own booster about its frames, which raises the clocks only
-  as far as each frame needs, so it stays off there. On a Xiaomi 12T a heavy map went from 18 to 54 FPS with Fast CPU,
-  and to 57-59 with the booster.
+  on. On MediaTek phones the game also tells their own booster about its frames, which raises the clocks only as far
+  as each frame needs, and Fast CPU stays off while the booster has the game. On a Xiaomi 12T a heavy map went from 18
+  to 54 FPS with Fast CPU, and to 57-59 with the booster. It's on by default only on MediaTek phones: on a POCO F3's
+  Snapdragon it made the frame rate lower and jumpy.
 - **Detailed logs:** for a problem report. Logs then also shows how the game's frames get to the screen and every
   graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.
