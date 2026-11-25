@@ -42,10 +42,10 @@ enum class KeyIcon(val path: String, val stroke: Float = 2f) {
     DOWN("M10 4.5v11M5.5 11L10 15.5L14.5 11", stroke = 2.2f),
     LEFT("M15.5 10h-11M9 5.5L4.5 10L9 14.5", stroke = 2.2f),
     RIGHT("M4.5 10h11M11 5.5L15.5 10L11 14.5", stroke = 2.2f),
-    /** The mouse buttons: a mouse, the one button marked, the middle one its wheel. */
-    MOUSE_LEFT("$MOUSE_BODY$MOUSE_SPLIT M7.5 4.8v2.4", stroke = 1.8f),
-    MOUSE_MIDDLE("$MOUSE_BODY M10 4.5v2.6", stroke = 1.8f),
-    MOUSE_RIGHT("$MOUSE_BODY$MOUSE_SPLIT M12.5 4.8v2.4", stroke = 1.8f);
+    /** The mouse buttons: a mouse, the one button filled, the middle one its wheel. */
+    MOUSE_LEFT("$MOUSE_BODY$MOUSE_SPLIT M6.6 5v2.2M8.3 3.6v3.6", stroke = 1.8f),
+    MOUSE_MIDDLE("$MOUSE_BODY M10 3.8v3", stroke = 1.8f),
+    MOUSE_RIGHT("$MOUSE_BODY$MOUSE_SPLIT M13.4 5v2.2M11.7 3.6v3.6", stroke = 1.8f);
 
     companion object {
         /** The box its path is drawn in. */
@@ -53,9 +53,10 @@ enum class KeyIcon(val path: String, val stroke: Float = 2f) {
     }
 }
 
-// A mouse, its buttons split from its body; an enum's own constants can't be used in its entries.
-private const val MOUSE_BODY = "M10 2.5a5 5 0 0 1 5 5v5a5 5 0 0 1-10 0v-5a5 5 0 0 1 5-5zM5 9h10"
-private const val MOUSE_SPLIT = "M10 2.5v6.5"
+// A mouse, its buttons split from its body, the one pressed filled by two strokes; an enum's own constants can't be
+// used in its entries.
+private const val MOUSE_BODY = "M10 1.5a6 6 0 0 1 6 6v5a6 6 0 0 1-12 0v-5a6 6 0 0 1 6-6zM4 8.5h12"
+private const val MOUSE_SPLIT = "M10 1.5v7"
 
 /** Keys by their names on a keyboard, and the keyboard the editor's picker shows. */
 object KeyNames {

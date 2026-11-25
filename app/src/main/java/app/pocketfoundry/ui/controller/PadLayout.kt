@@ -118,8 +118,12 @@ class PadLayout(private val context: Context, val keysMode: Boolean = false) {
     /** What's written on [c]: its name; a key that only brings a set, that set's. */
     fun label(c: Control) = if (c.kind == Kind.Key && c.codes.isEmpty()) c.shows?.let(::title).orEmpty() else c.label
 
-    /** Whether what [c] does says more than what's on it: Undo for Ctrl+Z, a tool's name; not 5's "5". */
-    fun captioned(c: Control) = c.name.isNotEmpty() && c.name != label(c)
+    /**
+     * Whether what [c] does says more than what's on it: Undo for Ctrl+Z, a tool's name, Left click for its mouse;
+     * not 5's "5".
+     */
+    fun captioned(c: Control) =
+        c.name.isNotEmpty() && (c.name != label(c) || c.kind == Kind.Key && KeyNames.sign(c.codes) != null)
 
     /**
      * An open drawer whose keys all say what they do (the numbers) is a keypad: no panel and no names under its keys,
