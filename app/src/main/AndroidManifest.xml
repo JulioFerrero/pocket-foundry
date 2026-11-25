@@ -43,6 +43,14 @@
             </intent-filter>
         </activity>
 
+        <!-- The controls' editor without a game: the game's density and screen, so places carry over. -->
+        <activity
+            android:name=".ui.screens.layout.LayoutActivity"
+            android:theme="@style/Theme.PocketFoundry.Launcher"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:exported="false" />
+
         <activity
             android:name=".ui.screens.launcher.LogActivity"
             android:label="Logs"

@@ -15,6 +15,7 @@ import android.view.View
 import android.widget.FrameLayout
 import com.termux.x11.MainActivity
 import app.pocketfoundry.core.controller.ButtonMap
+import app.pocketfoundry.core.controller.Input
 import app.pocketfoundry.core.controller.isGamepad
 import app.pocketfoundry.core.drivers.Catalog
 import app.pocketfoundry.core.drivers.Drivers
@@ -37,6 +38,7 @@ import app.pocketfoundry.ui.screens.launcher.ImportScreen
 import app.pocketfoundry.ui.screens.launcher.SettingsScreen
 import app.pocketfoundry.ui.screens.launcher.StartScreen
 import app.pocketfoundry.ui.screens.launcher.WelcomeScreen
+import app.pocketfoundry.ui.screens.layout.LayoutActivity
 import app.pocketfoundry.ui.stage.Stage
 import app.pocketfoundry.ui.kit.Arrow
 import app.pocketfoundry.ui.kit.DialogHost
@@ -230,8 +232,15 @@ class LauncherActivity : Activity() {
         refresh()
     }
 
-    /** Settings' Edit layout: the game with the editor open. Home is under it for when the game closes. */
+    /**
+     * Settings' Edit layout, for the controls chosen there: in the game with its editor open when one runs with them,
+     * Home under it for when the game closes; otherwise the editor on its own (LayoutActivity).
+     */
     fun editLayout() {
+        if (!Session.live || (Session.input == Input.KEYS) != (settings.controls == Settings.KEYS)) {
+            startActivity(Intent(this, LayoutActivity::class.java))
+            return
+        }
         GameScreens.openEditor()
         settingsOpen = false
         showGame()

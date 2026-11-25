@@ -59,6 +59,8 @@ class ControllerView(context: Context, private val input: Input, private val cou
     private val counterBox = RectF()
 
     var onKeyboard: () -> Unit = {}
+    /** The editor's Done, its layout saved: the editor without a game closes (LayoutActivity). */
+    var onEditorDone: (() -> Unit)? = null
 
     /** Where Mouse & keys' keys go: X, through Termux:X11. */
     var keyOut: KeyOut?
@@ -231,10 +233,18 @@ class ControllerView(context: Context, private val input: Input, private val cou
             Tool.SHOW -> { layout.hidden = false; layout.save() }
             else -> {
                 editor.use(tool)
-                if (!editor.active) panels?.close()
+                if (!editor.active) {
+                    panels?.close()
+                    onEditorDone?.invoke()
+                }
             }
         }
         invalidate()
+    }
+
+    /** As the editor's Done: saved and closed. */
+    fun finishEditing() {
+        if (editor.active) use(Tool.DONE)
     }
 
     private fun tools() = when {
