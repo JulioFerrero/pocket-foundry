@@ -1,0 +1,46 @@
+Layer: every command found by its other name when a driver gives only one.
+
+A command promoted to core answers to two names, vkCmdPushDescriptorSetWithTemplate and its KHR one, and a driver
+may give only one: the Pixel 10 and 11's PowerVR (Vulkan 1.4) give push descriptors their core names alone. The
+compat layer's pieces ask for one name each (the BC layer's push descriptors the KHR one), got nothing and called it,
+so the driver check and the game crashed on the first push (Pocket Foundry #65). The next layer's vkGetDeviceProcAddr
+is wrapped once, where the device is made: when the asked name finds nothing, the other one is tried.
+
+--- a/hybris/vulkan/layer/device.c
++++ b/hybris/vulkan/layer/device.c
+@@ -104,6 +104,25 @@
+ {
+     struct hybris_layer_device device;
+     return hybris_layer_lookup_device(handle,&device)?resolve_legacy(&device,name):NULL;
++}
++
++/* The next layer's vkGetDeviceProcAddr, which the loader gives every device alike. */
++static PFN_vkGetDeviceProcAddr next_resolver;
++
++/* A command promoted to core answers to two names, vkCmdPushDescriptorSetWithTemplate and its KHR one, and a driver
++ * may give only one: the Pixel 10 and 11's PowerVR (Vulkan 1.4) give push descriptors their core names alone. Every
++ * lookup the layer makes tries the other name when the asked one finds nothing, so no command it calls is null. */
++static PFN_vkVoidFunction VKAPI_CALL resolve_either_name(VkDevice device, const char *name)
++{
++    PFN_vkVoidFunction found = next_resolver(device, name);
++    if (found || !name) return found;
++    char other[128];
++    size_t length = strlen(name);
++    if (length + 4 > sizeof(other)) return NULL;
++    memcpy(other, name, length + 1);
++    if (length > 3 && (!strcmp(name + length - 3, "KHR") || !strcmp(name + length - 3, "EXT"))) other[length - 3] = 0;
++    else memcpy(other + length, "KHR", 4);
++    return next_resolver(device, other);
+ }
+ 
+ VkResult VKAPI_CALL hybris_layer_create_device(VkPhysicalDevice physical,
+@@ -119,6 +138,9 @@
+     PFN_vkGetDeviceProcAddr resolver = link->u.pLayerInfo->pfnNextGetDeviceProcAddr;
+     PFN_vkCreateDevice create = (PFN_vkCreateDevice)next_instance(instance.instance, "vkCreateDevice");
+     if (!create || !resolver) return VK_ERROR_INITIALIZATION_FAILED;
++    /* One loader, one next layer: a device behind another keeps its lookups as they are. */
++    if (!next_resolver) next_resolver = resolver;
++    if (resolver == next_resolver) resolver = resolve_either_name;
+     VkResult result = hybris_bc_prepare_device(physical, info);
+     if (result == VK_SUCCESS) result = hybris_shader_prepare_device(physical, info);
+     if (result != VK_SUCCESS) return result;
