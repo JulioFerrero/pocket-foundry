@@ -11,7 +11,6 @@ import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.X11Prefs
 import org.json.JSONObject
-import java.io.File
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 
@@ -26,7 +25,6 @@ object GameResults {
     /** Acrarium's reporter for its "Pocket Foundry results" app: it can send and nothing else. */
     private const val REPORTER = "vcrMPQzmdNUKoUDP:tPDxgYHxxSPRT0TI"
     private const val EVERY_MS = 5_000L
-    private const val LOG_LINES = 300
 
     /** How a game ended, for Acrarium to group by: the words stay as they are, or its groups split. */
     enum class Outcome(val words: String) {
@@ -161,13 +159,13 @@ object GameResults {
     internal fun percentile(sorted: List<Float>, share: Double): Int =
         if (sorted.isEmpty()) 0 else sorted[((sorted.size - 1) * share).roundToInt()].roundToInt()
 
-    /** What a game that didn't end well needs: the ends of the screen's, the game's and the driver check's logs. */
+    /**
+     * What a game that didn't end well needs: the screen's, the game's and the driver check's logs, whole. Its first
+     * error can be anywhere: on a Pixel 10 it was 28,000 lines before the end (#65).
+     */
     private fun logs(paths: Paths) = listOf(paths.screenLog, paths.gameLog, paths.driverCheckLog).joinToString("\n") {
-        "── ${it.name} ──\n" + tail(it)
+        "── ${it.name} ──\n" + runCatching { it.readText().trimEnd() }.getOrDefault("(none)")
     }
-
-    private fun tail(file: File) = runCatching { file.readLines().takeLast(LOG_LINES).joinToString("\n") }
-        .getOrDefault("(none)")
 
     private const val ID = "resultsId"
     private const val SHARED_ID = "reportInstallation"

@@ -159,11 +159,11 @@ class LogActivity : Activity() {
             val driver = Drivers.find(this, played)?.name ?: played
             val gpu = Gpu.name ?: "GPU unknown"
             val ending = lastGame
-            val logs = shown
+            val head = phone
             val comment = what.text.toString().trim()
             val reply = contact.text.toString().trim()
             thread {
-                val sent = runCatching { Reports.send(this, driver, gpu, ending, comment, reply, logs) }
+                val sent = runCatching { Reports.send(this, driver, gpu, ending, comment, reply, head + whole()) }
                 mainHandler.post {
                     sent.onSuccess { id ->
                         host.close()
@@ -179,8 +179,8 @@ class LogActivity : Activity() {
             }
         }
         host.show("Send a report", 480, "Cancel", github, send) {
-            add(label(context, "Sends these logs and what you write here to Pocket Foundry's developer. Nothing " +
-                               "is sent until you tap Send.", 14f))
+            add(label(context, "Sends these logs, whole, and what you write here to Pocket Foundry's developer. " +
+                               "Nothing is sent until you tap Send.", 14f))
             add(link(context, "Privacy", Reports.PRIVACY))
             add(stack(context, Frame.DEEP) { add(what) })
             add(stack(context, Frame.DEEP) { add(contact) })
@@ -301,14 +301,30 @@ class LogActivity : Activity() {
         }
     }
 
+    /**
+     * Every log whole, off the main thread: what a report sends. The screen shows each one's start and end, as it
+     * reads them again every 2 s and the clipboard and a GitHub issue hold far less; but a driver's first error can
+     * be anywhere in between (28,000 lines on a Pixel 10, #65).
+     */
+    private fun whole(): String = LOGS.joinToString("\n") { excerpt ->
+        val file = excerpt.log(paths)
+        "── ${file.name} ──\n" + Excerpt.whole(file)
+    }
+
     private class Excerpt(val log: (Paths) -> File, val last: Int, val first: Int = 0) {
-        fun of(file: File): String = when {
-            !file.exists() -> "(none yet)"
-            file.length() == 0L -> "(empty)"
-            else -> file.readLines().let { lines ->
-                val between = lines.size - first - last
-                if (between <= 0) lines else lines.take(first) + "… $between lines …" + lines.takeLast(last)
-            }.joinToString("\n")
+        fun of(file: File): String = empty(file) ?: file.readLines().let { lines ->
+            val between = lines.size - first - last
+            if (between <= 0) lines else lines.take(first) + "… $between lines: Report sends them all …" + lines.takeLast(last)
+        }.joinToString("\n")
+
+        companion object {
+            fun whole(file: File): String = empty(file) ?: file.readText().trimEnd()
+
+            fun empty(file: File): String? = when {
+                !file.exists() -> "(none yet)"
+                file.length() == 0L -> "(empty)"
+                else -> null
+            }
         }
     }
 
