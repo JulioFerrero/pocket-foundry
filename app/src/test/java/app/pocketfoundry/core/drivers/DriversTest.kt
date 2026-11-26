@@ -11,9 +11,6 @@ import org.json.JSONObject
 import java.io.File
 
 class DriversTest {
-    private val MALI = "Mali-G76"
-    private val ADRENO = "Adreno (TM) 640"
-
     @Test fun `options are NAME=value pairs split by any whitespace`() {
         assertEquals(mapOf("TU_DEBUG" to "noconform", "MESA_VK_WSI_PRESENT_MODE" to "fifo", "ZINK_DEBUG" to "x"),
                      Drivers.parseOptions("TU_DEBUG=noconform\nMESA_VK_WSI_PRESENT_MODE=fifo\t  ZINK_DEBUG=x"))
@@ -72,25 +69,17 @@ class DriversTest {
     }
 
     @Test fun `MobileGlues is timed against the phone's own Vulkan, and on a Mali against a PanVK too`() {
-        assertEquals("phone", Drivers.rival(emptyList(), vulkan = true, gles, gpu = ADRENO) { false })
-        assertEquals("panvk", Drivers.rival(listOf("panvk"), vulkan = true, gles, gpu = MALI) { false })
-        assertEquals("phone", Drivers.rival(listOf("panvk"), vulkan = true, gles, gpu = MALI) { it == "panvk" })
-        assertEquals(null, Drivers.rival(listOf("panvk"), vulkan = false, gles, gpu = MALI) { it == "panvk" })
+        assertEquals("phone", Drivers.rival(emptyList(), vulkan = true, gles, mali = false) { false })
+        assertEquals("panvk", Drivers.rival(listOf("panvk"), vulkan = true, gles, mali = true) { false })
+        assertEquals("phone", Drivers.rival(listOf("panvk"), vulkan = true, gles, mali = true) { it == "panvk" })
+        assertEquals(null, Drivers.rival(listOf("panvk"), vulkan = false, gles, mali = true) { it == "panvk" })
     }
 
     @Test fun `MobileGlues isn't timed before Turnip, nor where the catalog lists it for the GPU`() {
-        assertEquals(null, Drivers.rival(listOf("turnip"), vulkan = true, gles, gpu = ADRENO) { false })
-        assertEquals(null, Drivers.rival(listOf("mobileglues"), vulkan = true, gles, gpu = MALI) { false })
-        assertEquals(null, Drivers.rival(listOf("panvk", "mobileglues"), vulkan = true, gles, gpu = MALI) { false })
-        assertEquals(null, Drivers.rival(listOf("panvk"), vulkan = true, emptyList(), gpu = MALI) { false })
-    }
-
-    @Test fun `on a PowerVR MobileGlues isn't timed and the phone's own Vulkan plays first, as on the Pixel 10 and 11`() {
-        for (gpu in listOf("PowerVR D-Series DXT-48-1536",
-                           "ANGLE (Imagination Technologies, Vulkan 1.4.317 (PowerVR C-Series CXTP-48-1536 MC1))")) {
-            assertEquals(gpu, null, Drivers.rival(emptyList(), vulkan = true, gles, gpu) { false })
-        }
-        assertEquals("phone", Drivers.recommend(emptyList(), vulkan = true, gles) { false })
+        assertEquals(null, Drivers.rival(listOf("turnip"), vulkan = true, gles, mali = false) { false })
+        assertEquals(null, Drivers.rival(listOf("mobileglues"), vulkan = true, gles, mali = true) { false })
+        assertEquals(null, Drivers.rival(listOf("panvk", "mobileglues"), vulkan = true, gles, mali = true) { false })
+        assertEquals(null, Drivers.rival(listOf("panvk"), vulkan = true, emptyList(), mali = true) { false })
     }
 
     private fun speed(vararg ms: Pair<Int, Double>) = ms.map { (width, ms) -> SpeedTest.Measured(width, width / 2, ms) }

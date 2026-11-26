@@ -22,8 +22,7 @@ If the first one can't play, the app moves on by itself: the next one for your G
 Phone's OpenGL ES (the other way round on the Malis above that get it first), then the CPU.
 
 Where it comes down to Phone's Vulkan and Phone's OpenGL ES, the first start times both, in about 15 seconds, and
-the one that drew faster plays. Not on a PowerVR (the Pixel 10 and 11): their OpenGL ES drew fastest yet couldn't load
-the game's textures, so their own Vulkan plays first.
+the one that drew faster plays.
 
 ## The check
 

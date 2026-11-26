@@ -132,31 +132,28 @@ object Drivers {
         val passedOver = { id: String ->
             DriverRecords.outcome(context, id) == Outcome.DIDNT_START || DriverCheck.passed(context, id) == false
         }
-        val rival = rival(fitting, vulkan, gles, Gpu.name) { passedOver(it) || failedInGame(it) }
+        val rival = rival(fitting, vulkan, gles, isMali()) { passedOver(it) || failedInGame(it) }
         val glesFaster = rival != null && gles.firstOrNull()
             ?.let { faster(DriverCheck.speed(context, it), DriverCheck.speed(context, rival)) } == true
         return recommend(fitting, vulkan, gles, glesFaster, failedInGame, passedOver)
     }
+
+    private fun isMali() = Gpu.name?.contains("Mali", ignoreCase = true) == true
 
     /**
      * The driver MobileGlues ([gles]' first) is timed against: the one that would play otherwise, among [fitting] and
      * the phone's own Vulkan, if it can ([out]: it can't). The phone's own anywhere; on a Mali, a PanVK too: a
      * Redmi Note 10S's 4-core G76 played at 54-60 FPS on MobileGlues and 25-40 on the PanVK listed first for the G76,
      * which a Huawei P30's 10-core G76 plays at 60 (#85). None where the catalog lists MobileGlues for this GPU (its
-     * players' games decided), nor before Turnip or RADV, which play better than the phone's OpenGL ES. Nor on a
-     * PowerVR, whose own Vulkan plays (58-60 FPS on a Pixel 10 Pro): MobileGlues drew a Pixel 10's speed test four
-     * times faster, then its texture uploads failed and the game crashed reading them back; a Pixel 11's crashed at
-     * start (#65). [gpu]: Android's name for it (Gpu.name).
+     * players' games decided), nor before Turnip or RADV, which play better than the phone's OpenGL ES.
      */
-    internal fun rival(fitting: List<String>, vulkan: Boolean, gles: List<String>, gpu: String?,
+    internal fun rival(fitting: List<String>, vulkan: Boolean, gles: List<String>, mali: Boolean,
                        out: (String) -> Boolean): String? {
         val mobileGlues = gles.firstOrNull() ?: return null
-        if (mobileGlues in fitting || gpu.named("PowerVR")) return null
+        if (mobileGlues in fitting) return null
         val first = (fitting + listOfNotNull(PHONE.takeIf { vulkan })).firstOrNull { it !in gles && !out(it) }
-        return first?.takeIf { it == PHONE || gpu.named("Mali") }
+        return first?.takeIf { it == PHONE || mali }
     }
-
-    private fun String?.named(family: String) = this?.contains(family, ignoreCase = true) == true
 
     /** The catalog's drivers for this GPU, best first, and its ones on the phone's own OpenGL ES: those that count. */
     private fun line(context: Context): Pair<List<String>, List<String>> {
@@ -192,7 +189,7 @@ object Drivers {
         val out = { id: String ->
             DriverCheck.passed(context, id) == false || DriverRecords.outcome(context, id) in cantPlay
         }
-        val rival = rival(fitting, Gpu.hasVulkan(context), gles, Gpu.name, out) ?: return null
+        val rival = rival(fitting, Gpu.hasVulkan(context), gles, isMali(), out) ?: return null
         val both = listOf(rival, gles.first())
         if (chosen(context) !in both || both.any(out)) return null
         return both.firstOrNull { !DriverCheck.timed(context, it) }
