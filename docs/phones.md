@@ -79,11 +79,16 @@ From players' reports, and tests on the vivo and on remote test phones.
 | vivo X200 Ultra | Adreno 830 | Turnip | 60 |
 | Galaxy S25 Ultra | Adreno 830 | Turnip | [60](https://github.com/JulioFerrero/pocket-foundry/issues/69) |
 | OnePlus 15 | Adreno 840 | Turnip | |
+| REDMAGIC 12 Pro | Adreno 850 | Turnip | 60 at 1553×702, High sprites |
+| Galaxy Z Fold (SM-F971U1) | Adreno 840 | Turnip | 60 |
 | Galaxy S24 Ultra | Adreno 750 | Turnip | |
+| Redmi K80 | Adreno 750 | Turnip | 60, High sprites |
 | Galaxy S23 | Adreno 740 | Turnip | 60 |
 | Xiaomi 13 | Adreno 740 | Turnip | |
 | AYN Thor | Adreno 740 | Turnip | 60 on a big factory |
 | POCO F5 Pro | Adreno 730 | Turnip | [60](https://github.com/JulioFerrero/pocket-foundry/issues/20) |
+| iQOO Z10 5G | Adreno 810 | Turnip | 55–58 |
+| POCO X6 | Adreno 710 | Turnip | 30, its 30 FPS setting |
 | Galaxy Z Fold 8 Ultra | Adreno | Turnip | Folded and unfolded |
 | Retroid Pocket Flip 2 | Adreno 650 | Turnip | |
 | Galaxy S20 FE | Adreno 650 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/12) |
@@ -107,6 +112,7 @@ From players' reports, and tests on the vivo and on remote test phones.
 | Galaxy S10 | Mali-G76 | PanVK 1.2.9 | 17–37 |
 | Redmi Note 10S | Mali-G76 | Phone's OpenGL ES | [54–60](https://github.com/JulioFerrero/pocket-foundry/issues/85) |
 | Pixel 8 | Mali-G715 | Phone's Vulkan | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/13) |
+| Pixel 9 Pro | Mali-G715 | Phone's OpenGL ES | 58–60 |
 | Xiaomi 15T Pro | Mali-G925 | Phone's Vulkan | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/2) |
 | OnePlus Nord 3 5G | Mali-G710 | Phone's OpenGL ES | [60, highest settings](https://github.com/JulioFerrero/pocket-foundry/issues/30) |
 | Redmi Note 13 Pro+ | Mali-G610 | Phone's Vulkan | [30–46, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/27) |
