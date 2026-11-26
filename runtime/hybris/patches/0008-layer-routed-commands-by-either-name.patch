@@ -1,0 +1,37 @@
+Layer: a routed command found by its other name.
+
+A command promoted to core answers to two names, vkCmdPushDescriptorSetWithTemplate and its KHR one, and a driver
+may give only one: the Pixel 11's PowerVR (Vulkan 1.4) gives only the core name. The null descriptors' routes asked
+for the KHR name, got nothing and called it, so Zink crashed on its first push descriptors (Pocket Foundry #65).
+When the asked name finds nothing, the other one is tried.
+
+--- a/hybris/vulkan/layer/device.c
++++ b/hybris/vulkan/layer/device.c
+@@ -229,11 +229,26 @@
+     hybris_scaled_free(retired->custom_allocator ? &retired->allocator : NULL, retired);
+ }
+ 
++/* A command promoted to core answers to two names, vkCmdPushDescriptorSetWithTemplate and its KHR one: a driver may
++ * give only one, as the Pixel 11's PowerVR (Vulkan 1.4) gives only the core name. The other name, tried when the
++ * asked one finds nothing, so a routed call never jumps to a null pointer. */
++static PFN_vkVoidFunction resolve_alias(const struct hybris_layer_device *device, const char *name)
++{
++    char alias[128];
++    size_t length = strlen(name);
++    if (length + 4 > sizeof(alias)) return NULL;
++    memcpy(alias, name, length + 1);
++    if (length > 3 && (!strcmp(name + length - 3, "KHR") || !strcmp(name + length - 3, "EXT"))) alias[length - 3] = 0;
++    else memcpy(alias + length, "KHR", 4);
++    return resolve_inner(device, alias);
++}
++
+ PFN_vkVoidFunction hybris_layer_handle_inner_proc(const void *handle, const char *name)
+ {
+     struct hybris_layer_device device;
+     if (!name || !lookup(handle, &device)) return NULL;
+-    return resolve_inner(&device, name);
++    PFN_vkVoidFunction found = resolve_inner(&device, name);
++    return found ? found : resolve_alias(&device, name);
+ }
+ PFN_vkVoidFunction hybris_layer_device_inner_proc(VkDevice handle,const char *name)
+ { return hybris_layer_handle_inner_proc(handle,name); }
