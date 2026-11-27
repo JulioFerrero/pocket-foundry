@@ -1,0 +1,53 @@
+--- a/hybris/common/q/linker.cpp
++++ b/hybris/common/q/linker.cpp
+@@ -2212,6 +2212,17 @@
+                                         info->library_namespace : nullptr);
+ }
+ 
++/* Pocket Foundry: dlopen(nullptr) asks for the main program, and dlsym() on that searches the libraries loaded
++ * globally. Under libhybris the Android linker has no main program (somain stays unset), so find_library() took a null
++ * soinfo and crashed on it: ANGLE does this as it starts (a Galaxy S24's Xclipse, a Pixel 11's PowerVR), and the game
++ * crashed before its first frame. It gets this handle instead, which dlsym() takes as RTLD_DEFAULT and dlclose() as
++ * nothing to close. */
++static char g_main_program;
++
++static void* main_program_handle() {
++  return &g_main_program;
++}
++
+ void* do_dlopen(const char* name, int flags,
+                 const android_dlextinfo* extinfo,
+                 const void* caller_addr) {
+@@ -2263,6 +2274,12 @@
+     }
+   }
+ 
++  if (name == nullptr) {
++    failure_guard.Disable();
++    LD_LOG(kLogDlopen, "... dlopen(nullptr): the main program's handle, %p", main_program_handle());
++    return main_program_handle();
++  }
++
+   // Workaround for dlopen(/system/lib/<soname>) when .so is in /apex. http://b/121248172
+   // The workaround works only when targetSdkVersion < Q.
+   std::string name_to_apex;
+@@ -2371,6 +2388,9 @@
+               const void* caller_addr,
+               void** symbol) {
+   ScopedTrace trace("dlsym");
++  if (handle == main_program_handle()) {
++    handle = RTLD_DEFAULT;
++  }
+ #if !defined(__LP64__)
+   if (handle == nullptr) {
+     DL_ERR("dlsym failed: library handle is null");
+@@ -2479,6 +2499,9 @@
+ 
+ int do_dlclose(void* handle) {
+   ScopedTrace trace("dlclose");
++  if (handle == main_program_handle()) {
++    return 0;
++  }
+   ProtectedDataGuard guard;
+   soinfo* si = soinfo_from_handle(handle);
+   if (si == nullptr) {
