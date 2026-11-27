@@ -175,6 +175,13 @@ class DriversTest {
         assertEquals(null, environment["VK_DRIVER_FILES"])
     }
 
+    @Test fun `MobileGlues is only a test driver where the phone's OpenGL ES is ANGLE, on its Vulkan driver`() {
+        assertFalse(Drivers.forTesting(entry("mobileglues", "gles"), angle = false))
+        assertTrue(Drivers.forTesting(entry("mobileglues", "gles"), angle = true))
+        assertFalse(Drivers.forTesting(entry("radv", "vulkan"), angle = true))
+        assertFalse(Drivers.forTesting(entry("cpu", "cpu"), angle = true))
+    }
+
     @Test fun `the CPU is for any GPU, like the phone's driver`() {
         val cpu = Drivers.Driver("cpu", "CPU", Drivers.Origin.CATALOG, "", entry = entry("cpu", "cpu"))
         assertTrue(Route.of(cpu).anyGpu)

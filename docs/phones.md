@@ -50,7 +50,8 @@ with it. From what it sees, not from which GPU it is, it:
 - **Phone's OpenGL ES:** the OpenGL ES driver your phone already has.
   [MobileGlues](https://github.com/MobileGL-Dev/MobileGlues) turns the game's OpenGL into it, without Zink or Vulkan.
   It needs nothing more than that, so every phone falls back on it before the CPU, and it comes with the app: it plays
-  without downloads. It plays on Malis from the G52 to the G925, many at 60 FPS, and on Adreno. **Wait for each
+  without downloads. Phones whose OpenGL ES driver is ANGLE (the Pixel 11, Galaxy S24 and A56) don't list it:
+  ANGLE draws through the phone's Vulkan driver, which Phone's Vulkan reaches directly. It plays on Malis from the G52 to the G925, many at 60 FPS, and on Adreno. **Wait for each
   frame** in its settings can look smoother on a phone that already reaches 60 FPS. **Check** times it.
 - **CPU:** draws on the processor, no GPU needed. Slow and hard on the battery; it sets Medium sprites, Light
   graphics and the lowest resolution.

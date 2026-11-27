@@ -35,9 +35,18 @@ object Drivers {
 
     fun all(context: Context): List<Driver> {
         val testing = Settings(context).testDrivers
-        return app() + listed(context).filter { testing || !it.testing }.map(::fromCatalog) +
+        return app() + listed(context).filter { testing || !forTesting(it, Gpu.angle) }.map(::fromCatalog) +
             DriverImport.all(Paths(context))
     }
+
+    /**
+     * Not for players, so listed only with Settings.testDrivers and never chosen by itself: a catalog driver marked
+     * so, and MobileGlues where the phone's OpenGL ES is [angle]. ANGLE draws through the phone's own Vulkan driver,
+     * which Phone's Vulkan reaches without MobileGlues and ANGLE in between; on a Pixel 11 (#65) and a Galaxy S24,
+     * MobileGlues on ANGLE crashed.
+     */
+    internal fun forTesting(entry: Catalog.Entry, angle: Boolean) =
+        entry.testing || angle && entry.kind == Catalog.Kind.GLES
 
     /**
      * The catalog's drivers, then those installed that it doesn't list (gone from it, or the app's own), then the
@@ -160,7 +169,7 @@ object Drivers {
         val online = downloads(context)
         val paths = Paths(context)
         val listed = listed(context)
-            .filter { !it.testing && (online || DriverImport.downloaded(paths, it.id) != null ||
+            .filter { !forTesting(it, Gpu.angle) && (online ||DriverImport.downloaded(paths, it.id) != null ||
                                       BundledDrivers.find(context, it.id) != null) }
             .sortedBy { it.priority }
         return listed.filter { Catalog.fits(it, Gpu.name, Catalog.android) }.map { it.id } to
