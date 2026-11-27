@@ -144,7 +144,7 @@ From players' reports, the game results players share, and tests on the vivo and
 | vivo Y33s | Mali-G52 | Phone's OpenGL ES | 15–23, its 30 FPS setting |
 | Redmi Note 9 | Mali-G52 | PanVK 1.2.9 | [25–32](https://github.com/JulioFerrero/pocket-foundry/issues/21) |
 | Pixel 10 Pro | PowerVR | Phone's Vulkan | 58–60, High sprites |
-| Pixel 11 | PowerVR | Phone's Vulkan | [35–60, Light graphics](https://github.com/JulioFerrero/pocket-foundry/issues/65) |
+| Pixel 11 | PowerVR | Phone's Vulkan | [50–60](https://github.com/JulioFerrero/pocket-foundry/issues/65#issuecomment-7220899075) |
 
 Yours works, or doesn't? [Open an issue](https://github.com/JulioFerrero/pocket-foundry/issues) with the Logs
 screen's Copy.
