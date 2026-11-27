@@ -31,7 +31,7 @@ class GameService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         // Swiping the game away in Recents quits it.
-        if (rootIntent?.component?.className == MainActivity::class.java.name) Session.quit()
+        if (rootIntent?.component?.className == MainActivity::class.java.name) Session.quitBySwipe(this)
     }
 
     override fun onDestroy() {

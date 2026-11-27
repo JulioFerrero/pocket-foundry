@@ -134,7 +134,7 @@ class LogActivity : Activity() {
         get() = Session.lastGame?.let { ending ->
             ending.closedBy ?: ending.failure?.let {
                 GameEnding.sentence(Drivers.find(this, ending.driver)?.name ?: ending.driver, it, ending.stage)
-            }
+            } ?: ending.gameError
         }
 
     private val host by lazy { DialogHost(this) {} }

@@ -27,6 +27,14 @@ class GameImportTest {
         assertTrue(refusal!!.startsWith("That's Factorio's headless server"))
     }
 
+    @Test fun `the headless server's sprite folder, with only the sprites' lua files, is refused too`() {
+        // 2.1.24's headless build has data/base/graphics/entity/ with about 400 .lua files and no PNG (2026-11-27).
+        val refusal = GameImport.refusal(paths, game("bin/arm64/factorio", "data/base/graphics/entity/inserter/inserter.lua"))
+        assertEquals(GameImport.HEADLESS, refusal)
+        assertNull(GameImport.refusal(paths, game("bin/arm64/factorio", "data/base/graphics/entity/inserter/inserter.lua",
+                                                  "data/base/graphics/entity/inserter/inserter-hand.png")))
+    }
+
     @Test fun `another build is refused by its missing binary`() {
         assertEquals("That isn't the Linux arm64 build of Factorio (bin/arm64/factorio is missing)",
                      GameImport.refusal(paths, game("bin/x64/factorio", "data/base/graphics/entity/inserter.png")))

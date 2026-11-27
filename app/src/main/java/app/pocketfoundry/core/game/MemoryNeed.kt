@@ -13,11 +13,13 @@ import java.util.zip.ZipFile
  * Whether the phone has the memory a game is about to take. Short of it, Android closes the app without a word, most
  * often as Factorio makes its atlases, halfway through loading: so the launcher says so before starting.
  *
- * Counted as the phone counts it: the memory Android calls available plus the free swap. What loads took, measured
- * with low VRAM on (2026-11-21): the base game started on a 3 GB Redmi 10C with 1.16 GB of that, at Medium and at
- * High; Space Age at Medium didn't with 0.94 GB (closed as its atlases began); Space Age at High took 4.6 GB of a
- * Galaxy Tab S8's 6.1 GB (atlases 2.4 GB on the GPU, which is the same RAM, and up to 1.3 GB the game's own).
- * Fast start's cache skips the decoding: a quarter less.
+ * Counted as the memory Android calls available plus the free swap, but no more swap than that: swap is compressed into
+ * the same memory, and Android closes the app long before a big swap fills (a 3.6 GB Galaxy F07, 2026-11-26, with 773
+ * MB available and 1.9 GB of swap free, lost Space Age at Medium with 2.4 GB of swap still free). What loads took,
+ * measured with low VRAM on (2026-11-21): the base game started on a 3 GB Redmi 10C with 1.16 GB of that, at Medium and
+ * at High; Space Age at Medium didn't with 0.94 GB (closed as its atlases began); Space Age at High took 4.6 GB of a
+ * Galaxy Tab S8's 6.1 GB (atlases 2.4 GB on the GPU, which is the same RAM, and up to 1.3 GB the game's own). Fast
+ * start's cache skips the decoding: a quarter less.
  *
  * A save's map comes on top, about 15 MB a MiB of its level.dat as Factorio unpacks it (2026-11-21): flame_Sla's 86 MiB
  * took 1.26 GB more than a small save on a Xiaomi 12T; gridlocked's 501 MiB held 7.3 GB on a vivo X200 Ultra, and
@@ -81,9 +83,9 @@ object MemoryNeed {
         return if (cached) (building * CACHED).toLong() else building
     }
 
-    /** From /proc/meminfo's kB: available memory and free swap, in MB. */
+    /** From /proc/meminfo's kB: available memory and free swap up to as much again, in MB. */
     internal fun freeMb(meminfo: Map<String, Long>): Long? =
-        meminfo["MemAvailable"]?.let { (it + (meminfo["SwapFree"] ?: 0L)) / 1024 }
+        meminfo["MemAvailable"]?.let { (it + minOf(meminfo["SwapFree"] ?: 0L, it)) / 1024 }
 
     /** Space Age is there and Factorio's mod list doesn't turn it off. */
     internal fun spaceAge(paths: Paths): Boolean {

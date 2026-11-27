@@ -34,6 +34,13 @@ class MemoryNeedTest {
         assertFalse(base.short)
     }
 
+    @Test fun `a big swap counts only up to the memory available, so the Galaxy F07 that lost Space Age is short`() {
+        // 2026-11-26: 773 MB available and 1888 MB of swap free; Android closed it with 2.4 GB of swap still free.
+        val free = MemoryNeed.freeMb(mapOf("MemAvailable" to 773L * 1024, "SwapFree" to 1888L * 1024))
+        assertEquals(1546L, free)
+        assertTrue(MemoryNeed.Check(free, MemoryNeed.neededMb(spaceAge = true, high = false, cached = false)).short)
+    }
+
     private fun save(vararg entries: Pair<String, Int>) = folder.newFile().apply {
         ZipOutputStream(outputStream()).use { zip ->
             for ((name, size) in entries) {

@@ -3,6 +3,8 @@ package app.pocketfoundry.core.game
 import app.pocketfoundry.core.game.GameEnding.Failure
 import app.pocketfoundry.core.game.GameEnding.Stage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GameEndingTest {
@@ -33,6 +35,21 @@ class GameEndingTest {
         // Quit straight away, or from the menu: nothing to learn.
         assertEquals(null, GameEnding.quitLoading(Stage.SPRITES, 59))
         assertEquals(null, GameEnding.quitLoading(Stage.PLAYING, 600))
+    }
+
+    @Test fun `Factorio's own last error says why it stopped by itself, and the headless build gets the import's words`() {
+        val mods = """
+               0.053 System info: [CPU: arm64, 8 cores, RAM: 7438 MB]
+               0.066 Error ModManager.cpp:1786: Failed to load mod "alien-biomes":
+               0.152 Error Util.cpp:81: Duplicate mod elevated-rails.
+               3.302 Goodbye
+            X Error:  GLXBadCurrentWindow
+        """.trimIndent()
+        assertEquals("Factorio stopped: Duplicate mod elevated-rails.", GameEnding.gameError(mods))
+        assertEquals(GameImport.HEADLESS, GameEnding.gameError(
+            "Error: This is a headless executable, cannot start in graphical mode (use --start-server).\n"))
+        assertNull(GameEnding.gameError("   0.000 Factorio 2.1.24\n   3.302 Goodbye\n"))
+        assertTrue(GameEnding.gameError("   1.000 Error Util.cpp:81: " + "x".repeat(300))!!.endsWith("…"))
     }
 
     @Test fun `in a sentence`() {

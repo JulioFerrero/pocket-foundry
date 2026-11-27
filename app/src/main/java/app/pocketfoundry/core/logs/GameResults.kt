@@ -10,6 +10,7 @@ import app.pocketfoundry.core.system.Paths
 import app.pocketfoundry.core.system.Settings
 import app.pocketfoundry.core.system.TAG
 import app.pocketfoundry.core.system.X11Prefs
+import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
@@ -94,6 +95,7 @@ object GameResults {
      */
     fun finish(context: Context, paths: Paths, driverId: String, outcome: Outcome, ending: String?) {
         stop()
+        Settings.prefs(context).edit().remove(KEPT).apply()
         if (Settings(context).shareResults != Settings.ON) return
         val drawn = synchronized(rates) { rates.sorted().also { rates.clear() } }
         // Read now: a next game, started straight away, writes over them.
@@ -104,6 +106,33 @@ object GameResults {
             runCatching { send(app, driverId, outcome, ending, drawn, log, logs) }
                 .onFailure { Log.w(TAG, "Game results not sent", it) }
         }
+    }
+
+    /**
+     * A game played and swiped away (Session.quitBySwipe): its result so far, written at once, as the app may be killed
+     * a second later. [finish] drops it when the game ends with the app still here; otherwise the next start sends it.
+     */
+    fun keep(context: Context, driverId: String) {
+        if (Settings(context).shareResults != Settings.ON) return
+        val drawn = synchronized(rates) { rates.toList() }
+        Settings.prefs(context).edit()
+            .putString(KEPT, JSONObject().put("driver", driverId).put("drawn", JSONArray(drawn.map { it.toDouble() })).toString())
+            .commit()
+    }
+
+    /** At the app's start, off the main thread: a result [keep] wrote for a game the app went down with. */
+    fun sendKept(context: Context) {
+        val prefs = Settings.prefs(context)
+        val kept = prefs.getString(KEPT, null) ?: return
+        prefs.edit().remove(KEPT).apply()
+        if (Settings(context).shareResults != Settings.ON) return
+        runCatching {
+            val json = JSONObject(kept)
+            val rates = json.getJSONArray("drawn")
+            val drawn = List(rates.length()) { rates.getDouble(it).toFloat() }.sorted()
+            val log = runCatching { Paths(context).gameLog.readText() }.getOrDefault("")
+            send(context, json.getString("driver"), Outcome.PLAYED, null, drawn, log, null)
+        }.onFailure { Log.w(TAG, "Kept game results not sent", it) }
     }
 
     private fun send(context: Context, driverId: String, outcome: Outcome, ending: String?, drawn: List<Float>,
@@ -168,6 +197,7 @@ object GameResults {
     }
 
     private const val ID = "resultsId"
+    private const val KEPT = "keptResult"
     private const val SHARED_ID = "reportInstallation"
 
     private val FACTORIO = Regex("""Factorio (\d+\.\d+\.\d+ \(build \d+, [^)]*\))""")

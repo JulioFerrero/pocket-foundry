@@ -32,14 +32,18 @@ class Program private constructor(private val process: Process, val pid: Int) {
      */
     fun kill() = signal(OsConstants.SIGKILL)
 
-    /** A program's exit status: a shell's, where above 128 means a signal killed it (139: SIGSEGV). */
+    /**
+     * A program's exit status: a shell's, where 129 to 192 mean a signal killed it (139: SIGSEGV). Above that it's the
+     * program's own: Factorio exits with 255 when a mod or its files stop it.
+     */
     class Exit(val status: Int) {
-        val signal: String? get() = if (status > SIGNALLED) SIGNALS[status - SIGNALLED] ?: "signal ${status - SIGNALLED}" else null
+        val signal: String? get() = (status - SIGNALLED).takeIf { it in 1..LAST_SIGNAL }?.let { SIGNALS[it] ?: "signal $it" }
         override fun toString() = signal?.let { "$status, killed by $it" } ?: "$status"
     }
 
     companion object {
         private const val SIGNALLED = 128
+        private const val LAST_SIGNAL = 64
         internal const val RESTART_PROGRAM = "POCKETFOUNDRY_PROGRAM"
         internal const val RESTART_LIBRARIES = "GLIBC_LD_LIBRARY_PATH"
         private val SIGNALS = mapOf(OsConstants.SIGILL to "SIGILL", OsConstants.SIGABRT to "SIGABRT",

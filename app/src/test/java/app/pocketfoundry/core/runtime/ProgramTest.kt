@@ -1,10 +1,18 @@
 package app.pocketfoundry.core.runtime
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.util.Locale
 
 class ProgramTest {
+    @Test fun `Factorio's own exit codes aren't signals, even above 128`() {
+        // A broken mod: Factorio exits with 255, once logged as "killed by signal 127".
+        assertEquals("255", Program.Exit(255).toString())
+        assertNull(Program.Exit(255).signal)
+        assertNull(Program.Exit(1).signal)
+    }
+
     @Test fun `east of UTC is a negative POSIX offset`() {
         assertEquals("UTC-02:00", Program.posixTimeZone(120))
     }

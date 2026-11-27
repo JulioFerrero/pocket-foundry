@@ -52,16 +52,21 @@ object GameImport {
 
     /**
      * Why the unpacked game in [dir] can't be played, or null. Factorio's headless server has the same binary but
-     * none of the graphics, and only says so once started: its entity sprites are most of the full game's 1.4 GB.
+     * none of the graphics, and only says so once started: its entity sprites are most of the full game's 1.4 GB, and
+     * the server has the folder with only their .lua files in it.
      */
     fun refusal(paths: Paths, dir: File): String? {
         val binary = paths.gameBinary.relativeTo(paths.game)
         val sprites = File(paths.baseGraphics, "entity").relativeTo(paths.game)
         return when {
             !dir.resolve(binary).exists() -> "That isn't the Linux arm64 build of Factorio ($binary is missing)"
-            !dir.resolve(sprites).isDirectory -> "That's Factorio's headless server, which has no graphics: import " +
-                "the full game."
+            !hasSprites(dir.resolve(sprites)) -> HEADLESS
             else -> null
         }
     }
+
+    const val HEADLESS = "That's Factorio's headless server, which has no graphics: import the full game."
+
+    /** The full game's entity sprites are PNGs. The headless server keeps only their .lua files there. */
+    private fun hasSprites(dir: File) = dir.walk().any { it.isFile && it.extension == "png" }
 }

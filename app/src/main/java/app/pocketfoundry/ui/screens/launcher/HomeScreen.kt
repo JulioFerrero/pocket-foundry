@@ -135,7 +135,7 @@ class HomeScreen(private val launcher: LauncherActivity) {
             when {
                 it.noWindow -> driverDidntStart(it.driver)
                 it.failure != null -> driverFailed(it)
-                else -> "Factorio stopped unexpectedly (${exit.status}). See Logs."
+                else -> it.gameError ?: "Factorio stopped unexpectedly (${exit.status}). See Logs."
             }
         }
         report.shown = ending?.failure != null || ending?.closedBy != null

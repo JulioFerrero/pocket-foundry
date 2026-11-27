@@ -18,12 +18,18 @@ object LastRun {
     private const val OPENED = "gameOpened"
     private const val DRIVER = "gameDriver"
     private const val LAUNCHED = "gameLaunched"
+    private const val QUIT = "gameQuit"
 
     /** A game's start, before its driver is set up: [driver] as chosen. */
     fun opened(context: Context, paths: Paths, driver: String) {
         paths.lastMemory.delete()
         Settings.prefs(context).edit().putLong(OPENED, System.currentTimeMillis()).putString(DRIVER, driver)
-            .putBoolean(LAUNCHED, false).commit()
+            .putBoolean(LAUNCHED, false).remove(QUIT).commit()
+    }
+
+    /** The player swiped the game away: if the app goes before the game ends, that was their quit, not a failure. */
+    fun quit(context: Context) {
+        Settings.prefs(context).edit().putBoolean(QUIT, true).commit()
     }
 
     /** Factorio started, on [driver]: game.log is this game's. */
@@ -33,25 +39,28 @@ object LastRun {
 
     /** It ended with the app still here, which said how. */
     fun closed(context: Context) {
-        Settings.prefs(context).edit().remove(OPENED).remove(DRIVER).remove(LAUNCHED).apply()
+        Settings.prefs(context).edit().remove(OPENED).remove(DRIVER).remove(LAUNCHED).remove(QUIT).apply()
     }
 
     /**
      * At the app's start, off the main thread: the game the app died in, if it did, said at the end of its screen.log.
-     * Returns how it ended, for Home and the report, or null when it wasn't a failure: a force stop or an update.
+     * Returns how it ended, for Home and the report, or null when it wasn't a failure: a force stop, an update, or a
+     * game the player swiped away (quit), which some phones' cleaners follow by killing the app.
      */
     fun check(context: Context): Session.Ending? {
         val prefs = Settings.prefs(context)
         val opened = prefs.getLong(OPENED, 0L).takeIf { it > 0 } ?: return null
         val driver = prefs.getString(DRIVER, null).orEmpty()
         val launched = prefs.getBoolean(LAUNCHED, false)
+        val quit = prefs.getBoolean(QUIT, false)
         closed(context)
         val paths = Paths(context)
         val exit = lastExit(context, opened)
         val stage = if (launched) GameEnding.stage(paths.gameLog) else null
         val memory = runCatching { paths.lastMemory.readText() }.getOrNull()?.takeIf { it.isNotBlank() }
         ScreenLog.addAfterDeath(paths, exit?.let { (it.timestamp - opened) / 1000.0 },
-                           line(exit, Build.VERSION.SDK_INT, memory))
+                           line(exit, Build.VERSION.SDK_INT, memory) + if (quit) " · after the game was swiped away" else "")
+        if (quit) return null
         return sentence(exit, Build.VERSION.SDK_INT, stage)?.let {
             Session.Ending(driver, null, false, closedBy = it,
                            closedForMemory = exit?.reason == ApplicationExitInfo.REASON_LOW_MEMORY)

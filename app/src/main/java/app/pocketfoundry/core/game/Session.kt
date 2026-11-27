@@ -42,11 +42,13 @@ object Session {
     /**
      * [exit] is Factorio's when it failed, null after a normal quit. [noWindow] says it never opened its window: the
      * graphics driver didn't start. [failure]: the driver failed it later, at [stage]. [closedBy]: the app went with
-     * it, said in a sentence (LastRun).
+     * it, said in a sentence (LastRun). [gameError]: Factorio stopped by itself, for a mod or the headless build, in
+     * its words (GameEnding.gameError).
      */
     class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean,
                  val failure: GameEnding.Failure? = null, val stage: GameEnding.Stage? = null,
-                 val closedBy: String? = null, private val closedForMemory: Boolean = false) {
+                 val closedBy: String? = null, private val closedForMemory: Boolean = false,
+                 val gameError: String? = null) {
         /** Android, or its low-memory killer, ended the game for memory. */
         val outOfMemory get() = closedForMemory || failure == GameEnding.Failure.OUT_OF_MEMORY
     }
@@ -66,7 +68,10 @@ object Session {
     /** The line Factorio writes as it opens its crash dialog, after the stack trace. */
     private const val CRASH_DIALOG = "Unexpected error occurred"
     private const val CRASH_TRACE_MS = 20_000L
-    private val MARKER_LENGTH = maxOf(DEVICE_LOST.length, CRASHED.length, CRASH_DIALOG.length)
+    /** Factorio's log as it quits: "Quitting: user-quit." from its menu, "Quitting: signal." for the app's quit. */
+    private const val QUITTING = "Quitting: "
+    private const val QUIT_HANG_MS = 10_000L
+    private val MARKER_LENGTH = maxOf(DEVICE_LOST.length, CRASHED.length, CRASH_DIALOG.length, QUITTING.length)
     private const val DEVICE_POLL_MS = 1_000L
     /**
      * glibc gives blocks of 1 MB and more back to Android as soon as the game frees them, instead of keeping them for
@@ -101,6 +106,7 @@ object Session {
     fun checkLastRun(context: Context) {
         val app = context.applicationContext
         thread(name = "pocketfoundry-last-run", isDaemon = true) {
+            GameResults.sendKept(app)
             val ending = LastRun.check(app) ?: return@thread
             synchronized(this) {
                 if (inGame) return@thread
@@ -119,6 +125,8 @@ object Session {
         @Volatile var windowOpened = false
         @Volatile var noWindow = false
         @Volatile var deviceLost = false
+        /** Quit from Factorio's own menu, then hung instead of exiting: stopped, and a quit all the same. */
+        @Volatile var quitHung = false
         val startedAt = SystemClock.elapsedRealtime()
     }
 
@@ -257,6 +265,19 @@ object Session {
         setState(State.QUITTING)
         // A game hung in the GPU driver ignores SIGTERM.
         mainHandler.postDelayed({ if (game.isAlive) game.kill() }, KILL_AFTER_MS)
+    }
+
+    /**
+     * Swiped away in Recents: the player's quit. Some phones' cleaners (OPPO's, realme's, Xiaomi's) kill the app a
+     * second or two later, before the game has ended: so the quit is written first (LastRun), and so is the game's
+     * result, for the next start to send.
+     */
+    @Synchronized
+    fun quitBySwipe(context: Context) {
+        val game = game ?: return
+        LastRun.quit(context)
+        if (game.windowOpened && !game.testing) GameResults.keep(context, game.driver)
+        quit()
     }
 
     fun runTool(context: Context, name: String): Program {
@@ -398,7 +419,8 @@ object Session {
         val unstarted = if (game.noWindow && exit.signal != null) " as it opened no window" else ""
         val memory = game.memory.last?.takeIf { exit.status != 0 }?.let { "; last memory: $it" } ?: ""
         ScreenLog.add("game exited ($exit$unstarted)$memory")
-        val failed = state != State.QUITTING && exit.status != 0
+        val quit = state == State.QUITTING || game.quitHung
+        val failed = !quit && exit.status != 0
         stopServers()
         this.game = null
         // Killed by a signal before its window opened: the driver crashed starting, like one that opens no window.
@@ -407,7 +429,9 @@ object Session {
         val failure = if (failed && !noWindow) GameEnding.failure(game.deviceLost, exit.signal, log) else null
         val stage = failure?.let { GameEnding.stage(log) }
         if (failure != null) ScreenLog.add("the driver ${failure.words}, ${stage?.words}: the next game passes it over")
-        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow, failure, stage)
+        // Stopped by itself with an error of its own: a mod or the headless build, which no driver would change.
+        val gameError = if (failed && !noWindow && failure == null) GameEnding.gameError(log) else null
+        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow, failure, stage, gameError = gameError)
         val outcome = when {
             game.testing -> null
             noWindow -> Drivers.Outcome.DIDNT_START
@@ -419,14 +443,14 @@ object Session {
         outcome?.let { Drivers.record(context, game.driver, it) }
         if (outcome == Drivers.Outcome.RAN) Settings(context).played = true
         // Quit before Factorio was ready: after a long wait, a load that may have been stuck (#93).
-        val quitLoading = if (state != State.QUITTING || noWindow || game.testing) null
+        val quitLoading = if (!quit || noWindow || game.testing) null
             else GameEnding.quitLoading(GameEnding.stage(Paths(context).gameLog),
                                         (SystemClock.elapsedRealtime() - game.startedAt) / 1000)
         val result = if (quitLoading != null) GameResults.Outcome.QUIT_LOADING else outcome?.let(GameResults.Outcome::of)
         if (result != null) {
             val words = quitLoading ?: failure?.let {
                 GameEnding.sentence(Drivers.find(context, game.driver)?.name ?: game.driver, it, stage)
-            }
+            } ?: gameError
             GameResults.finish(context, Paths(context), game.driver, result, words)
         }
         setState(State.STOPPED)
@@ -459,13 +483,24 @@ object Session {
      * growing by gigabytes (a Mali-G52 on PanVK-kbase went from 2 to 5.6 GB in 20 s). Once Factorio has crashed, it
      * writes its stack trace, then waits on a small desktop dialog over a black screen ("Unexpected error occurred
      * ... open the folder containing the log file?") that players can't make sense of: it goes once the trace is
-     * written, or after [CRASH_TRACE_MS].
+     * written, or after [CRASH_TRACE_MS]. Quit from its own menu, Factorio can hang instead of exiting (a Redmi Note 12
+     * Pro on Turnip, still there 48 s after "Quitting: user-quit."): it's stopped after [QUIT_HANG_MS], as a quit, and
+     * where its threads waited goes in screen.log.
      */
     private fun watchForFailure(game: Game, log: File) = thread(name = "pocketfoundry-game-failure", isDaemon = true) {
         var read = 0L
         var tail = ""
         var crashedAt = 0L
+        var quittingAt = 0L
         while (game.program.isAlive) {
+            if (quittingAt > 0 && state != State.QUITTING && System.currentTimeMillis() - quittingAt > QUIT_HANG_MS) {
+                ScreenLog.add("Factorio quit but hadn't exited ${QUIT_HANG_MS / 1000} s later" +
+                              waits(game.program.pid).let { if (it.isEmpty()) "" else " (its threads waiting in $it)" } +
+                              ": game stopped")
+                game.quitHung = true
+                game.program.kill()
+                return@thread
+            }
             if (crashedAt > 0 && System.currentTimeMillis() - crashedAt > CRASH_TRACE_MS) {
                 ScreenLog.add("Factorio crashed: game stopped")
                 game.program.kill()
@@ -488,6 +523,7 @@ object Session {
                     return@thread
                 }
                 if (crashedAt == 0L && CRASHED in text) crashedAt = System.currentTimeMillis()
+                if (quittingAt == 0L && QUITTING in text) quittingAt = System.currentTimeMillis()
                 if (crashedAt > 0 && CRASH_DIALOG in text) {
                     ScreenLog.add("Factorio crashed: game stopped")
                     game.program.kill()
@@ -498,6 +534,15 @@ object Session {
             Thread.sleep(DEVICE_POLL_MS)
         }
     }
+
+    /** Where a program's threads wait, the most first: "futex_wait_queue 14, do_epoll_wait 2". Empty if hidden. */
+    private fun waits(pid: Int): String = runCatching {
+        File("/proc/$pid/task").listFiles().orEmpty()
+            .mapNotNull { task -> runCatching { File(task, "wchan").readText().trim() }.getOrNull() }
+            .filter { it.isNotEmpty() && it != "0" }
+            .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
+            .joinToString(", ") { "${it.key} ${it.value}" }
+    }.getOrDefault("")
 
     private fun setState(new: State) {
         state = new

@@ -29,6 +29,16 @@ object GameEnding {
         else -> null
     }
 
+    /**
+     * Why Factorio stopped by itself, from the last error it logged, where the driver isn't to blame: "Factorio stopped:
+     * Duplicate mod elevated-rails." The headless server gets the import's words. Null when it logged none.
+     */
+    fun gameError(log: String): String? {
+        if (HEADLESS in log) return GameImport.HEADLESS
+        val error = ERROR.findAll(log).lastOrNull()?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return "Factorio stopped: ${if (error.length > ERROR_LENGTH) error.take(ERROR_LENGTH) + "…" else error}"
+    }
+
     /** "PanVK-kbase lost the GPU loading textures." */
     fun sentence(driverName: String, failure: Failure, stage: Stage?) =
         listOfNotNull(driverName, failure.words, stage?.words).joinToString(" ") + "."
@@ -56,6 +66,10 @@ object GameEnding {
     private const val SPRITES_LOADED = "Sprites loaded"
     private val SPRITE_LOADING = listOf("Created an atlas bitmap", "Parallel sprite loader")
     private const val CRASH = "Factorio crashed"
+    private const val HEADLESS = "This is a headless executable"
+    /** "   0.152 Error Util.cpp:81: Duplicate mod elevated-rails." Not the X server's "X Error: ...". */
+    private val ERROR = Regex("""(?m)^\s*(?:\d+\.\d+ )?Error(?: [\w.]+:\d+)?: (.+)$""")
+    private const val ERROR_LENGTH = 200
     private const val QUIT_LOADING_AFTER_S = 60L
     private const val LOG_HEAD = 2 shl 20
 
