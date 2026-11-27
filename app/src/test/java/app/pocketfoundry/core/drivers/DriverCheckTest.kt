@@ -279,4 +279,12 @@ class DriverCheckTest {
         assertEquals("Speed tested", DriverCheck.brief(drew))
         assertEquals("only the speed test: the check's program can't reach it", DriverCheck.summary(drew))
     }
+
+    @Test fun `the log keeps the newest drivers' parts whole, within its size`() {
+        val vulkan = "── driver: Phone's Vulkan, check\n" + "drivercheck: crashed with signal 11\n".repeat(3)
+        val gles = "── driver: Phone's OpenGL ES, speed test only\n── speed test\nspeedtest: 812x385 60 frames in 900 ms\n"
+        assertEquals(vulkan + gles, DriverCheck.kept(vulkan + gles, 10_000))
+        assertEquals(gles, DriverCheck.kept(vulkan + gles, gles.length + 10))
+        assertEquals("", DriverCheck.kept(vulkan + gles, 20))
+    }
 }

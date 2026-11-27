@@ -20,6 +20,7 @@
  * Exits 0 when it measured every size, 1 on a size it can't read, 2 when OpenGL didn't start (SpeedTest.kt reads
  * these).
  */
+#define _GNU_SOURCE
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -36,6 +37,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#include "crash.h"
 
 #ifdef SPEEDTEST_SDL
 /* Every OpenGL call it makes, from the driver SDL loaded: none from libGL, which may not be that driver. */
@@ -322,6 +325,7 @@ static SDL_Window *open_window(int width, int height)
 int main(int argc, char **argv)
 {
     setvbuf(stdout, NULL, _IOLBF, 0);
+    on_crash("speedtest");
     int widths[8], heights[8], sizes = 0;
     for (int i = 1; i < argc && sizes < 8; i++, sizes++) {
         if (sscanf(argv[i], "%dx%d", &widths[sizes], &heights[sizes]) != 2 || widths[sizes] < 1 || heights[sizes] < 1) {
@@ -465,6 +469,7 @@ static void no_vsync(Display *display, Window window)
 int main(int argc, char **argv)
 {
     setvbuf(stdout, NULL, _IOLBF, 0);
+    on_crash("speedtest");
     int widths[8], heights[8], sizes = 0;
     for (int i = 1; i < argc && sizes < 8; i++, sizes++) {
         if (sscanf(argv[i], "%dx%d", &widths[sizes], &heights[sizes]) != 2 || widths[sizes] < 1 || heights[sizes] < 1) {

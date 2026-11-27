@@ -299,7 +299,7 @@ object DriverCheck {
               onStep: (String, Float) -> Unit = { _, _ -> }): JSONObject {
         if (!Route.of(paths, driver).checked) return timeOnly(context, paths, driver, environment, onStep)
         ScreenLog.add("driver check: drawing a test picture")
-        paths.driverCheckLog.writeText("")
+        val start = startLog(context, paths, driver, "check")
         var timelines = false
         var openGL33 = false
         var base = environment + Route.of(paths, driver).withoutStandIns(environment)
@@ -361,18 +361,18 @@ object DriverCheck {
                 if (speed.isNotEmpty()) ScreenLog.add("speed test: ${SpeedTest.summary(speed)}")
             }
         }
-        MEMORY.findAll(paths.driverCheckLog.readText()).lastOrNull()?.destructured?.let { (total, available) ->
+        MEMORY.findAll(since(paths, start)).lastOrNull()?.destructured?.let { (total, available) ->
             result.put("memory", total.toInt()).put("available", available.toInt())
         }
-        noteFaults(paths, result)
+        noteFaults(paths, start, result)
         onStep("speed", 1f)
         DriverRecords.setCheck(context, driver, result)
         return result
     }
 
     /** From the last try on, what the game gets: the tries before it turned off what their faults came from. */
-    private fun noteFaults(paths: Paths, result: JSONObject) {
-        val log = paths.driverCheckLog.readText()
+    private fun noteFaults(paths: Paths, start: Int, result: JSONObject) {
+        val log = since(paths, start)
         val found = faults(log.substring(log.lastIndexOf("── off: ").coerceAtLeast(0))) ?: return
         result.put(FAULTS, found)
         ScreenLog.add("driver check: the GPU faulted ${found.optInt("count")} times: ${found.optString("first")}")
@@ -386,7 +386,7 @@ object DriverCheck {
      */
     private fun timeOnly(context: Context, paths: Paths, driver: String, environment: Map<String, String>,
                          onStep: (String, Float) -> Unit): JSONObject {
-        paths.driverCheckLog.writeText("")
+        val start = startLog(context, paths, driver, "speed test only")
         onStep("speed", 0.1f)
         val run = SpeedTest.measure(context, paths, driver, environment)
         val speed = run.measured
@@ -394,10 +394,14 @@ object DriverCheck {
         val result = JSONObject().put("version", version(context, driver)).put(SPEED_ONLY, true)
             .put("speed", SpeedTest.toJson(speed))
         if (run.crash != null) {
-            result.put("failed", true).put("why", "the speed test crashed (${run.crash})")
-            ScreenLog.add("driver check: the speed test crashed (${run.crash}): the game won't start on it")
+            // "in /vendor/lib64/hw/vulkan.samsung.so+0x170f3bc", from the program's own crash lines.
+            val where = since(paths, start).lines().firstOrNull { it.startsWith(SPEED_CRASHED_IN) }
+                ?.removePrefix("speedtest: ")
+            val why = "the speed test crashed (${run.crash})" + where?.let { " $it" }.orEmpty()
+            result.put("failed", true).put("why", why)
+            ScreenLog.add("driver check: $why: the game won't start on it")
         }
-        noteFaults(paths, result)
+        noteFaults(paths, start, result)
         onStep("speed", 1f)
         DriverRecords.setCheck(context, driver, result)
         return result
@@ -463,6 +467,35 @@ object DriverCheck {
         .filter { "instead of" in it || "crashed" in it || "X error" in it || it.startsWith("no ") ||
                   it.startsWith("in ") }
         .take(3).joinToString("; ")
+
+    /**
+     * Starts [driver]'s part of the log after what the checks and speed tests before it wrote, so that a report has
+     * every driver tried before a game: a Galaxy S24's Phone's Vulkan crashing its check, then Phone's OpenGL ES its
+     * speed test. Where the part starts, for what the check reads back ([since]).
+     */
+    private fun startLog(context: Context, paths: Paths, driver: String, what: String): Int {
+        val log = paths.driverCheckLog
+        val name = Drivers.find(context, driver)?.name ?: driver
+        val text = kept(if (log.exists()) log.readText() else "", LOG_KEEP) + "$PART$name, $what\n"
+        log.writeText(text)
+        return text.length
+    }
+
+    /** The newest whole parts of [log] that fit in [keep] characters. */
+    internal fun kept(log: String, keep: Int): String {
+        if (log.length <= keep) return log
+        val tail = log.takeLast(keep)
+        val start = tail.indexOf("\n$PART")
+        return if (start < 0) "" else tail.substring(start + 1)
+    }
+
+    /** The log from [start] on: one driver's part. */
+    private fun since(paths: Paths, start: Int) =
+        paths.driverCheckLog.readText().let { it.substring(start.coerceAtMost(it.length)) }
+
+    private const val PART = "── driver: "
+    private const val SPEED_CRASHED_IN = "speedtest: in "
+    private const val LOG_KEEP = 256 * 1024
 
     /** What the program wrote in its last run. */
     private fun lastRun(paths: Paths) = paths.driverCheckLog.readText().substringAfterLast("\n── ")
