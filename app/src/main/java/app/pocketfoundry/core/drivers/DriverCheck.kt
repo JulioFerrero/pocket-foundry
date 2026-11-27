@@ -160,9 +160,15 @@ object DriverCheck {
                        gpuCompression = found.optBoolean("gpuCompression"))
     }
 
-    /** [driver] goes through Zink, its Options don't hide extensions themselves, and this version is unchecked. */
-    fun needed(context: Context, paths: Paths, driver: String, environment: Map<String, String>) =
-        Route.of(paths, driver).checked && HIDE !in environment && current(context, driver) == null
+    /**
+     * This version of [driver] is unchecked, and it goes through Zink without Options that hide extensions themselves,
+     * or it's MobileGlues, which is timed before its first game: one whose speed test crashes would crash the game.
+     */
+    fun needed(context: Context, paths: Paths, driver: String, environment: Map<String, String>): Boolean {
+        val route = Route.of(paths, driver)
+        return current(context, driver) == null &&
+            (route == Route.MOBILEGLUES || route.checked && HIDE !in environment)
+    }
 
     /** Whether this version of [driver] can play here; null if it hasn't been checked. */
     fun passed(context: Context, driver: String) = current(context, driver)?.let(::passed)
@@ -217,6 +223,7 @@ object DriverCheck {
 
     internal fun brief(saved: JSONObject): String = when {
         saved.has(FAULTS) -> "GPU faults"
+        saved.optBoolean(SPEED_ONLY) && saved.optBoolean("failed") -> "Crashed"
         saved.optBoolean(SPEED_ONLY) -> "Speed tested"
         saved.optBoolean("noOpenGL") -> "No OpenGL"
         saved.optBoolean("failed") -> "Couldn't draw"
@@ -242,7 +249,8 @@ object DriverCheck {
         saved.optJSONObject(FAULTS)?.let {
             return "the GPU faulted while it drew, ${it.optInt("count")} times: ${it.optString("first")}"
         }
-        if (saved.optBoolean(SPEED_ONLY)) return "only the speed test: the check's program can't reach it"
+        if (saved.optBoolean(SPEED_ONLY)) return saved.optString("why").takeIf { saved.optBoolean("failed") }
+            ?: "only the speed test: the check's program can't reach it"
         val drew = passed(saved) || saved.optString("textures") == NO_WAY
         return (listOfNotNull(
             "Zink got no OpenGL from the driver".takeIf { saved.optBoolean("noOpenGL") },
@@ -344,7 +352,7 @@ object DriverCheck {
                 val readbacks = if (game["MESA_VK_WSI_DEBUG"] == "sw") listOf("0", "1") else listOf(null)
                 val timed = readbacks.map { mode ->
                     mode to SpeedTest.measure(context, paths, driver,
-                                              game + listOfNotNull(mode?.let { SW_READBACK to it }))
+                                              game + listOfNotNull(mode?.let { SW_READBACK to it })).measured
                 }
                 val (readback, speed) = timed.filter { it.second.isNotEmpty() }
                     .minByOrNull { (_, measured) -> measured.sumOf { it.ms } } ?: timed.first()
@@ -372,16 +380,23 @@ object DriverCheck {
 
     /**
      * A driver the check's program can't try (MobileGlues: no Mesa for it), only timed: the speed test reaches it as
-     * the game does, through SDL. Kept like a check, [SPEED_ONLY], so it isn't timed again until it changes.
+     * the game does, through SDL. Kept like a check, [SPEED_ONLY], so it isn't timed again until it changes. One that
+     * crashes the speed test fails, as the game would crash the same way: a Pixel 11's and a Galaxy S24's ANGLE did
+     * both, and the game was started on it all the same (#65).
      */
     private fun timeOnly(context: Context, paths: Paths, driver: String, environment: Map<String, String>,
                          onStep: (String, Float) -> Unit): JSONObject {
         paths.driverCheckLog.writeText("")
         onStep("speed", 0.1f)
-        val speed = SpeedTest.measure(context, paths, driver, environment)
+        val run = SpeedTest.measure(context, paths, driver, environment)
+        val speed = run.measured
         if (speed.isNotEmpty()) ScreenLog.add("speed test: ${SpeedTest.summary(speed)}")
         val result = JSONObject().put("version", version(context, driver)).put(SPEED_ONLY, true)
             .put("speed", SpeedTest.toJson(speed))
+        if (run.crash != null) {
+            result.put("failed", true).put("why", "the speed test crashed (${run.crash})")
+            ScreenLog.add("driver check: the speed test crashed (${run.crash}): the game won't start on it")
+        }
         noteFaults(paths, result)
         onStep("speed", 1f)
         DriverRecords.setCheck(context, driver, result)

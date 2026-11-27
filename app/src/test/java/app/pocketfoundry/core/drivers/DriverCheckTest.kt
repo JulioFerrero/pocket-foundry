@@ -266,4 +266,17 @@ class DriverCheckTest {
         assertEquals(1, faults.optInt("count"))
         assertEquals("DEVICE LOST! (../src/gallium/drivers/zink/zink_screen.c:2709)", faults.optString("first"))
     }
+
+    @Test fun `MobileGlues whose speed test crashed can't play and says so, one that drew can`() {
+        // A Galaxy S24's ANGLE (#65): the speed test crashed as the game would have.
+        val crashed = JSONObject().put("version", "MobileGlues 2.3.0").put("speedOnly", true)
+            .put("failed", true).put("why", "the speed test crashed (SIGSEGV)")
+        assertEquals(false, DriverCheck.passed(crashed))
+        assertEquals("Crashed", DriverCheck.brief(crashed))
+        assertEquals("the speed test crashed (SIGSEGV)", DriverCheck.summary(crashed))
+        val drew = JSONObject().put("version", "MobileGlues 2.3.0").put("speedOnly", true)
+        assertEquals(true, DriverCheck.passed(drew))
+        assertEquals("Speed tested", DriverCheck.brief(drew))
+        assertEquals("only the speed test: the check's program can't reach it", DriverCheck.summary(drew))
+    }
 }

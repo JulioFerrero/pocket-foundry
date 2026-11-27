@@ -35,6 +35,9 @@ object SpeedTest {
         fun toJson(): JSONObject = JSONObject().put("width", width).put("height", height).put("ms", ms)
     }
 
+    /** What a run gave: the sizes it drew, and the signal that killed it if it crashed. */
+    class Run(val measured: List<Measured>, val crash: String?)
+
     /** A frame takes [fixedMs] whatever the size, plus [msPerMegapixel] for each million pixels. */
     class Model(val fixedMs: Double, val msPerMegapixel: Double) {
         fun fps(pixels: Long) = 1000 / (fixedMs + msPerMegapixel * pixels / 1e6)
@@ -48,9 +51,9 @@ object SpeedTest {
 
     /**
      * Off the main thread, with an X server running: [driver] at the finest and coarsest of [scales], in the game's
-     * [environment]. Empty when it couldn't draw; the log says why.
+     * [environment]. Nothing measured when it couldn't draw; the log says why.
      */
-    fun measure(context: Context, paths: Paths, driver: String, environment: Map<String, String>): List<Measured> {
+    fun measure(context: Context, paths: Paths, driver: String, environment: Map<String, String>): Run {
         val x11 = X11Prefs(context)
         val sizes = scales(x11).let { listOf(it.first(), it.last()).distinct() }.map(x11::gameSize)
         paths.driverCheckLog.appendText("── speed test\n")
@@ -63,10 +66,10 @@ object SpeedTest {
             program.kill()
             program.waitFor()
             paths.driverCheckLog.appendText("── still drawing after $TIMEOUT_S s: stopped\n")
-            return emptyList()
+            return Run(emptyList(), null)
         }
         if (exit.status != 0) paths.driverCheckLog.appendText("── exited with $exit\n")
-        return parse(paths.driverCheckLog.readText())
+        return Run(parse(paths.driverCheckLog.readText()), exit.signal)
     }
 
     private val LINE = Regex("""speedtest: (\d+)x(\d+) (\d+) frames in (\d+) ms""")

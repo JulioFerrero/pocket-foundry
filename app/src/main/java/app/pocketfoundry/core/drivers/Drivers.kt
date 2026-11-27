@@ -238,7 +238,8 @@ object Drivers {
         val online = downloads(context)
         if (find(context, id) == null) throw IOException(
             if (online) "No driver list yet. Check the connection and try again."
-            else "Driver downloads are off: turn them on in Settings for a driver this phone can play with.")
+            else "None of the drivers here can play on this phone, and driver downloads are off: turn them on in " +
+                "Settings for one that can.")
         val entry = pending(context, id) ?: return
         val installed = DriverImport.downloaded(Paths(context), id) != null
         // Off, a newer build waits; one that isn't here can't be had.

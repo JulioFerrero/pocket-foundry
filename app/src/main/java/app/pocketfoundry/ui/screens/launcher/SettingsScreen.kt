@@ -257,7 +257,8 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         val pad = gamepads(launcher).any()
         controllerButtons.isEnabled = pad
         controllerButtons.text = if (pad) "Change" else "None connected"
-        driver.text = Drivers.find(launcher, Drivers.chosen(launcher))?.name.orEmpty()
+        // None of those here can play, and the CPU needs the driver list (Drivers.prepare).
+        driver.text = Drivers.find(launcher, Drivers.chosen(launcher))?.name ?: "None can play"
     }
 
     private companion object {
