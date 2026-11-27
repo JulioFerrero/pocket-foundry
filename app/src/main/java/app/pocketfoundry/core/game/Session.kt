@@ -71,6 +71,8 @@ object Session {
     /** Factorio's log as it quits: "Quitting: user-quit." from its menu, "Quitting: signal." for the app's quit. */
     private const val QUITTING = "Quitting: "
     private const val QUIT_HANG_MS = 10_000L
+    /** How long to wait for Factorio to write its crash trace (CrashFrames.TRACE_DONE). */
+    private const val CRASH_TRACE_WAIT_MS = 5_000L
     private val MARKER_LENGTH = maxOf(DEVICE_LOST.length, CRASHED.length, CRASH_DIALOG.length, QUITTING.length)
     private const val DEVICE_POLL_MS = 1_000L
     /**
@@ -127,6 +129,8 @@ object Session {
         @Volatile var deviceLost = false
         /** Quit from Factorio's own menu, then hung instead of exiting: stopped, and a quit all the same. */
         @Volatile var quitHung = false
+        /** Its crash's frames are in screen.log already (logCrashFrames). */
+        @Volatile var crashLogged = false
         val startedAt = SystemClock.elapsedRealtime()
     }
 
@@ -471,6 +475,7 @@ object Session {
             }
             if (NO_WINDOW.any { it in text }) {
                 game.noWindow = true
+                if (CRASHED in text) logCrashFrames(game, log)
                 game.program.kill()
                 return@thread
             }
@@ -502,6 +507,7 @@ object Session {
                 return@thread
             }
             if (crashedAt > 0 && System.currentTimeMillis() - crashedAt > CRASH_TRACE_MS) {
+                logCrashFrames(game, log)
                 ScreenLog.add("Factorio crashed: game stopped")
                 game.program.kill()
                 return@thread
@@ -525,6 +531,7 @@ object Session {
                 if (crashedAt == 0L && CRASHED in text) crashedAt = System.currentTimeMillis()
                 if (quittingAt == 0L && QUITTING in text) quittingAt = System.currentTimeMillis()
                 if (crashedAt > 0 && CRASH_DIALOG in text) {
+                    logCrashFrames(game, log)
                     ScreenLog.add("Factorio crashed: game stopped")
                     game.program.kill()
                     return@thread
@@ -533,6 +540,26 @@ object Session {
             }
             Thread.sleep(DEVICE_POLL_MS)
         }
+    }
+
+    /**
+     * The crash's trace in libraries and offsets (CrashFrames), into screen.log and so into a report: read while
+     * Factorio still lives, before either watcher stops it, once its trace is written ([CRASH_TRACE_WAIT_MS] at most).
+     */
+    private fun logCrashFrames(game: Game, log: File) {
+        synchronized(game) {
+            if (game.crashLogged) return
+            game.crashLogged = true
+        }
+        val deadline = System.currentTimeMillis() + CRASH_TRACE_WAIT_MS
+        var text = runCatching { log.readText() }.getOrDefault("")
+        while (CrashFrames.TRACE_DONE !in text && game.program.isAlive && System.currentTimeMillis() < deadline) {
+            Thread.sleep(LOG_POLL_MS)
+            text = runCatching { log.readText() }.getOrDefault("")
+        }
+        val maps = runCatching { File("/proc/${game.program.pid}/maps").readText() }.getOrDefault("")
+        val frames = CrashFrames.frames(text, maps)
+        if (frames.isNotEmpty()) ScreenLog.add("Factorio crashed in: " + frames.joinToString(" · "))
     }
 
     /** Where a program's threads wait, the most first: "futex_wait_queue 14, do_epoll_wait 2". Empty if hidden. */
