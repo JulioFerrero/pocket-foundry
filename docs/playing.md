@@ -153,12 +153,12 @@ still works as the mouse too.
   graphics error. A black screen or a frozen picture shows where it happens. Turn it on, play until
   the problem shows, then copy the Logs.
 - **Share results:** off until you say yes; Pocket Foundry asks once, after your first game. Then after each game it
-  sends how it ran to reports.pocketfoundry.dev: the phone's model and Android version, the GPU, the driver and its
-  version, Factorio's version, the resolution, sprites and graphics, Fast CPU, the FPS, the minutes played and how
-  the game ended, with the logs when it didn't end well: it didn't start, failed or stopped, it was quit after a minute
-  or more still loading, or Android closed the app during it (sent at the app's next start). No saves, no account and
-  nothing that names you, only a random id the install makes for itself, which Settings shows. It shows which driver
-  plays best on each phone.
+  sends how it ran to reports.pocketfoundry.dev: the phone's model and the name it's sold under, its Android version,
+  the GPU, the driver and its version, Factorio's version, the resolution, sprites and graphics, Fast CPU, the FPS, the
+  minutes played and how the game ended, with the logs when it didn't end well: it didn't start, failed or stopped, it
+  was quit after a minute or more still loading, or Android closed the app during it (sent at the app's next start). No
+  saves, no account and nothing that names you, only a random id the install makes for itself, which Settings shows. It
+  shows which driver plays best on each phone.
 - **Logs -> Report** sends the Logs, as a file, and what you write to Pocket Foundry's developer at
   reports.pocketfoundry.dev, privately, when you tap Send. Its GitHub button opens a public issue instead.
 - **Privacy:** what reports and results hold, how long they're kept and how to have yours deleted:

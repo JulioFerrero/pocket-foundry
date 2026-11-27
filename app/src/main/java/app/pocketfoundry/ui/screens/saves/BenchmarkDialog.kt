@@ -6,6 +6,7 @@ import android.os.Build
 import app.pocketfoundry.LauncherActivity
 import app.pocketfoundry.core.game.Benchmark
 import app.pocketfoundry.core.game.GameImport
+import app.pocketfoundry.core.logs.Phone
 import app.pocketfoundry.core.system.CpuClocks
 import app.pocketfoundry.core.system.appVersion
 import app.pocketfoundry.core.system.background
@@ -97,7 +98,7 @@ class BenchmarkDialog(private val launcher: LauncherActivity) {
         return listOfNotNull(
             String.format(Locale.ROOT, "Factorio benchmark: %s, %.1f UPS (best of %d × %d updates, no mods)",
                           r.save, r.ups, Benchmark.RUNS, Benchmark.TICKS),
-            "${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE}",
+            "${Phone.label}, Android ${Build.VERSION.RELEASE}",
             GameImport.installedVersion(launcher)?.let { "Factorio $it" },
             "Pocket Foundry ${launcher.appVersion()}",
             held.ifEmpty { null },

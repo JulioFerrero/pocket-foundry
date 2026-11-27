@@ -117,7 +117,7 @@ From players' reports, the game results players share, and tests on the vivo and
 | Huawei P30 | Mali-G76 | PanVK 1.2.9 | [60](https://github.com/JulioFerrero/pocket-foundry/issues/56) |
 | Galaxy S10 | Mali-G76 | PanVK 1.2.9 | 17–37 |
 | Redmi Note 10S | Mali-G76 | Phone's OpenGL ES | [54–60](https://github.com/JulioFerrero/pocket-foundry/issues/85) |
-| Honor 20 | Mali-G76 | Phone's OpenGL ES | 53–60 |
+| HUAWEI nova 5T | Mali-G76 | Phone's OpenGL ES | 53–60 |
 | Pixel 8 | Mali-G715 | Phone's Vulkan | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/13) |
 | Pixel 9 Pro | Mali-G715 | Phone's OpenGL ES | 58–60 |
 | Pixel 9 Pro XL | Mali-G715 | Phone's OpenGL ES | 42–60 |

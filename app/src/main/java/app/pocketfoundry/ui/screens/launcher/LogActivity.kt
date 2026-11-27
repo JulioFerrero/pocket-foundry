@@ -37,6 +37,7 @@ import app.pocketfoundry.core.drivers.Gpu
 import app.pocketfoundry.core.drivers.SpeedTest
 import app.pocketfoundry.core.game.GameEnding
 import app.pocketfoundry.core.game.Session
+import app.pocketfoundry.core.logs.Phone
 import app.pocketfoundry.core.logs.Reports
 import app.pocketfoundry.core.logs.ScreenLog
 import app.pocketfoundry.core.runtime.Runtime
@@ -214,7 +215,7 @@ class LogActivity : Activity() {
     private fun reportOnGitHub() {
         load()
         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Pocket Foundry logs", shown))
-        val phone = "${Build.MANUFACTURER} ${Build.MODEL}"
+        val phone = Phone.label
         val what = lastGame
         val url = Uri.parse("https://github.com/$REPOSITORY/issues/new").buildUpon()
             .appendQueryParameter("template", "1-bug.yml")
@@ -246,7 +247,7 @@ class LogActivity : Activity() {
         // file name, as PanVK builds all report the same Mesa version.
         val played = ScreenLog.driver ?: Drivers.chosen(this)
         val driver = Drivers.find(this, played)?.let { "${it.name} (${Drivers.version(this, it)})" }
-        val facts = listOfNotNull("${Build.MANUFACTURER} ${Build.MODEL}", "Android ${Build.VERSION.RELEASE}",
+        val facts = listOfNotNull(Phone.label, "Android ${Build.VERSION.RELEASE}",
                                   Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
         val options = DriverRecords.options(this, played)
