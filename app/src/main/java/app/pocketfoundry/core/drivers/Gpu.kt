@@ -17,12 +17,6 @@ object Gpu {
 
     val name: String? get() = info?.renderer
 
-    /**
-     * Android's OpenGL ES is ANGLE, which draws through the phone's own Vulkan driver: "ANGLE ((Samsung Xclipse 940)
-     * on Vulkan 1.3.279)", a Pixel 11's "ANGLE (Imagination Technologies, Vulkan 1.4.317 (PowerVR …".
-     */
-    val angle: Boolean get() = name?.startsWith("ANGLE") == true
-
     /** As Android's OpenGL ES driver gives it ("OpenGL ES 3.2 v1.r38p1-…"): a phone update can change it. */
     val driverVersion: String? get() = info?.version
 
