@@ -15,7 +15,27 @@ object Gpu {
         runCatching { query() }.onFailure { Log.w(TAG, "Couldn't ask the GPU's name", it) }.getOrNull()
     }
 
-    val name: String? get() = info?.renderer
+    /** The GPU's name, as players and the driver list know it (shownName). */
+    val name: String? get() = info?.renderer?.let(::shownName)
+
+    /** As Android's OpenGL ES gives it, ANGLE's wrapping and all: for the logs. */
+    val renderer: String? get() = info?.renderer
+
+    /**
+     * The GPU's own name, where Android's OpenGL ES is ANGLE and puts it inside its own: "ANGLE ((Samsung Xclipse 940)
+     * on Vulkan 1.3.279)" is "Samsung Xclipse 940", and "ANGLE (Imagination Technologies, Vulkan 1.4.317 (PowerVR
+     * C-Series CXTP-48-1536 MC1 (0x70061042)), PowerVR C-Series Vulkan Driver-1.662.3024)" a Pixel 11's "PowerVR
+     * C-Series CXTP-48-1536 MC1". Home and the welcome screen said the whole of it.
+     */
+    internal fun shownName(renderer: String): String {
+        if (!renderer.startsWith("ANGLE (")) return renderer
+        SAMSUNG_ANGLE.find(renderer)?.let { return it.groupValues[1] }
+        ANGLE_DEVICE.find(renderer)?.let { return it.groupValues[1] }
+        return renderer
+    }
+
+    private val SAMSUNG_ANGLE = Regex("""^ANGLE \(\((.+?)\) on Vulkan""")
+    private val ANGLE_DEVICE = Regex("""Vulkan [\d.]+ \((.+?) \(0x[0-9a-fA-F]+\)\)""")
 
     /** As Android's OpenGL ES driver gives it ("OpenGL ES 3.2 v1.r38p1-…"): a phone update can change it. */
     val driverVersion: String? get() = info?.version

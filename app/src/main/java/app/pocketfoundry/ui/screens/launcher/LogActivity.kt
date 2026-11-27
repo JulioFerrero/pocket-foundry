@@ -248,7 +248,7 @@ class LogActivity : Activity() {
         val played = ScreenLog.driver ?: Drivers.chosen(this)
         val driver = Drivers.find(this, played)?.let { "${it.name} (${Drivers.version(this, it)})" }
         val facts = listOfNotNull(Phone.label, "Android ${Build.VERSION.RELEASE}",
-                                  Gpu.name ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
+                                  Gpu.renderer ?: "GPU unknown", driver, "Pocket Foundry ${appVersion()}")
         val pads = gamepads(this).joinToString(", ") { it.name + if (it.isExternal) "" else " (built in)" }
         val options = DriverRecords.options(this, played)
         // Every driver checked here, the one the logs are about first: the setup may have passed others over.

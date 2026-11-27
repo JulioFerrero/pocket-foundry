@@ -68,7 +68,9 @@ class WelcomeScreen(private val launcher: LauncherActivity) {
     fun update(error: String?) {
         // The catalog can arrive while this shows: it may have a driver for the GPU.
         gpuNote.text = when (Drivers.recommended(launcher)) {
-            Drivers.CPU -> "No GPU driver for this phone's ${Gpu.name} yet: the game runs on the CPU, slowly."
+            // Without the driver list there's no CPU driver either: the error under it says so.
+            Drivers.CPU -> if (Drivers.find(launcher, Drivers.CPU) == null) ""
+                           else "No GPU driver for this phone's ${Gpu.name} yet: the game runs on the CPU, slowly."
             Drivers.PHONE -> "This phone's ${Gpu.name} runs the game through its own driver."
             else -> ""
         }
