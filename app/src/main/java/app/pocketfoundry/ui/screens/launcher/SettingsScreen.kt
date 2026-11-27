@@ -55,6 +55,7 @@ class SettingsScreen(private val launcher: LauncherActivity) {
                              "Factorio next starts.", 13f, Factorio.MUTED)
     private val fastStart = label(launcher, FAST_START, 15f)
     private val shareResultsLabel = label(launcher, "", 15f)
+    private val driverDownloadsLabel = label(launcher, "", 15f)
     private val shareResults = checkBox(launcher, settings.shareResults == Settings.ON) { on ->
         settings.shareResults = if (on) Settings.ON else Settings.OFF
     }
@@ -178,15 +179,20 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         setting(label(launcher, "", 15f).apply { text = withNote("Fast CPU", "warmer, more battery", Factorio.FAINT) },
                 checkBox(launcher, settings.fastCpu) { settings.fastCpu = it }, controlHeight = CONTROL_HEIGHT),
         checkSetting("Detailed logs", settings.detailedLogs) { settings.detailedLogs = it },
-        setting(label(launcher, "", 15f).apply {
-            text = withNote("Driver downloads", "from GitHub, outside F-Droid's checks", Factorio.FAINT)
-        }, driverDownloads, controlHeight = CONTROL_HEIGHT),
+        setting(driverDownloadsLabel, driverDownloads, controlHeight = CONTROL_HEIGHT),
         setting(shareResultsLabel, shareResults, controlHeight = CONTROL_HEIGHT),
         setting("Privacy", link(launcher, "What's sent and kept", Reports.PRIVACY, 15f).apply {
             gravity = Gravity.CENTER_VERTICAL
         }, controlHeight = CONTROL_HEIGHT))
 
     /** The id is what a player quotes to have their results deleted. */
+    /** What turning them on is doing, while it is: the list comes 6 or 7 s later. */
+    private fun showDriverDownloads() {
+        driverDownloadsLabel.text = withNote("Driver downloads",
+                                             launcher.fetching?.let { "$it…" } ?: "from GitHub, outside F-Droid's checks",
+                                             Factorio.FAINT)
+    }
+
     private fun showShareResults() {
         val id = GameResults.shownId(launcher)
         shareResultsLabel.text = withNote("Share results", if (id == null) "how each game ran" else "how each game ran, id $id",
@@ -252,13 +258,15 @@ class SettingsScreen(private val launcher: LauncherActivity) {
         credit.shown = !Session.inGame
         importAgain.isEnabled = !Session.inGame && idle
         driverDownloads.isChecked = settings.driverDownloads == Settings.ON
+        showDriverDownloads()
         shareResults.isChecked = settings.shareResults == Settings.ON
         showShareResults()
         val pad = gamepads(launcher).any()
         controllerButtons.isEnabled = pad
         controllerButtons.text = if (pad) "Change" else "None connected"
         // None of those here can play, and the CPU needs the driver list (Drivers.prepare).
-        driver.text = Drivers.find(launcher, Drivers.chosen(launcher))?.name ?: "None can play"
+        driver.text = launcher.fetching?.let { "$it…" } ?: Drivers.find(launcher, Drivers.chosen(launcher))?.name
+            ?: "None can play"
     }
 
     private companion object {

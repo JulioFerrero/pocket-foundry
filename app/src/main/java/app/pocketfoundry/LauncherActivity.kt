@@ -84,6 +84,12 @@ class LauncherActivity : Activity() {
     private var importingNow = false
     /** The start screen shows: the app's start, or a driver downloading before a game. */
     private var loading = false
+    /**
+     * What getting the driver list and this phone's driver is doing, while it is: Settings and the Driver dialog
+     * show it, as they hide the start screen that says it too. Downloads turned on there showed nothing for 6 or 7 s.
+     */
+    var fetching: String? = null
+        private set
     private var settingsOpen = false
     private var busy: String? = null
     private var error: String? = null
@@ -198,6 +204,8 @@ class LauncherActivity : Activity() {
     }
 
     private fun showScreen(version: String?, inGame: Boolean) {
+        // Settings stays up while the driver list it turned on comes: its rows say how far along (fetching).
+        val loading = loading && !settingsOpen
         val screen = when {
             loading -> startScreen.view
             importingNow -> importing.view
@@ -302,16 +310,24 @@ class LauncherActivity : Activity() {
      * checked where it hasn't been, or the next in line where it can't play (Session.setUpDriver). Offline, the game's
      * start tries again.
      */
-    private fun fetchDrivers(then: () -> Unit) {
+    private fun fetchDrivers(onStep: (String, Float) -> Unit = { _, _ -> }, then: () -> Unit) {
         loading = true
-        startScreen.show(if (Drivers.downloads(this)) "Fetching the driver list" else finding(), 0f)
-        refresh()
+        val show = { text: String, done: Float ->
+            runOnUiThread {
+                startScreen.show(text, done)
+                fetching = text
+                onStep(text, done)
+                refresh()
+            }
+        }
+        show(if (Drivers.downloads(this)) "Fetching the driver list" else finding(), 0f)
         background("drivers", {
             Drivers.refreshCatalog(this)
-            step(finding(), 0.1f)
-            runCatching { if (!Session.inGame) Session.setUpDriver(this, ::step) }
+            show(finding(), 0.1f)
+            runCatching { if (!Session.inGame) Session.setUpDriver(this, show) }
         }) { result ->
             loading = false
+            fetching = null
             result.getOrThrow().onFailure { error = it.message }
             refresh()
             then()
@@ -371,9 +387,10 @@ class LauncherActivity : Activity() {
     }
 
     /** From the question, Settings or the Driver screen: the driver list and this GPU's driver, now. */
-    fun turnOnDriverDownloads(then: () -> Unit = {}) {
+    /** [onStep]: what it's doing and how far along, as it goes. */
+    fun turnOnDriverDownloads(onStep: (String, Float) -> Unit = { _, _ -> }, then: () -> Unit = {}) {
         settings.driverDownloads = Settings.ON
-        fetchDrivers(then)
+        fetchDrivers(onStep, then)
     }
 
     /**

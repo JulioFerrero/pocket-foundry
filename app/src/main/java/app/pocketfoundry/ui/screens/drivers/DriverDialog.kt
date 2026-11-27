@@ -235,9 +235,17 @@ class DriverDialog(private val launcher: LauncherActivity) {
         val text = withNote("Downloads are off", "More drivers from GitHub, outside F-Droid's checks", NOTE, 12,
             gap = "\n")
         add(label(launcher, text, 15f, Color.BLACK, 600), 0, WRAP, weight = 1f)
-        add(button(launcher, "Turn on", Tone.GREEN, Arrow.RIGHT, size = 15f) {
-            launcher.turnOnDriverDownloads { listDrivers() }
-        }, height = 38, start = 8)
+        lateinit var turnOn: View
+        turnOn = button(launcher, "Turn on", Tone.GREEN, Arrow.RIGHT, size = 15f) {
+            turnOn.isEnabled = false
+            downloading.show("Fetching the driver list", 0f)
+            downloading.view.shown = true
+            launcher.turnOnDriverDownloads({ text, done -> downloading.show(text, done) }) {
+                downloading.view.shown = false
+                listDrivers()
+            }
+        }
+        add(turnOn, height = 38, start = 8)
     }.apply {
         background = ButtonDrawable(launcher, Tone.GREY)
         pad(ROW_SIDE, ROW_PAD)
