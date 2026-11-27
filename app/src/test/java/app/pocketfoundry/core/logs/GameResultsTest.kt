@@ -11,8 +11,15 @@ class GameResultsTest {
                      Drivers.Outcome.values().map { Outcome.of(it).words })
     }
 
-    @Test fun `every game but one played sends its logs`() {
-        assertEquals(listOf(Outcome.PLAYED), Outcome.values().filter { !it.withLogs })
+    @Test fun `every game but one played, or one left at the menu, sends its logs`() {
+        assertEquals(listOf(Outcome.PLAYED, Outcome.NO_MAP), Outcome.values().filter { !it.withLogs })
+    }
+
+    @Test fun `a game played with nothing drawn says no map, the rest say what they were`() {
+        assertEquals(Outcome.NO_MAP, GameResults.outcome(Outcome.PLAYED, emptyList()))
+        assertEquals(Outcome.PLAYED, GameResults.outcome(Outcome.PLAYED, listOf(59.5f)))
+        assertEquals(Outcome.APP_CLOSED, GameResults.outcome(Outcome.APP_CLOSED, emptyList()))
+        assertEquals(Outcome.FAILED, GameResults.outcome(Outcome.FAILED, emptyList()))
     }
 
     @Test fun `the middle and the slowest tenth of the rates, rounded`() {

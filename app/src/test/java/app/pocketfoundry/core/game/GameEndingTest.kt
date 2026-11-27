@@ -2,7 +2,9 @@ package app.pocketfoundry.core.game
 
 import app.pocketfoundry.core.game.GameEnding.Failure
 import app.pocketfoundry.core.game.GameEnding.Stage
+import app.pocketfoundry.core.system.Settings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,6 +52,15 @@ class GameEndingTest {
             "Error: This is a headless executable, cannot start in graphical mode (use --start-server).\n"))
         assertNull(GameEnding.gameError("   0.000 Factorio 2.1.24\n   3.302 Goodbye\n"))
         assertTrue(GameEnding.gameError("   1.000 Error Util.cpp:81: " + "x".repeat(300))!!.endsWith("…"))
+    }
+
+    @Test fun `out of memory with High sprites lowers them, with Medium or for anything else the driver goes`() {
+        assertTrue(GameEnding.lowersSprites(Failure.OUT_OF_MEMORY, Settings.HIGH))
+        assertFalse(GameEnding.lowersSprites(Failure.OUT_OF_MEMORY, Settings.MEDIUM))
+        assertFalse(GameEnding.lowersSprites(Failure.LOST_GPU, Settings.HIGH))
+        assertFalse(GameEnding.lowersSprites(null, Settings.HIGH))
+        assertEquals("The phone ran out of memory loading sprites. The next game loads Medium sprites.",
+                     GameEnding.spritesLowered(Stage.SPRITES))
     }
 
     @Test fun `in a sentence`() {

@@ -43,12 +43,13 @@ object Session {
      * [exit] is Factorio's when it failed, null after a normal quit. [noWindow] says it never opened its window: the
      * graphics driver didn't start. [failure]: the driver failed it later, at [stage]. [closedBy]: the app went with
      * it, said in a sentence (LastRun). [gameError]: Factorio stopped by itself, for a mod or the headless build, in
-     * its words (GameEnding.gameError).
+     * its words (GameEnding.gameError). [spritesLowered]: Android killed it for memory with High sprites, and the next
+     * game loads Medium ones on the same driver (GameEnding.lowersSprites).
      */
     class Ending(val driver: String, val exit: Program.Exit?, val noWindow: Boolean,
                  val failure: GameEnding.Failure? = null, val stage: GameEnding.Stage? = null,
                  val closedBy: String? = null, private val closedForMemory: Boolean = false,
-                 val gameError: String? = null) {
+                 val gameError: String? = null, val spritesLowered: Boolean = false) {
         /** Android, or its low-memory killer, ended the game for memory. */
         val outOfMemory get() = closedForMemory || failure == GameEnding.Failure.OUT_OF_MEMORY
     }
@@ -432,27 +433,34 @@ object Session {
         val log = if (failed && !noWindow) runCatching { Paths(context).gameLog.readText() }.getOrDefault("") else ""
         val failure = if (failed && !noWindow) GameEnding.failure(game.deviceLost, exit.signal, log) else null
         val stage = failure?.let { GameEnding.stage(log) }
-        if (failure != null) ScreenLog.add("the driver ${failure.words}, ${stage?.words}: the next game passes it over")
+        val settings = Settings(context)
+        val spritesLowered = GameEnding.lowersSprites(failure, settings.spriteQuality)
+        if (spritesLowered) settings.spriteQuality = Settings.MEDIUM
+        if (spritesLowered) ScreenLog.add("the phone ran out of memory with High sprites, ${stage?.words}: " +
+                                          "the next game loads Medium sprites on the same driver")
+        else if (failure != null) ScreenLog.add("the driver ${failure.words}, ${stage?.words}: the next game passes it over")
         // Stopped by itself with an error of its own: a mod or the headless build, which no driver would change.
         val gameError = if (failed && !noWindow && failure == null) GameEnding.gameError(log) else null
-        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow, failure, stage, gameError = gameError)
+        lastGame = Ending(game.driver, exit.takeIf { failed }, noWindow, failure, stage, gameError = gameError,
+                          spritesLowered = spritesLowered)
         val outcome = when {
             game.testing -> null
             noWindow -> Drivers.Outcome.DIDNT_START
+            spritesLowered -> Drivers.Outcome.STOPPED
             failure != null -> Drivers.Outcome.FAILED
             failed -> Drivers.Outcome.STOPPED
             game.windowOpened -> Drivers.Outcome.RAN
             else -> null   // quit while loading
         }
         outcome?.let { Drivers.record(context, game.driver, it) }
-        if (outcome == Drivers.Outcome.RAN) Settings(context).played = true
+        if (outcome == Drivers.Outcome.RAN) settings.played = true
         // Quit before Factorio was ready: after a long wait, a load that may have been stuck (#93).
         val quitLoading = if (!quit || noWindow || game.testing) null
             else GameEnding.quitLoading(GameEnding.stage(Paths(context).gameLog),
                                         (SystemClock.elapsedRealtime() - game.startedAt) / 1000)
         val result = if (quitLoading != null) GameResults.Outcome.QUIT_LOADING else outcome?.let(GameResults.Outcome::of)
         if (result != null) {
-            val words = quitLoading ?: failure?.let {
+            val words = quitLoading ?: GameEnding.spritesLowered(stage).takeIf { spritesLowered } ?: failure?.let {
                 GameEnding.sentence(Drivers.find(context, game.driver)?.name ?: game.driver, it, stage)
             } ?: gameError
             GameResults.finish(context, Paths(context), game.driver, result, words)

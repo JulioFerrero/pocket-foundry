@@ -19,7 +19,8 @@ phones need nothing from you. **Settings -> Driver** shows the one in use and le
 | GPUs without Vulkan 1.1 (Adreno 5xx and older) | Phone's OpenGL ES |
 
 If the first one can't play, the app moves on by itself: the next one for your GPU, then Phone's Vulkan, then
-Phone's OpenGL ES (the other way round on the Malis above that get it first), then the CPU.
+Phone's OpenGL ES (the other way round on the Malis above that get it first), then the CPU. A game Android closes
+for memory with High sprites isn't the driver's fault: the next one loads Medium sprites on the same driver.
 
 Where it comes down to Phone's Vulkan and Phone's OpenGL ES, the first start times both, in about 15 seconds, and
 the one that drew faster plays.

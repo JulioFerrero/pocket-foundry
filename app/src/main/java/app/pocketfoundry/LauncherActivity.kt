@@ -480,7 +480,8 @@ class LauncherActivity : Activity() {
      */
     private fun warnShortOfMemory(save: File?, then: () -> Unit): Boolean {
         val check = MemoryNeed.check(this, save)
-        val closedLastTime = Session.lastGame?.outOfMemory == true
+        // Not where the app already lowered the sprites for it: the check counts the new ones.
+        val closedLastTime = Session.lastGame?.let { it.outOfMemory && !it.spritesLowered } == true
         val always = DebugEnv.read(this, "app")["memory_warning"] == "always"
         if (!check.short && !closedLastTime && !always) return false
         val start = button(this, "Start anyway") {

@@ -134,6 +134,7 @@ class HomeScreen(private val launcher: LauncherActivity) {
             val exit = it.exit ?: return@let it.closedBy
             when {
                 it.noWindow -> driverDidntStart(it.driver)
+                it.spritesLowered -> GameEnding.spritesLowered(it.stage)
                 it.failure != null -> driverFailed(it)
                 else -> it.gameError ?: "Factorio stopped unexpectedly (${exit.status}). See Logs."
             }

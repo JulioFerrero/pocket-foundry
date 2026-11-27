@@ -1,5 +1,6 @@
 package app.pocketfoundry.core.game
 
+import app.pocketfoundry.core.system.Settings
 import java.io.File
 
 /**
@@ -38,6 +39,19 @@ object GameEnding {
         val error = ERROR.findAll(log).lastOrNull()?.groupValues?.get(1)?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         return "Factorio stopped: ${if (error.length > ERROR_LENGTH) error.take(ERROR_LENGTH) + "…" else error}"
     }
+
+    /**
+     * Android killed the game for memory while it had High sprites: the sprites' doing more than the driver's, so the
+     * next game loads Medium ones on the same driver instead of passing it over. A Xiaomi 15 lost Turnip that way after
+     * 136 minutes at 60 FPS on it, for one load with 593 MB free, and played the same sprites on Phone's OpenGL ES.
+     * With Medium already, the driver is passed over as for any failure.
+     */
+    fun lowersSprites(failure: Failure?, sprites: String) = failure == Failure.OUT_OF_MEMORY && sprites == Settings.HIGH
+
+    /** "The phone ran out of memory loading sprites. The next game loads Medium sprites." */
+    fun spritesLowered(stage: Stage?) =
+        listOfNotNull("The phone ran out of memory", stage?.words).joinToString(" ") +
+            ". The next game loads Medium sprites."
 
     /** "PanVK-kbase lost the GPU loading textures." */
     fun sentence(driverName: String, failure: Failure, stage: Stage?) =

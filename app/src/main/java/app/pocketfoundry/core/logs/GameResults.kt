@@ -30,13 +30,15 @@ object GameResults {
     /** How a game ended, for Acrarium to group by: the words stay as they are, or its groups split. */
     enum class Outcome(val words: String) {
         PLAYED("played"), STOPPED("stopped"), DIDNT_START("didn't start"), FAILED("failed"),
+        /** Played, but no map drew long enough to measure: the player left from Factorio's menu, or loading a save. */
+        NO_MAP("no map"),
         /** The player quit after a long wait for the game to be ready (GameEnding.quitLoading). */
         QUIT_LOADING("quit while loading"),
         /** Android closed the app, and the game went with it: sent at the app's next start (LastRun). */
         APP_CLOSED("app closed");
 
         /** Anything but a game played comes with the logs that say why. */
-        val withLogs get() = this != PLAYED
+        val withLogs get() = this != PLAYED && this != NO_MAP
 
         companion object {
             fun of(outcome: Drivers.Outcome) = when (outcome) {
@@ -135,8 +137,16 @@ object GameResults {
         }.onFailure { Log.w(TAG, "Kept game results not sent", it) }
     }
 
-    private fun send(context: Context, driverId: String, outcome: Outcome, ending: String?, drawn: List<Float>,
+    /**
+     * [outcome], unless it says played with nothing [drawn]: a game left in Factorio's menu, which said "played" with 0
+     * FPS (23 of the first 92 played), as often right after a real game as not.
+     */
+    internal fun outcome(outcome: Outcome, drawn: List<Float>) =
+        if (outcome == Outcome.PLAYED && drawn.isEmpty()) Outcome.NO_MAP else outcome
+
+    private fun send(context: Context, driverId: String, played: Outcome, ending: String?, drawn: List<Float>,
                      log: String, logs: String?) {
+        val outcome = outcome(played, drawn)
         val settings = Settings(context)
         val driver = Drivers.find(context, driverId)
         val name = driver?.name ?: driverId
