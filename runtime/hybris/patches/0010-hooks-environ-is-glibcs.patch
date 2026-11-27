@@ -1,0 +1,13 @@
+--- a/hybris/common/hooks.c
++++ b/hybris/common/hooks.c
+@@ -1680,6 +1680,10 @@
+     HOOK_INDIRECT(__set_errno),
+     HOOK_TO(__set_errno_internal, _hybris_hook___set_errno),
+     HOOK_TO(__progname, &program_invocation_name),
++    /* Pocket Foundry: Android libraries that walk environ themselves, as a getenv of their own, read bionic's, which
++     * libhybris never fills: NULL, and Samsung's Xclipse Vulkan driver crashed on it (Phone's Vulkan's check, and ANGLE
++     * under Phone's OpenGL ES, on a Galaxy S24). They get glibc's, the process's environment. */
++    HOOK_TO(environ, &environ),
+     /* net specifics, to avoid __res_get_state */
+     HOOK_INDIRECT(getaddrinfo),
+     HOOK_INDIRECT(freeaddrinfo),
