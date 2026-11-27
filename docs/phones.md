@@ -80,6 +80,8 @@ From players' reports, the game results players share, and tests on the vivo and
 | vivo X200 Ultra | Adreno 830 | Turnip | 60 |
 | Galaxy S25 Ultra | Adreno 830 | Turnip | [60](https://github.com/JulioFerrero/pocket-foundry/issues/69) |
 | iQOO Neo11 | Adreno 830 | Turnip | 60, High sprites |
+| Galaxy S25 | Adreno 830 | Turnip | 60 |
+| Xiaomi 15 | Adreno 830 | Turnip | 60, High sprites |
 | OnePlus 15 | Adreno 840 | Turnip | |
 | REDMAGIC 12 Pro | Adreno 850 | Turnip | 60 at 1553×702, High sprites |
 | Galaxy Z Fold (SM-F971U1) | Adreno 840 | Turnip | 60 |
@@ -89,12 +91,14 @@ From players' reports, the game results players share, and tests on the vivo and
 | Xiaomi 13 | Adreno 740 | Turnip | |
 | AYN Thor | Adreno 740 | Turnip | 60 on a big factory |
 | POCO F5 Pro | Adreno 730 | Turnip | [60](https://github.com/JulioFerrero/pocket-foundry/issues/20) |
+| POCO F5 | Adreno 725 | Turnip | 60, High sprites |
 | iQOO Z10 5G | Adreno 810 | Turnip | 55–58 |
 | POCO X6 | Adreno 710 | Turnip | 30, its 30 FPS setting |
 | Galaxy Z Fold 8 Ultra | Adreno | Turnip | Folded and unfolded |
 | Retroid Pocket Flip 2 | Adreno 650 | Turnip | |
 | Galaxy S20 FE | Adreno 650 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/12) |
 | POCO F3 | Adreno 650 | Turnip | [30–60, High sprites](https://github.com/JulioFerrero/pocket-foundry/issues/92) |
+| Xiaomi Pad 6 | Adreno 650 | Turnip | 60 |
 | realme GT Master Edition | Adreno 642L | Turnip | [15–60, crDroid ROM](https://github.com/JulioFerrero/pocket-foundry/issues/81) |
 | Redmi Note 10 Pro | Adreno 618 | Turnip | [Plays](https://github.com/JulioFerrero/pocket-foundry/issues/17) |
 | Redmi Note 12 Pro 4G | Adreno 618 | Turnip | 58–60 |
@@ -112,6 +116,7 @@ From players' reports, the game results players share, and tests on the vivo and
 | Tecno Camon 50 Ultra | Mali-G615 | Phone's OpenGL ES | [60](https://github.com/JulioFerrero/pocket-foundry/issues/76) |
 | Tecno Pova 7 Ultra 5G | Mali-G615 | Phone's OpenGL ES | [60, Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/77) |
 | realme P4 5G | Mali-G615 | Phone's OpenGL ES | 58–59 |
+| Infinix GT 30 Pro | Mali-G615 | Phone's OpenGL ES | 57 |
 | Xiaomi 11T | Mali-G77 | PanVK-kbase RC3 | [60, High sprites](https://github.com/JulioFerrero/pocket-foundry/issues/55) |
 | Galaxy S20 | Mali-G77 | PanVK-kbase RC3 | 37–45 |
 | Pixel 6 | Mali-G78 | PanVK-kbase RC3 | [Medium sprites](https://github.com/JulioFerrero/pocket-foundry/issues/11) |
